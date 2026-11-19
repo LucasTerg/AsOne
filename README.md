@@ -19,7 +19,7 @@ z limitami pilnowanymi przy każdym zapisie.
 1. Przeciągnij zdjęcia (albo folder) na okno → **Lista plików** (miniatury).
 2. Kliknij miniaturę → zdjęcie otwiera się w osobnej zakładce `#1`, `#2`, … (ponowny klik zamyka
    zakładkę). „Odznacz” zamyka wszystkie zakładki, „Wyczyść listę” usuwa zdjęcia z listy.
-3. Wklej nazwę paczki (przycisk „Wklej”), np. `123-marka model` → `123-marka-model-1.jpg`, `-2.jpg`, …
+3. Wklej nazwę (przycisk „Wklej”), np. `123-marka model` → `123-marka-model-1.jpg`, `-2.jpg`, …
    („Start nr” zmienia pierwszy numer).
 4. Przeciągnij miniatury na liście albo zakładki, żeby zmienić kolejność – numeracja przelicza się od razu.
 5. Kadruj (C), dodaj marginesy, białe tło, „Dopasuj do kwadratu 1:1”, usuń tło gumką (E) lub prostokątem (M).
@@ -29,10 +29,15 @@ Domyślny folder zapisu to `web/` obok zdjęć (zmiana: przycisk „Folder” w 
 Oryginały nigdy nie są modyfikowane ani nadpisywane.
 
 **Ustawienia › Preferencje** (jak w PhotoCrafcie): *Interfejs* (16 motywów, w tym Sepia, kolor
-płótna, skala interfejsu − / +, systemowy pasek tytułu, „Ukryj”), *Eksport i limity* (maks. 3000 ×
+płótna, skala interfejsu − / +, zakładki zdjęć na górze lub na dole, na zakładce pełna nazwa albo
+tylko numer `#1`, systemowy pasek tytułu, „Ukryj”), *Eksport i limity* (maks. 3000 ×
 3600 px i 3 MB, pilnowane przy każdym zapisie – najpierw spada jakość, potem wymiary),
 *Usuwanie tła (AI)*. **Ustawienia › Ukryj** chowa: Edytuj w GIMP, Usuń z dysku, Inspekcja tła,
 Maska aktywna (ta i tak pokazuje się tylko dla PNG z przezroczystością albo po edycji maski).
+
+**Edycja › Cofnij / Ponów** (też przyciski na pasku narzędzi): osobna historia każdego zdjęcia –
+kadr, marginesy, tło, gumka, wycinanie prostokątem, usunięcie tła AI. Jeden krok = jedna czynność
+(np. całe pociągnięcie gumką); z maski zapamiętywany jest tylko zmieniony fragment.
 
 Z Asystenta PIM: Kadruj (auto), Ramka / Paski 5 px, Min. 500 px, Inspekcja tła (`I`), Start nr,
 menu kontekstowe listy (otwórz plik/folder, GIMP, ZIP, PDF, wczytaj ponownie, usuń z dysku do
@@ -51,8 +56,9 @@ kosza lub trwale, usuń z listy / wszystkie z listy).
 | `Delete` / `Shift+Delete` / `Esc` | wytnij / przywróć zaznaczenie, odznacz |
 | `Enter` lub dwuklik | zatwierdź kadr |
 | `I` | inspekcja tła |
+| `Ctrl+Z` / `Ctrl+Shift+Z` (`Ctrl+Y`) | Cofnij / Ponów |
 | `Ctrl++` / `Ctrl+−` | skala interfejsu |
-| `Alt+P/U/W/M`, `F10`, `←` `→`, `Esc` | menu Plik / Ustawienia / Widok / Pomoc |
+| `Alt+P/E/U/W/M`, `F10`, `←` `→`, `Esc` | menu Plik / Edycja / Ustawienia / Widok / Pomoc |
 | `Ctrl+S` / `Ctrl+O` / `Ctrl+Q` | Zapisz z zakładek / Dodaj zdjęcia / Zakończ |
 
 ## Budowanie
@@ -149,15 +155,20 @@ Lokalnie, przez ONNX Runtime (`ort`, wkompilowany statycznie) – zdjęcia nie s
 Ustawienia › Preferencje › **Usuwanie tła (AI)**: wybór modelu, ścieżka pliku („Wybierz…”),
 „Pobierz model” z paskiem postępu.
 
-| Model | Plik | Dostęp |
-|---|---|---|
-| BRIA RMBG-1.4 | [model.onnx](https://huggingface.co/briaai/RMBG-1.4/resolve/main/onnx/model.onnx) (~176 MB) | publiczny |
-| BRIA RMBG-2.0 | [model.onnx](https://huggingface.co/briaai/RMBG-2.0/resolve/main/onnx/model.onnx) (~1 GB) | token Hugging Face (darmowy po rejestracji, <https://huggingface.co/settings/tokens>) + akceptacja licencji na stronie modelu |
+| Model | Plik | Dostęp | RAM (szczyt) · czas na CPU |
+|---|---|---|---|
+| BRIA RMBG-1.4 | [model.onnx](https://huggingface.co/briaai/RMBG-1.4/resolve/main/onnx/model.onnx) (~176 MB) | publiczny | ~1 GB · ~1 s |
+| BRIA RMBG-2.0 | [model.onnx](https://huggingface.co/briaai/RMBG-2.0/resolve/main/onnx/model.onnx) (~1 GB) | token Hugging Face (darmowy po rejestracji, <https://huggingface.co/settings/tokens>) + akceptacja licencji na stronie modelu | **~7,6 GB** · 15–20 s |
+
+RMBG-2.0 (BiRefNet) jest bardzo pamięciożerny: przed każdym przebiegiem program sprawdza wolną
+pamięć (RAM + swap) i zamiast dać się zabić systemowi (OOM) pokazuje komunikat z propozycją
+RMBG-1.4. Model jest zwalniany z pamięci po 2 minutach bezczynności.
 
 Domyślne miejsce: `~/.local/share/asone/models/`. Modele BRIA są darmowe do użytku
 niekomercyjnego. AI działa w wersjach desktopowych (Linux, Windows, macOS); w przeglądarce,
 na Androidzie i FreeBSD przycisk zgłasza, że funkcja jest niedostępna.
-Test na prawdziwym modelu: `cargo test -p asone rmbg14 -- --ignored`.
+Test na prawdziwym modelu: `cargo test -p asone rmbg14 -- --ignored`; pomiar pamięci:
+`ASONE_RMBG_MODEL=…/rmbg-2.0.onnx ASONE_RMBG_KIND=20 cargo test -p asone --release rmbg_pamiec -- --ignored --nocapture`.
 
 ## Ograniczenia
 

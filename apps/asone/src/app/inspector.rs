@@ -54,7 +54,7 @@ impl AsOneApp {
             let Some(doc) = self.docs.get_mut(&id) else { return };
             ui.label(RichText::new(&doc.file_name).strong().size(14.0));
             if let Some((n, name)) = numbering.get(&id) {
-                ui.colored_label(pal.accent, format!("#{n} » {}", name.as_deref().unwrap_or("(wklej nazwę paczki)")));
+                ui.colored_label(pal.accent, format!("#{n} » {}", name.as_deref().unwrap_or("(wklej nazwę)")));
             }
             let Some(src) = doc.src_size() else {
                 match &doc.load {
@@ -145,6 +145,7 @@ impl AsOneApp {
             if show_mask || !hide_inspection {
                 ui.horizontal(|ui| {
                     if show_mask && ui.button("Resetuj maskę").clicked() {
+                        doc.begin_mask_change();
                         doc.mask_cpu.fill(255);
                         doc.mask_dirty = Some(PxRect { x0: 0, y0: 0, x1: src[0], y1: src[1] });
                         doc.edits.use_bg_removal = false;
@@ -279,6 +280,7 @@ impl AsOneApp {
                             ui.horizontal(|ui| {
                                 for (label, value) in [("Wytnij (Delete)", 0u8), ("Przywróć", 255u8)] {
                                     if ui.button(label).clicked() {
+                                        doc.begin_mask_change();
                                         let dirty = fill_rect(&mut doc.mask_cpu, src, sel, value);
                                         doc.mask_dirty = union_opt(doc.mask_dirty, dirty);
                                         doc.edits.use_bg_removal = true;

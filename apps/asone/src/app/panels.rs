@@ -6,6 +6,33 @@ use asone_core::naming::slugify;
 use egui::{Align2, Color32, CornerRadius, RichText, Ui, vec2};
 
 use super::{AboutTab, AsOneApp, ReportEntry};
+
+/// Statystyki z `git log` (generuje `build.rs`).
+mod git_stats {
+    pub struct ModelStat {
+        pub company: &'static str,
+        pub model: &'static str,
+        pub commits: u32,
+        pub added: u64,
+        pub removed: u64,
+        pub first: &'static str,
+        pub last: &'static str,
+    }
+    include!(concat!(env!("OUT_DIR"), "/git_stats.rs"));
+}
+
+/// 12345 → „12 345”.
+fn group(n: u64) -> String {
+    let s = n.to_string();
+    let mut out = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
+            out.push('\u{a0}');
+        }
+        out.push(c);
+    }
+    out
+}
 use crate::canvas::Tool;
 use crate::document::DocId;
 use crate::platform;
@@ -157,6 +184,23 @@ impl AsOneApp {
                     let hint = format!("{} ({})", tool.label(), tool.key().name());
                     if ui.add(button).on_hover_text(hint).clicked() {
                         self.tool = tool;
+                    }
+                }
+                ui.add_space(6.0);
+                ui.separator();
+                ui.add_space(6.0);
+                let history = self.active_doc.and_then(|id| self.docs.get(&id)).map(|d| &d.history);
+                let (can_undo, can_redo) = (history.is_some_and(|h| h.can_undo()), history.is_some_and(|h| h.can_redo()));
+                for (redo, icon, enabled, hint) in [
+                    (false, egui::include_image!("../../assets/icons/undo.svg"), can_undo, "Cofnij (Ctrl+Z)"),
+                    (true, egui::include_image!("../../assets/icons/redo.svg"), can_redo, "Ponów (Ctrl+Shift+Z)"),
+                ] {
+                    let image = egui::Image::new(icon).fit_to_exact_size(vec2(20.0, 20.0)).tint(pal.icon);
+                    let button = egui::Button::image(image).min_size(vec2(34.0, 34.0)).corner_radius(CornerRadius::same(pal.radius));
+                    if ui.add_enabled(enabled, button).on_hover_text(hint).clicked()
+                        && let Some(doc) = self.active_doc.and_then(|id| self.docs.get_mut(&id))
+                    {
+                        doc.step_history(redo);
                     }
                 }
             });
@@ -438,41 +482,37 @@ impl AsOneApp {
                                 });
                             }
                             AboutTab::Models => {
+                                use git_stats::{MODEL_STATS, STATS_HEAD, TOTAL_COMMITS};
                                 ui.heading("Modele AI");
                                 ui.add_space(4.0);
-                                ui.colored_label(pal.text_dim, "Wsparcie modeli sztucznej inteligencji przy tworzeniu kodu aplikacji:");
+                                ui.colored_label(pal.text_dim, "Udział modeli AI w kodzie – wyliczone z git log przy budowaniu programu:");
                                 ui.add_space(8.0);
-                                egui::ScrollArea::horizontal().show(ui, |ui| {
-                                    egui::Grid::new("about_models")
-                                        .striped(true)
-                                        .num_columns(6)
-                                        .spacing(vec2(16.0, 8.0))
-                                        .show(ui, |ui| {
-                                            ui.label(RichText::new("Firma").strong());
-                                            ui.label(RichText::new("Model").strong());
-                                            ui.label(RichText::new("Wersja").strong());
-                                            ui.label(RichText::new("Commity").strong());
-                                            ui.label(RichText::new("% wszystkich commitów").strong());
-                                            ui.label(RichText::new("Wiersze +/−").strong());
+                                if MODEL_STATS.is_empty() {
+                                    ui.colored_label(pal.warning, "Brak danych (program zbudowany bez repozytorium git).");
+                                } else {
+                                    egui::ScrollArea::horizontal().show(ui, |ui| {
+                                        egui::Grid::new("about_models").striped(true).num_columns(6).spacing(vec2(16.0, 8.0)).show(ui, |ui| {
+                                            for h in ["Firma", "Model", "Commity", "% commitów", "Wiersze +/−", "Okres"] {
+                                                ui.label(RichText::new(h).strong());
+                                            }
                                             ui.end_row();
-
-                                            ui.label("Google DeepMind");
-                                            ui.label("Antigravity (Gemini 2.5 Pro)");
-                                            ui.label("2026-11");
-                                            ui.label("28");
-                                            ui.label("58%");
-                                            ui.colored_label(pal.ok(), "+3 850 / −410");
-                                            ui.end_row();
-
-                                            ui.label("Anthropic");
-                                            ui.label("Claude 3.5 Sonnet");
-                                            ui.label("2024-10");
-                                            ui.label("20");
-                                            ui.label("42%");
-                                            ui.colored_label(pal.ok(), "+2 420 / −260");
-                                            ui.end_row();
+                                            for m in MODEL_STATS {
+                                                ui.label(m.company);
+                                                ui.label(m.model);
+                                                ui.label(m.commits.to_string());
+                                                ui.label(format!("{:.0} %", 100.0 * m.commits as f64 / TOTAL_COMMITS.max(1) as f64));
+                                                ui.colored_label(pal.ok(), format!("+{} / −{}", group(m.added), group(m.removed)));
+                                                ui.label(if m.first == m.last { m.first.to_string() } else { format!("{} – {}", m.first, m.last) });
+                                                ui.end_row();
+                                            }
                                         });
-                                });
+                                    });
+                                    ui.add_space(8.0);
+                                    ui.small(format!(
+                                        "Wszystkich commitów: {TOTAL_COMMITS} · ostatni: {STATS_HEAD}. Model = stopka „Co-Authored-By” commita; \
+                                         wiersze bez vendor/ i Cargo.lock."
+                                    ));
+                                }
                             }
                         }
                     });

@@ -172,7 +172,9 @@ impl egui_dock::TabViewer for Viewer<'_> {
             AppTab::FileList => "Lista plików".into(),
             AppTab::Photo(id) => {
                 let name = self.docs.get(id).map(|d| d.file_name.as_str()).unwrap_or("?");
+                let number_only = self.settings.tab_title == crate::settings::TabTitle::NumberOnly;
                 match self.numbering.get(id) {
+                    Some((n, _)) if number_only => format!("#{n}").into(),
                     Some((n, Some(out))) => format!("#{n} · {out}").into(),
                     Some((n, None)) => format!("#{n} · {name}").into(),
                     None => name.into(),
@@ -200,7 +202,11 @@ impl egui_dock::TabViewer for Viewer<'_> {
             && let Some(doc) = self.docs.get(id)
         {
             let where_from = doc.source.path().map(|p| p.display().to_string()).unwrap_or_else(|| doc.file_name.clone());
-            response.clone().on_hover_text(format!("Oryginał: {where_from}"));
+            let text = match self.numbering.get(id) {
+                Some((n, out)) => format!("#{n} · {}\nOryginał: {where_from}", out.as_deref().unwrap_or(&doc.file_name)),
+                None => format!("Oryginał: {where_from}"),
+            };
+            response.clone().on_hover_text(text);
         }
     }
 
@@ -214,6 +220,11 @@ impl egui_dock::TabViewer for Viewer<'_> {
 
     fn scroll_bars(&self, _tab: &AppTab) -> [bool; 2] {
         [false, false]
+    }
+
+    /// Ustawienie „Zakładki zdjęć: na dole” – dotyczy liści ze zdjęciami (lista plików zostaje u góry).
+    fn tab_bar_at_bottom(&self, tabs: &[AppTab]) -> bool {
+        self.settings.photo_tabs_bottom && tabs.iter().any(|t| matches!(t, AppTab::Photo(_)))
     }
 }
 

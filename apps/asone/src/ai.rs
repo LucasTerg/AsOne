@@ -27,6 +27,8 @@ pub enum AiError {
     ModelMissing(PathBuf),
     BackendUnavailable(String),
     Inference(String),
+    /// Za mało wolnej pamięci (RAM + swap) na przebieg modelu – w GB.
+    NotEnoughMemory { model: AiModel, need_gb: f32, free_gb: f32 },
 }
 
 impl std::fmt::Display for AiError {
@@ -39,6 +41,12 @@ impl std::fmt::Display for AiError {
             ),
             AiError::BackendUnavailable(s) => write!(f, "Usuwanie tła AI niedostępne: {s}"),
             AiError::Inference(s) => write!(f, "Błąd modelu: {s}"),
+            AiError::NotEnoughMemory { model, need_gb, free_gb } => write!(
+                f,
+                "Za mało wolnej pamięci dla {}: potrzeba ok. {need_gb:.1} GB, wolne {free_gb:.1} GB (RAM + swap). \
+                 Zamknij inne programy albo wybierz RMBG-1.4 (ok. 1 GB).",
+                model.label()
+            ),
         }
     }
 }
@@ -47,6 +55,62 @@ impl std::fmt::Display for AiError {
 pub trait BackgroundRemover: Send + Sync {
     /// Maska 1024×1024 dla obrazu rozciągniętego do 1024×1024: 0 = tło, 255 = obiekt.
     fn predict_mask(&self, model: AiModel, path: &Path, image: &RgbaImage) -> Result<GrayImage, AiError>;
+
+    /// Zwalnia wczytany model (wywoływane po dłuższej bezczynności).
+    fn release(&self) {}
+}
+
+/// Zmierzony szczyt pamięci RAM jednego przebiegu na CPU (ONNX Runtime bez areny, 1024×1024):
+/// (wagi modelu w pamięci, obliczenia) w GB. RMBG-2.0 (BiRefNet) jest bardzo pamięciożerny.
+pub fn memory_need_gb(model: AiModel) -> (f32, f32) {
+    match model {
+        AiModel::Rmbg14 => (0.5, 0.5),
+        AiModel::Rmbg20 => (1.7, 6.0),
+    }
+}
+
+/// Wolna pamięć w bajtach: `MemAvailable + SwapFree` (Linux); `None`, gdy nie wiadomo.
+pub fn free_memory_bytes() -> Option<u64> {
+    #[cfg(target_os = "linux")]
+    {
+        let info = std::fs::read_to_string("/proc/meminfo").ok()?;
+        let kb = |key: &str| -> Option<u64> {
+            info.lines().find(|l| l.starts_with(key))?.split_whitespace().nth(1)?.parse().ok()
+        };
+        Some((kb("MemAvailable:")? + kb("SwapFree:").unwrap_or(0)) * 1024)
+    }
+    #[cfg(not(target_os = "linux"))]
+    None
+}
+
+/// Przed przebiegiem: czy starczy pamięci (z zapasem 1 GB), żeby system nie zabił programu.
+fn check_memory(model: AiModel, loaded: bool) -> Result<(), AiError> {
+    let (weights, run) = memory_need_gb(model);
+    let need_gb = run + if loaded { 0.0 } else { weights };
+    if need_gb < 2.0 {
+        return Ok(());
+    }
+    match free_memory_bytes() {
+        Some(free) => {
+            let free_gb = free as f32 / (1u64 << 30) as f32;
+            if free_gb < need_gb + 1.0 { Err(AiError::NotEnoughMemory { model, need_gb, free_gb }) } else { Ok(()) }
+        }
+        None => Ok(()),
+    }
+}
+
+/// Oddaje systemowi zwolnioną pamięć sterty (glibc trzyma ją po zwolnieniu dużych buforów).
+fn trim_heap() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        unsafe extern "C" {
+            fn malloc_trim(pad: usize) -> i32;
+        }
+        // SAFETY: malloc_trim tylko zwalnia nieużywane strony sterty glibc.
+        unsafe {
+            malloc_trim(0);
+        }
+    }
 }
 
 pub const INPUT: u32 = 1024;
@@ -96,7 +160,20 @@ pub struct OnnxBackgroundRemover {
     session: std::sync::Mutex<Option<(PathBuf, ort::session::Session)>>,
 }
 
+impl OnnxBackgroundRemover {
+    /// Zwalnia sesję ONNX (wagi modelu i bufory) – kolejne użycie wczyta model od nowa.
+    pub fn release(&self) {
+        #[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+        drop(self.session.lock().unwrap_or_else(|e| e.into_inner()).take());
+        trim_heap();
+    }
+}
+
 impl BackgroundRemover for OnnxBackgroundRemover {
+    fn release(&self) {
+        OnnxBackgroundRemover::release(self);
+    }
+
     fn predict_mask(&self, model: AiModel, path: &Path, image: &RgbaImage) -> Result<GrayImage, AiError> {
         if !AVAILABLE {
             let _ = (model, image);
@@ -110,13 +187,28 @@ impl BackgroundRemover for OnnxBackgroundRemover {
             let input = preprocess(image, model).map_err(AiError::Inference)?;
             let err = |e: ort::Error| AiError::Inference(e.to_string());
             let mut guard = self.session.lock().unwrap_or_else(|e| e.into_inner());
-            if guard.as_ref().is_none_or(|(p, _)| p != path) {
+            let loaded = guard.as_ref().is_some_and(|(p, _)| p == path);
+            if !loaded && guard.take().is_some() {
+                // Inny model: zwolnij go przed wczytaniem nowego (nie trzymaj dwóch naraz).
+                trim_heap();
+            }
+            check_memory(model, loaded)?;
+            if !loaded {
                 let env = ort::init().with_name("asone").build().map_err(err)?;
                 let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
+                let e2 = |e: ort::Error<ort::session::builder::SessionBuilder>| AiError::Inference(e.to_string());
+                // Oszczędzanie pamięci: bez areny CPU (arena trzyma szczyt zużycia na zawsze),
+                // bez wzorca pamięci i bez kopii wag „prepacked”.
                 let session = ort::session::Session::builder(&env)
                     .map_err(err)?
                     .with_intra_threads(threads)
-                    .map_err(|e| AiError::Inference(e.to_string()))?
+                    .map_err(e2)?
+                    .with_execution_providers([ort::ep::CPU::default().with_arena_allocator(false).build()])
+                    .map_err(e2)?
+                    .with_memory_pattern(false)
+                    .map_err(e2)?
+                    .with_prepacking(false)
+                    .map_err(e2)?
                     .commit_from_file(path)
                     .map_err(err)?;
                 *guard = Some((path.to_path_buf(), session));
@@ -131,7 +223,10 @@ impl BackgroundRemover for OnnxBackgroundRemover {
                 .map_err(err)?;
             let outputs = session.run(ort::inputs![tensor]).map_err(err)?;
             let (_, raw) = outputs[output_name.as_str()].try_extract_tensor::<f32>().map_err(err)?;
-            Ok(postprocess(raw, model))
+            let mask = postprocess(raw, model);
+            drop(outputs);
+            trim_heap();
+            Ok(mask)
         }
         #[cfg(not(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos"))))]
         unreachable!()
@@ -159,16 +254,50 @@ pub struct AiWorker {
     tx: Sender<AiResult>,
     pub rx: Receiver<AiResult>,
     ctx: egui::Context,
+    /// Zadania wysłane, a jeszcze nieodebrane przez UI.
+    pending: usize,
+    /// Od kiedy nic nie liczymy (model zwalniany po [`IDLE_RELEASE`]).
+    idle_since: Option<std::time::Instant>,
+    loaded: bool,
 }
+
+/// Po takim czasie bezczynności model jest zwalniany z pamięci.
+pub const IDLE_RELEASE: std::time::Duration = std::time::Duration::from_secs(120);
 
 impl AiWorker {
     pub fn new(remover: Arc<dyn BackgroundRemover>, ctx: egui::Context) -> Self {
         let (tx, rx) = crossbeam_channel::unbounded();
         // Jeden wątek: model AI zajmuje dużo pamięci, zadania idą po kolei.
-        Self { tasks: Tasks::new("ai", 1), remover, tx, rx, ctx }
+        Self { tasks: Tasks::new("ai", 1), remover, tx, rx, ctx, pending: 0, idle_since: None, loaded: false }
     }
 
-    pub fn submit(&self, job: AiJob) {
+    /// Wynik odebrany przez UI (do liczenia bezczynności).
+    pub fn job_finished(&mut self) {
+        self.pending = self.pending.saturating_sub(1);
+    }
+
+    /// Wołane co klatkę: po [`IDLE_RELEASE`] bez zadań zwalnia model (RMBG-2.0 trzyma ok. 1,7 GB).
+    pub fn release_when_idle(&mut self) {
+        if !self.loaded || self.pending > 0 {
+            self.idle_since = None;
+            return;
+        }
+        let since = *self.idle_since.get_or_insert_with(std::time::Instant::now);
+        let idle = since.elapsed();
+        if idle >= IDLE_RELEASE {
+            let remover = self.remover.clone();
+            self.tasks.spawn(move || remover.release());
+            self.loaded = false;
+            self.idle_since = None;
+        } else {
+            self.ctx.request_repaint_after(IDLE_RELEASE - idle);
+        }
+    }
+
+    pub fn submit(&mut self, job: AiJob) {
+        self.pending += 1;
+        self.loaded = true;
+        self.idle_since = None;
         let (remover, tx, ctx) = (self.remover.clone(), self.tx.clone(), self.ctx.clone());
         self.tasks.spawn(move || {
             let result = match run_job(remover.as_ref(), &job) {
@@ -313,6 +442,32 @@ mod tests {
         // Korpus kubka (środek zdjęcia) = obiekt, rogi = tło.
         assert!(at(0.5, 0.5) > 200, "środek {}", at(0.5, 0.5));
         assert!(at(0.03, 0.03) < 40 && at(0.97, 0.97) < 40, "rogi {} {}", at(0.03, 0.03), at(0.97, 0.97));
+    }
+
+    /// Pomiar pamięci (na hoście): `ASONE_RMBG_MODEL=…/rmbg-2.0.onnx ASONE_RMBG_KIND=20 <test> --ignored rmbg_pamiec --nocapture`.
+    #[test]
+    #[ignore]
+    fn rmbg_pamiec() {
+        fn status(key: &str) -> String {
+            std::fs::read_to_string("/proc/self/status")
+                .unwrap_or_default()
+                .lines()
+                .find(|l| l.starts_with(key))
+                .unwrap_or("")
+                .to_string()
+        }
+        let path = PathBuf::from(std::env::var("ASONE_RMBG_MODEL").expect("ASONE_RMBG_MODEL"));
+        let model = if std::env::var("ASONE_RMBG_KIND").as_deref() == Ok("20") { AiModel::Rmbg20 } else { AiModel::Rmbg14 };
+        let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/sample/produkt-1.jpg");
+        let img = asone_core::imageio::decode_path(&sample).unwrap();
+        let remover = OnnxBackgroundRemover::default();
+        for i in 0..3 {
+            let t = std::time::Instant::now();
+            remover.predict_mask(model, &path, &img).unwrap();
+            eprintln!("{model:?} przebieg {i}: {:?} · {} · {}", t.elapsed(), status("VmRSS"), status("VmHWM"));
+        }
+        remover.release();
+        eprintln!("po zwolnieniu sesji: {}", status("VmRSS"));
     }
 
     #[test]

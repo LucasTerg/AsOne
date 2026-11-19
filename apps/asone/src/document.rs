@@ -86,6 +86,8 @@ pub struct Document {
     /// Pomniejszona kopia źródła (≤1024 px) jako wejście dla modelu AI.
     pub ai_proxy: Option<Arc<image::RgbaImage>>,
     pub canvas: CanvasState,
+    /// Cofnij / Ponów.
+    pub history: crate::history::History,
 }
 
 impl Document {
@@ -112,6 +114,46 @@ impl Document {
             ai: AiState::Idle,
             ai_proxy: None,
             canvas: CanvasState::default(),
+            history: crate::history::History::default(),
+        }
+    }
+
+    /// Wołać przed każdą zmianą `mask_cpu` (do Cofnij / Ponów).
+    pub fn begin_mask_change(&mut self) {
+        self.history.begin_mask_change(&self.mask_cpu);
+    }
+
+    /// Zatwierdza zmiany od ostatniego kroku historii (gdy nic nie jest przeciągane).
+    pub fn commit_history(&mut self) -> bool {
+        let width = self.src_size().map_or(0, |s| s[0]);
+        self.history.commit(&self.edits, self.mask_touched, &self.mask_cpu, width)
+    }
+
+    /// Nowa historia (po wczytaniu lub przeładowaniu pliku).
+    pub fn reset_history(&mut self) {
+        self.history = crate::history::History::default();
+        self.commit_history(); // stan bazowy
+    }
+
+    /// Cofnij (`redo = false`) lub Ponów (`redo = true`); `true`, gdy coś się zmieniło.
+    pub fn step_history(&mut self, redo: bool) -> bool {
+        self.commit_history();
+        let width = self.src_size().map_or(0, |s| s[0]);
+        let mut history = std::mem::take(&mut self.history);
+        let target = crate::history::Target {
+            edits: &mut self.edits,
+            mask_touched: &mut self.mask_touched,
+            mask: &mut self.mask_cpu,
+            width,
+        };
+        let result = if redo { history.redo(target) } else { history.undo(target) };
+        self.history = history;
+        match result {
+            Some(dirty) => {
+                self.mask_dirty = union_opt(self.mask_dirty, dirty);
+                true
+            }
+            None => false,
         }
     }
 

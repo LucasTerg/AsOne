@@ -10,6 +10,16 @@ pub const STORAGE_KEY: &str = "asone-settings";
 /// Dostępne skale interfejsu (%), przełączane przyciskami −/+ na pasku tytułu.
 pub const UI_SCALES: [u32; 9] = [75, 85, 100, 110, 125, 150, 175, 200, 250];
 
+/// Co pokazuje zakładka zdjęcia.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TabTitle {
+    /// `#3 · nazwa-pliku.jpg`
+    #[default]
+    Full,
+    /// Tylko numer kolejności: `#3` (pełna nazwa w podpowiedzi).
+    NumberOnly,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CanvasColor {
     /// Z motywu.
@@ -108,6 +118,10 @@ pub struct Settings {
     pub animations: bool,
     /// Systemowy pasek tytułu zamiast własnego (Linux/Windows).
     pub system_title_bar: bool,
+    /// Pasek zakładek zdjęć pod zdjęciem zamiast nad nim.
+    pub photo_tabs_bottom: bool,
+    /// Pełna nazwa na zakładce albo tylko numer `#n`.
+    pub tab_title: TabTitle,
 
     // --- Ustawienia › Ukryj ---
     pub hide_gimp: bool,
@@ -154,6 +168,8 @@ impl Default for Settings {
             show_tooltips: true,
             animations: true,
             system_title_bar: false,
+            photo_tabs_bottom: false,
+            tab_title: TabTitle::Full,
             hide_gimp: false,
             hide_delete_from_disk: false,
             hide_inspection: false,
@@ -302,6 +318,8 @@ impl Settings {
                 self.show_tooltips = d.show_tooltips;
                 self.animations = d.animations;
                 self.system_title_bar = d.system_title_bar;
+                self.photo_tabs_bottom = d.photo_tabs_bottom;
+                self.tab_title = d.tab_title;
                 self.hide_gimp = d.hide_gimp;
                 self.hide_delete_from_disk = d.hide_delete_from_disk;
                 self.hide_inspection = d.hide_inspection;

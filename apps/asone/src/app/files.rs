@@ -324,7 +324,7 @@ impl AsOneApp {
         } else if open.is_empty() {
             Some("Otwórz zdjęcia w zakładkach (kliknij miniaturę)")
         } else if slugify(&self.base_name).is_empty() {
-            Some("Wklej lub wpisz nazwę paczki")
+            Some("Wklej lub wpisz nazwę")
         } else if self.gpu.is_none() {
             Some("Brak GPU (wgpu)")
         } else if open.iter().any(|id| self.docs.get(id).is_none_or(|d| !d.is_ready())) {

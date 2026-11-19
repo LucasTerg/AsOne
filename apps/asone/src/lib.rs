@@ -9,6 +9,7 @@ pub mod app;
 pub mod canvas;
 pub mod document;
 pub mod export;
+pub mod history;
 pub mod loader;
 pub mod platform;
 pub mod prefs;

@@ -486,14 +486,13 @@ pub fn open_url(url: &str) {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let in_flatpak = Path::new("/.flatpak-info").exists();
-        if in_flatpak {
-            if std::process::Command::new("flatpak-spawn")
+        if in_flatpak
+            && std::process::Command::new("flatpak-spawn")
                 .args(["--host", "xdg-open", url])
                 .spawn()
                 .is_ok()
-            {
-                return;
-            }
+        {
+            return;
         }
         let program = if cfg!(target_os = "windows") {
             "explorer"

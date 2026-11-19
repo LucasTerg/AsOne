@@ -2,7 +2,7 @@
 
 use egui::{RichText, Ui, vec2};
 
-use crate::settings::{AiModel, CanvasColor, HideItem, PrefsSection, Settings, UI_SCALES};
+use crate::settings::{AiModel, CanvasColor, HideItem, PrefsSection, Settings, TabTitle, UI_SCALES};
 use crate::theme::{self, ThemeKind};
 
 #[derive(Default)]
@@ -53,67 +53,24 @@ impl PrefsDialog {
         }
         let mut open = true;
         let mut close = false;
+        // Stały rozmiar startowy; panele wypełniają dokładnie wnętrze okna, więc okno nie „rośnie”
+        // z klatki na klatkę (jak przy liczeniu wysokości z `available_height`).
+        let size = vec2(740.0, 520.0);
         egui::Window::new("Preferencje")
+            .id(egui::Id::new("asone_prefs"))
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
             .movable(true)
-            .default_size(vec2(760.0, 480.0))
-            .min_size(vec2(600.0, 380.0))
-            .default_pos(ctx.content_rect().center() - vec2(380.0, 240.0))
+            .constrain(true)
+            .default_size(size)
+            .min_size(vec2(580.0, 360.0))
+            .default_pos(ctx.content_rect().center() - size / 2.0)
             .show(ctx, |ui| {
                 let pal = theme::p();
-                ui.vertical(|ui| {
-                    // Obszar roboczy: lista sekcji po lewej, wycentrowana zawartość po prawej
-                    let content_height = ui.available_height() - 44.0;
-                    ui.allocate_ui_with_layout(
-                        vec2(ui.available_width(), content_height),
-                        egui::Layout::left_to_right(egui::Align::Min),
-                        |ui| {
-                            // Lewa kolumna: kategorie preferencji
-                            ui.vertical(|ui| {
-                                ui.set_width(170.0);
-                                ui.add_space(6.0);
-                                for (section, label) in [
-                                    (PrefsSection::Interface, "Interfejs"),
-                                    (PrefsSection::Export, "Eksport i limity"),
-                                    (PrefsSection::Ai, "Usuwanie tła (AI)"),
-                                ] {
-                                    if ui.add_sized(vec2(160.0, 26.0), egui::Button::selectable(self.section == section, label)).clicked() {
-                                        self.section = section;
-                                    }
-                                }
-                            });
-
-                            ui.separator();
-
-                            // Prawa kolumna: wycentrowana zawartość sekcji
-                            ui.vertical(|ui| {
-                                let avail = ui.available_width();
-                                let content_w = 460.0f32.min(avail - 32.0);
-                                let margin = ((avail - content_w) / 2.0).max(16.0);
-                                ui.horizontal(|ui| {
-                                    ui.add_space(margin);
-                                    ui.vertical(|ui| {
-                                        ui.set_width(content_w);
-                                        ui.add_space(6.0);
-                                        egui::ScrollArea::vertical()
-                                            .auto_shrink([false, false])
-                                            .show(ui, |ui| match self.section {
-                                                PrefsSection::Interface => interface_page(ui, &mut self.draft),
-                                                PrefsSection::Export => export_page(ui, &mut self.draft),
-                                                PrefsSection::Ai => ai_page(ui, &mut self.draft, download, &mut result),
-                                            });
-                                    });
-                                });
-                            });
-                        },
-                    );
-
-                    ui.separator();
-                    ui.add_space(4.0);
-
-                    // Dolny pasek akcji: Anuluj / Zastosuj / OK
+                // Dolny pasek akcji: Anuluj / Zastosuj / OK
+                egui::Panel::bottom("prefs_buttons").resizable(false).frame(egui::Frame::NONE).show(ui, |ui| {
+                    ui.add_space(6.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let ok = egui::Button::new(RichText::new("OK").color(pal.accent_text)).fill(pal.accent).min_size(vec2(84.0, 26.0));
                         if ui.add(ok).clicked() {
@@ -126,6 +83,37 @@ impl PrefsDialog {
                         if ui.add(egui::Button::new("Anuluj").min_size(vec2(84.0, 26.0))).clicked() {
                             close = true;
                         }
+                    });
+                });
+                // Lewa kolumna: kategorie preferencji
+                egui::Panel::left("prefs_sections").exact_size(176.0).resizable(false).frame(egui::Frame::NONE).show(ui, |ui| {
+                    ui.add_space(4.0);
+                    for (section, label) in [
+                        (PrefsSection::Interface, "Interfejs"),
+                        (PrefsSection::Export, "Eksport i limity"),
+                        (PrefsSection::Ai, "Usuwanie tła (AI)"),
+                    ] {
+                        if ui.add_sized(vec2(164.0, 26.0), egui::Button::selectable(self.section == section, label)).clicked() {
+                            self.section = section;
+                        }
+                    }
+                });
+                // Prawa część: zawartość sekcji w wyśrodkowanej kolumnie (maks. 500 px)
+                egui::CentralPanel::no_frame().show(ui, |ui| {
+                    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                        let avail = ui.available_width();
+                        let column = avail.min(500.0);
+                        let left = ui.cursor().min.x + ((avail - column) / 2.0).max(0.0);
+                        let rect = egui::Rect::from_min_size(egui::pos2(left, ui.cursor().min.y), vec2(column, f32::INFINITY));
+                        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                            ui.set_width(column);
+                            ui.add_space(4.0);
+                            match self.section {
+                                PrefsSection::Interface => interface_page(ui, &mut self.draft),
+                                PrefsSection::Export => export_page(ui, &mut self.draft),
+                                PrefsSection::Ai => ai_page(ui, &mut self.draft, download, &mut result),
+                            }
+                        });
                     });
                 });
             });
@@ -182,6 +170,18 @@ fn interface_page(ui: &mut Ui, s: &mut Settings) {
                         ui.selectable_value(&mut s.ui_scale, v, format!("{v} %"));
                     }
                 });
+        });
+        row(ui, "Zakładki zdjęć", |ui| {
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut s.photo_tabs_bottom, false, "Na górze");
+                ui.radio_value(&mut s.photo_tabs_bottom, true, "Na dole");
+            });
+        });
+        row(ui, "Na zakładce", |ui| {
+            ui.vertical(|ui| {
+                ui.radio_value(&mut s.tab_title, TabTitle::Full, "Pokazuj pełną nazwę (#1 · nazwa)");
+                ui.radio_value(&mut s.tab_title, TabTitle::NumberOnly, "Pokazuj tylko numer kolejności (#1)");
+            });
         });
         row(ui, "", |ui| {
             ui.checkbox(&mut s.show_tooltips, "Pokaż podpowiedzi");
@@ -278,6 +278,22 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                         }
                     });
                 ui.hyperlink_to("strona modelu", s.ai_model.page_url());
+            });
+        });
+        row(ui, "Wymagania", |ui| {
+            let (weights, run) = crate::ai::memory_need_gb(s.ai_model);
+            let (text, color) = match s.ai_model {
+                AiModel::Rmbg14 => (format!("ok. {:.0} GB RAM · ok. 1 s na zdjęcie", weights + run), pal.text_dim),
+                AiModel::Rmbg20 => (
+                    format!("ok. {:.0} GB wolnej pamięci RAM · 15–20 s na zdjęcie (procesor)", (weights + run).ceil()),
+                    pal.warning,
+                ),
+            };
+            ui.vertical(|ui| {
+                ui.colored_label(color, text);
+                if let Some(free) = crate::ai::free_memory_bytes() {
+                    ui.small(format!("teraz wolne: {:.1} GB (RAM + swap)", free as f64 / (1u64 << 30) as f64));
+                }
             });
         });
         row(ui, "Plik modelu", |ui| {

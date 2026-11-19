@@ -142,14 +142,14 @@ impl AsOneApp {
                 settings.hf_token = tok;
             } else if let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) {
                 let flatpak_ron = home.join(".local/share/io.github.lucasterg.asone/app.ron");
-                if let Ok(content) = std::fs::read_to_string(&flatpak_ron) {
-                    if let Some(pos) = content.find("hf_token:\\\"") {
-                        let rem = &content[pos + 11..];
-                        if let Some(end) = rem.find("\\\"") {
-                            let tok = &rem[..end];
-                            if !tok.is_empty() {
-                                settings.hf_token = tok.to_string();
-                            }
+                if let Ok(content) = std::fs::read_to_string(&flatpak_ron)
+                    && let Some(pos) = content.find("hf_token:\\\"")
+                {
+                    let rem = &content[pos + 11..];
+                    if let Some(end) = rem.find("\\\"") {
+                        let tok = &rem[..end];
+                        if !tok.is_empty() {
+                            settings.hf_token = tok.to_string();
                         }
                     }
                 }
@@ -310,6 +310,7 @@ impl AsOneApp {
                             doc.edits.use_bg_removal = true;
                             doc.mask_touched = true;
                         }
+                        doc.reset_history();
                     }
                 }
                 LoadResult::Failed { id, thumbnail, error } => {
@@ -325,10 +326,12 @@ impl AsOneApp {
         }
 
         for msg in self.ai.rx.try_iter().collect::<Vec<_>>() {
+            self.ai.job_finished();
             match msg {
                 crate::ai::AiResult::Done { id, mask } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
                         if let Some(size) = doc.src_size().filter(|s| mask.len() == s[0] as usize * s[1] as usize) {
+                            doc.begin_mask_change();
                             doc.mask_cpu = mask;
                             doc.mask_dirty = Some(PxRect { x0: 0, y0: 0, x1: size[0], y1: size[1] });
                             doc.edits.use_bg_removal = true;
@@ -344,6 +347,8 @@ impl AsOneApp {
                 }
             }
         }
+
+        self.ai.release_when_idle();
 
         for event in self.pickers.rx.try_iter().collect::<Vec<_>>() {
             match event {
@@ -461,6 +466,17 @@ impl AsOneApp {
                     self.inspection = !self.inspection;
                 }
             }
+            MenuAction::Undo | MenuAction::Redo => {
+                if let Some(doc) = self.active_doc.and_then(|id| self.docs.get_mut(&id)) {
+                    doc.step_history(action == MenuAction::Redo);
+                }
+            }
+            MenuAction::ToggleTabNumberOnly => {
+                use crate::settings::TabTitle;
+                self.settings.tab_title =
+                    if self.settings.tab_title == TabTitle::NumberOnly { TabTitle::Full } else { TabTitle::NumberOnly };
+            }
+            MenuAction::TogglePhotoTabsBottom => self.settings.photo_tabs_bottom = !self.settings.photo_tabs_bottom,
             MenuAction::ToggleHidden(item) => {
                 let hidden = self.settings.hidden_mut(item);
                 *hidden = !*hidden;
@@ -498,6 +514,16 @@ impl AsOneApp {
         }
         if ctx.egui_wants_keyboard_input() {
             return;
+        }
+        // Ctrl+Z – Cofnij; Ctrl+Shift+Z lub Ctrl+Y – Ponów (pole tekstowe ma własne Cofnij, stąd test wyżej).
+        let (undo, redo) = ctx.input_mut(|i| {
+            let redo = i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::Z)
+                || i.consume_key(egui::Modifiers::COMMAND, Key::Y);
+            let undo = !redo && i.consume_key(egui::Modifiers::COMMAND, Key::Z);
+            (undo, redo)
+        });
+        if undo || redo {
+            self.menu_action(ctx, if redo { MenuAction::Redo } else { MenuAction::Undo }, open);
         }
         let (tool_key, enter, brush_down, brush_up, delete, shift, escape, fit, actual, save, inspect) = ctx.input(|i| {
             let plain = !i.modifiers.any();
@@ -542,6 +568,7 @@ impl AsOneApp {
         }
         let Some(doc) = self.active_doc.and_then(|id| self.docs.get_mut(&id)) else { return };
         if delete && let (Some(sel), Some(size)) = (doc.selection, doc.src_size()) {
+            doc.begin_mask_change();
             let dirty = fill_rect(&mut doc.mask_cpu, size, sel, if shift { 255 } else { 0 });
             doc.mask_dirty = union_opt(doc.mask_dirty, dirty);
             doc.edits.use_bg_removal = true;
@@ -622,7 +649,13 @@ impl eframe::App for AsOneApp {
         self.handle_shortcuts(&ctx, &open);
 
         let title = self.window_title();
-        for action in titlebar::title_bar(ui, &title, &self.settings, self.inspection) {
+        let history = self.active_doc.and_then(|id| self.docs.get(&id)).map(|d| &d.history);
+        let state = titlebar::MenuState {
+            inspection: self.inspection,
+            can_undo: history.is_some_and(|h| h.can_undo()),
+            can_redo: history.is_some_and(|h| h.can_redo()),
+        };
+        for action in titlebar::title_bar(ui, &title, &self.settings, state) {
             self.menu_action(&ctx, action, &open);
         }
         self.top_bar(ui, &open);
@@ -662,6 +695,12 @@ impl eframe::App for AsOneApp {
 
         let open = photo_tab_order(&self.dock);
         self.update_active_doc(&open);
+        // Historia: zmiana staje się krokiem Cofnij, gdy nic nie jest przeciągane ani wpisywane.
+        if !ctx.input(|i| i.pointer.any_down()) && !ctx.egui_wants_keyboard_input() {
+            for doc in self.docs.values_mut() {
+                doc.commit_history();
+            }
+        }
         self.report_window(&ctx);
         self.dialogs_ui(&ctx);
         let view = self.ai_download.as_ref().map(|d| DownloadView { model: d.model, done: d.done, total: d.total });

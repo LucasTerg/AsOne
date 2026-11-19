@@ -347,6 +347,7 @@ pub fn photo_ui(
                     let restore = secondary_down || alt_down;
                     let cur = to_src(p);
                     let from = doc.canvas.last_brush.unwrap_or(cur);
+                    doc.begin_mask_change();
                     let dirty = stamp_segment(&mut doc.mask_cpu, src, from, cur, brush.radius, restore);
                     if dirty.is_some() {
                         doc.edits.use_bg_removal = true;

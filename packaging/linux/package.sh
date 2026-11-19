@@ -78,7 +78,10 @@ build_appimage() {
   fi
   local out="$DIST/AsOne-$VERSION-$ARCH.AppImage"
   # Bez FUSE (kontenery, SteamOS): appimagetool rozpakowuje się sam.
-  APPIMAGE_EXTRACT_AND_RUN=1 ARCH="$ARCH" "$tool" --no-appstream "$appdir" "$out" >/dev/null
+  # Nowy plik obok + podmiana nazwy: działająca kopia AppImage czyta ze starego pliku (FUSE)
+  # i wysypałaby się, gdyby nadpisać go w miejscu.
+  APPIMAGE_EXTRACT_AND_RUN=1 ARCH="$ARCH" "$tool" --no-appstream "$appdir" "$out.new" >/dev/null
+  mv -f "$out.new" "$out"
   echo "    zapisano $out"
 }
 
@@ -98,7 +101,8 @@ build_flatpak() {
     </dev/null
   flatpak build-export "$repo" "$app" stable </dev/null >/dev/null
   local out="$DIST/AsOne-$VERSION-$ARCH.flatpak"
-  flatpak build-bundle --runtime-repo="$FLATHUB" "$repo" "$out" "$APP_ID" stable </dev/null
+  flatpak build-bundle --runtime-repo="$FLATHUB" "$repo" "$out.new" "$APP_ID" stable </dev/null
+  mv -f "$out.new" "$out"
   echo "    zapisano $out"
   if [[ "$INSTALL" = 1 ]]; then
     flatpak install --user -y --noninteractive --reinstall "$out"

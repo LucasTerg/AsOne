@@ -22,6 +22,10 @@ pub enum MenuAction {
     FitImage,
     ActualSize,
     ToggleInspection,
+    Undo,
+    Redo,
+    TogglePhotoTabsBottom,
+    ToggleTabNumberOnly,
     ToggleHidden(crate::settings::HideItem),
     Shortcuts,
     About,
@@ -46,11 +50,12 @@ fn brand_mark(ui: &mut Ui) {
 // * tytuł otwiera menu na WCIŚNIĘCIE (nie na puszczenie); gest „wciśnij – przeciągnij – puść na
 //   pozycji” od razu ją wykonuje,
 // * gdy jedno menu jest otwarte, najechanie na inny tytuł przełącza menu (jak natywny pasek),
-// * klawiatura: Alt+P/U/W/M otwiera menu, F10 – pierwsze, ←/→ – sąsiednie, Esc zamyka.
+// * klawiatura: Alt+P/E/U/W/M otwiera menu, F10 – pierwsze, ←/→ – sąsiednie, Esc zamyka.
 
 /// Tytuły menu i ich litery (Alt+litera).
-const TOP: [(&str, egui::Key); 4] = [
+const TOP: [(&str, egui::Key); 5] = [
     ("Plik", egui::Key::P),
+    ("Edycja", egui::Key::E),
     ("Ustawienia", egui::Key::U),
     ("Widok", egui::Key::W),
     ("Pomoc", egui::Key::M),
@@ -90,6 +95,24 @@ fn item(ui: &mut Ui, label: &str, shortcut: &str) -> bool {
         ui.close();
     }
     hit
+}
+
+/// Pozycja, którą można wyłączyć (np. „Cofnij”, gdy nie ma czego cofać).
+fn item_enabled(ui: &mut Ui, enabled: bool, label: &str, shortcut: &str) -> bool {
+    let r = ui.add_enabled(enabled, egui::Button::new(label).shortcut_text(shortcut));
+    let hit = r.clicked() || released_on(ui, &r);
+    if hit {
+        ui.close();
+    }
+    hit
+}
+
+/// Stan aplikacji potrzebny do zbudowania menu.
+#[derive(Clone, Copy, Default)]
+pub struct MenuState {
+    pub inspection: bool,
+    pub can_undo: bool,
+    pub can_redo: bool,
 }
 
 /// Pozycja z ptaszkiem (stan włączony/wyłączony).
@@ -153,7 +176,7 @@ fn menu_keys(ctx: &egui::Context, buttons: &[egui::Response]) {
     }
 }
 
-fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, inspection: bool, out: &mut Vec<MenuAction>) {
+fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, state: MenuState, out: &mut Vec<MenuAction>) {
     use crate::settings::{HideItem, PrefsSection};
     ui.set_min_width(220.0);
     match index {
@@ -176,6 +199,14 @@ fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, inspection: boo
             }
         }
         1 => {
+            if item_enabled(ui, state.can_undo, "Cofnij", "Ctrl+Z") {
+                out.push(MenuAction::Undo);
+            }
+            if item_enabled(ui, state.can_redo, "Ponów", "Ctrl+Shift+Z") {
+                out.push(MenuAction::Redo);
+            }
+        }
+        2 => {
             ui.menu_button("Preferencje", |ui| {
                 ui.set_min_width(200.0);
                 if item(ui, "Interfejs…", "") {
@@ -204,7 +235,7 @@ fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, inspection: boo
                 }
             });
         }
-        2 => {
+        3 => {
             if item(ui, "Powiększ interfejs", "Ctrl++") {
                 out.push(MenuAction::UiZoomIn);
             }
@@ -221,9 +252,17 @@ fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, inspection: boo
             if item(ui, "Zdjęcie 100 %", "Ctrl+1") {
                 out.push(MenuAction::ActualSize);
             }
+            ui.separator();
+            if check_item(ui, settings.photo_tabs_bottom, "Zakładki zdjęć na dole") {
+                out.push(MenuAction::TogglePhotoTabsBottom);
+            }
+            let number_only = settings.tab_title == crate::settings::TabTitle::NumberOnly;
+            if check_item(ui, number_only, "Zakładki: tylko numer (#1)") {
+                out.push(MenuAction::ToggleTabNumberOnly);
+            }
             if !settings.hide_inspection {
                 ui.separator();
-                if check_item(ui, inspection, "Inspekcja tła   (I)") {
+                if check_item(ui, state.inspection, "Inspekcja tła   (I)") {
                     out.push(MenuAction::ToggleInspection);
                 }
             }
@@ -240,7 +279,7 @@ fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, inspection: boo
 }
 
 /// Rysuje menu i zwraca prawą krawędź ostatniego tytułu menu.
-fn menus(ui: &mut Ui, settings: &Settings, inspection: bool, out: &mut Vec<MenuAction>) -> f32 {
+fn menus(ui: &mut Ui, settings: &Settings, state: MenuState, out: &mut Vec<MenuAction>) -> f32 {
     let pal = theme::p();
     let ctx = ui.ctx().clone();
     let mut right = ui.cursor().left();
@@ -271,7 +310,7 @@ fn menus(ui: &mut Ui, settings: &Settings, inspection: bool, out: &mut Vec<MenuA
                         egui::UiStackInfo::new(egui::UiKind::Menu)
                             .with_tag_value(egui::containers::menu::MenuConfig::MENU_CONFIG_TAG, config),
                     )
-                    .show(|ui| menu_contents(k, ui, settings, inspection, out));
+                    .show(|ui| menu_contents(k, ui, settings, state, out));
                 right = right.max(title.rect.right());
                 buttons.push(title);
             }
@@ -321,7 +360,7 @@ fn caption_button(ui: &mut Ui, kind: u8, maximized: bool) -> bool {
 }
 
 /// Rysuje pasek tytułu i zwraca kliknięte pozycje menu.
-pub fn title_bar(ui: &mut Ui, title: &str, settings: &Settings, inspection: bool) -> Vec<MenuAction> {
+pub fn title_bar(ui: &mut Ui, title: &str, settings: &Settings, state: MenuState) -> Vec<MenuAction> {
     let pal = theme::p();
     let custom = custom_decorations(settings);
     let mut actions = Vec::new();
@@ -352,7 +391,7 @@ pub fn title_bar(ui: &mut Ui, title: &str, settings: &Settings, inspection: bool
             ui.spacing_mut().item_spacing.x = 4.0;
             brand_mark(ui);
             ui.add_space(4.0);
-            menus_end = menus(ui, settings, inspection, &mut actions);
+            menus_end = menus(ui, settings, state, &mut actions);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 if custom {
