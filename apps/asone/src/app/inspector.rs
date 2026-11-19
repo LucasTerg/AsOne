@@ -112,7 +112,7 @@ impl AsOneApp {
                 state => {
                     ui.horizontal(|ui| {
                         let tip = format!("{} · {}", ai_model.label(), ai_path.display());
-                        if ui.button("Usuń tło (AI)").on_hover_text(tip).clicked()
+                        if ui.button("Usuń tło").on_hover_text(tip).clicked()
                             && let Some(image) = doc.ai_proxy.clone()
                         {
                             ai_job = Some(AiJob { id, image, full_size: src, model: ai_model, path: ai_path.clone() });

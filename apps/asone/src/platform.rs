@@ -458,6 +458,14 @@ pub fn move_to_trash(paths: &[PathBuf]) -> Result<(), String> {
 pub fn open_in_file_manager(dir: &Path) {
     #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
     {
+        let in_flatpak = Path::new("/.flatpak-info").exists();
+        if in_flatpak {
+            let _ = std::process::Command::new("flatpak-spawn")
+                .args(["--host", "xdg-open"])
+                .arg(dir)
+                .spawn();
+            return;
+        }
         let program = if cfg!(target_os = "windows") {
             "explorer"
         } else if cfg!(target_os = "macos") {
@@ -471,4 +479,37 @@ pub fn open_in_file_manager(dir: &Path) {
     }
     #[cfg(any(target_os = "android", target_arch = "wasm32"))]
     let _ = dir;
+}
+
+/// Otwiera URL w domyślnej przeglądarce internetowej (desktop/flatpak/wasm).
+pub fn open_url(url: &str) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let in_flatpak = Path::new("/.flatpak-info").exists();
+        if in_flatpak {
+            if std::process::Command::new("flatpak-spawn")
+                .args(["--host", "xdg-open", url])
+                .spawn()
+                .is_ok()
+            {
+                return;
+            }
+        }
+        let program = if cfg!(target_os = "windows") {
+            "explorer"
+        } else if cfg!(target_os = "macos") {
+            "open"
+        } else {
+            "xdg-open"
+        };
+        if let Err(e) = std::process::Command::new(program).arg(url).spawn() {
+            eprintln!("asone: nie można otworzyć URL {url}: {e}");
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Some(win) = web_sys::window() {
+            let _ = win.open_with_url_and_target(url, "_blank");
+        }
+    }
 }

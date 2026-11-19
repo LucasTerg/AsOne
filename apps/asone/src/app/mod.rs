@@ -60,11 +60,20 @@ pub(crate) struct AiDownload {
     total: Option<u64>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum AboutTab {
+    #[default]
+    About,
+    Contributors,
+    Models,
+}
+
 #[derive(Default)]
 pub(crate) struct Dialogs {
     delete: Option<Vec<DocId>>,
     clear_list: bool,
     about: bool,
+    about_tab: AboutTab,
     shortcuts: bool,
 }
 
@@ -128,6 +137,24 @@ impl AsOneApp {
         let ctx = &cc.egui_ctx;
         #[allow(unused_mut)]
         let mut settings: Settings = cc.storage.and_then(|s| eframe::get_value(s, STORAGE_KEY)).unwrap_or_default();
+        if settings.hf_token.trim().is_empty() {
+            if let Ok(tok) = std::env::var("HF_TOKEN") {
+                settings.hf_token = tok;
+            } else if let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) {
+                let flatpak_ron = home.join(".local/share/io.github.lucasterg.asone/app.ron");
+                if let Ok(content) = std::fs::read_to_string(&flatpak_ron) {
+                    if let Some(pos) = content.find("hf_token:\\\"") {
+                        let rem = &content[pos + 11..];
+                        if let Some(end) = rem.find("\\\"") {
+                            let tok = &rem[..end];
+                            if !tok.is_empty() {
+                                settings.hf_token = tok.to_string();
+                            }
+                        }
+                    }
+                }
+            }
+        }
         #[cfg(target_arch = "wasm32")]
         {
             crate::web::register_context(ctx);
@@ -655,5 +682,13 @@ impl eframe::App for AsOneApp {
         }
         self.overlays(&ctx);
         titlebar::resize_edges(&ctx, &self.settings);
+
+        ctx.output_mut(|o| {
+            for cmd in &o.commands {
+                if let egui::OutputCommand::OpenUrl(open_url) = cmd {
+                    crate::platform::open_url(&open_url.url);
+                }
+            }
+        });
     }
 }

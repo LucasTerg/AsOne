@@ -57,14 +57,63 @@ impl PrefsDialog {
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
-            .default_size(vec2(720.0, 440.0))
-            .min_size(vec2(560.0, 360.0))
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
+            .movable(true)
+            .default_size(vec2(760.0, 480.0))
+            .min_size(vec2(600.0, 380.0))
+            .default_pos(ctx.content_rect().center() - vec2(380.0, 240.0))
             .show(ctx, |ui| {
                 let pal = theme::p();
-                egui::Panel::bottom("prefs_buttons").resizable(false).frame(egui::Frame::NONE).show(ui, |ui| {
-                    ui.add_space(6.0);
+                ui.vertical(|ui| {
+                    // Obszar roboczy: lista sekcji po lewej, wycentrowana zawartość po prawej
+                    let content_height = ui.available_height() - 44.0;
+                    ui.allocate_ui_with_layout(
+                        vec2(ui.available_width(), content_height),
+                        egui::Layout::left_to_right(egui::Align::Min),
+                        |ui| {
+                            // Lewa kolumna: kategorie preferencji
+                            ui.vertical(|ui| {
+                                ui.set_width(170.0);
+                                ui.add_space(6.0);
+                                for (section, label) in [
+                                    (PrefsSection::Interface, "Interfejs"),
+                                    (PrefsSection::Export, "Eksport i limity"),
+                                    (PrefsSection::Ai, "Usuwanie tła (AI)"),
+                                ] {
+                                    if ui.add_sized(vec2(160.0, 26.0), egui::Button::selectable(self.section == section, label)).clicked() {
+                                        self.section = section;
+                                    }
+                                }
+                            });
+
+                            ui.separator();
+
+                            // Prawa kolumna: wycentrowana zawartość sekcji
+                            ui.vertical(|ui| {
+                                let avail = ui.available_width();
+                                let content_w = 460.0f32.min(avail - 32.0);
+                                let margin = ((avail - content_w) / 2.0).max(16.0);
+                                ui.horizontal(|ui| {
+                                    ui.add_space(margin);
+                                    ui.vertical(|ui| {
+                                        ui.set_width(content_w);
+                                        ui.add_space(6.0);
+                                        egui::ScrollArea::vertical()
+                                            .auto_shrink([false, false])
+                                            .show(ui, |ui| match self.section {
+                                                PrefsSection::Interface => interface_page(ui, &mut self.draft),
+                                                PrefsSection::Export => export_page(ui, &mut self.draft),
+                                                PrefsSection::Ai => ai_page(ui, &mut self.draft, download, &mut result),
+                                            });
+                                    });
+                                });
+                            });
+                        },
+                    );
+
+                    ui.separator();
+                    ui.add_space(4.0);
+
+                    // Dolny pasek akcji: Anuluj / Zastosuj / OK
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let ok = egui::Button::new(RichText::new("OK").color(pal.accent_text)).fill(pal.accent).min_size(vec2(84.0, 26.0));
                         if ui.add(ok).clicked() {
@@ -77,24 +126,6 @@ impl PrefsDialog {
                         if ui.add(egui::Button::new("Anuluj").min_size(vec2(84.0, 26.0))).clicked() {
                             close = true;
                         }
-                    });
-                });
-                egui::Panel::left("prefs_sections").exact_size(170.0).resizable(false).frame(egui::Frame::NONE).show(ui, |ui| {
-                    for (section, label) in [
-                        (PrefsSection::Interface, "Interfejs"),
-                        (PrefsSection::Export, "Eksport i limity"),
-                        (PrefsSection::Ai, "Usuwanie tła (AI)"),
-                    ] {
-                        if ui.add_sized(vec2(160.0, 24.0), egui::Button::selectable(self.section == section, label)).clicked() {
-                            self.section = section;
-                        }
-                    }
-                });
-                egui::CentralPanel::no_frame().show(ui, |ui| {
-                    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| match self.section {
-                        PrefsSection::Interface => interface_page(ui, &mut self.draft),
-                        PrefsSection::Export => export_page(ui, &mut self.draft),
-                        PrefsSection::Ai => ai_page(ui, &mut self.draft, download, &mut result),
                     });
                 });
             });

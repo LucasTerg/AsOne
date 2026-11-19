@@ -226,11 +226,31 @@ impl Settings {
             AiModel::Rmbg14 => self.ai_path_14.trim(),
             AiModel::Rmbg20 => self.ai_path_20.trim(),
         };
-        if custom.is_empty() {
-            default_models_dir().join(self.ai_model.file_name())
-        } else {
-            std::path::PathBuf::from(custom)
+        if !custom.is_empty() {
+            let p = std::path::PathBuf::from(custom);
+            if p.is_file() {
+                return p;
+            }
         }
+        let fname = self.ai_model.file_name();
+        let default = default_models_dir().join(fname);
+        if default.is_file() {
+            return default;
+        }
+        // Sprawdź inne standardowe lokalizacje (np. uruchomienie w Flatpaku, dev lub home)
+        if let Some(user_home) = std::env::var_os("HOME").map(std::path::PathBuf::from) {
+            for sub in [
+                ".local/share/asone/models",
+                ".local/share/io.github.lucasterg.asone/models",
+                ".cache/asone/models",
+            ] {
+                let candidate = user_home.join(sub).join(fname);
+                if candidate.is_file() {
+                    return candidate;
+                }
+            }
+        }
+        default
     }
 
     pub fn limits(&self) -> ExportLimits {

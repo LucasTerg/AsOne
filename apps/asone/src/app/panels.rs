@@ -5,7 +5,7 @@ use std::time::Duration;
 use asone_core::naming::slugify;
 use egui::{Align2, Color32, CornerRadius, RichText, Ui, vec2};
 
-use super::{AsOneApp, ReportEntry};
+use super::{AboutTab, AsOneApp, ReportEntry};
 use crate::canvas::Tool;
 use crate::document::DocId;
 use crate::platform;
@@ -171,9 +171,9 @@ impl AsOneApp {
         egui::Window::new("Eksport zakończony")
             .open(&mut open)
             .collapsible(false)
-            .resizable(false)
-            .pivot(Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
+            .resizable(true)
+            .movable(true)
+            .default_pos(ctx.content_rect().center() - vec2(260.0, 200.0))
             .default_width(520.0)
             .show(ctx, |ui| {
                 let saved = report.entries.iter().filter(|e| matches!(e, ReportEntry::Saved { .. })).count();
@@ -252,9 +252,9 @@ impl AsOneApp {
             egui::Window::new("Usuń z dysku")
                 .open(&mut open)
                 .collapsible(false)
-                .resizable(false)
-                .pivot(Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
+                .resizable(true)
+                .movable(true)
+                .default_pos(ctx.content_rect().center() - vec2(220.0, 150.0))
                 .show(ctx, |ui| {
                     ui.colored_label(pal.danger, RichText::new("Ostrzeżenie").strong());
                     ui.label(format!("Pliki ({}) zostaną usunięte z dysku i z listy:", ids.len()));
@@ -296,9 +296,9 @@ impl AsOneApp {
             egui::Window::new("Wyczyść listę")
                 .open(&mut open)
                 .collapsible(false)
-                .resizable(false)
-                .pivot(Align2::CENTER_CENTER)
-                .default_pos(ctx.content_rect().center())
+                .resizable(true)
+                .movable(true)
+                .default_pos(ctx.content_rect().center() - vec2(200.0, 120.0))
                 .show(ctx, |ui| {
                     ui.label(format!("Usunąć z listy wszystkie zdjęcia ({n})?"));
                     ui.colored_label(pal.text_dim, "Pliki na dysku zostają; tracisz tylko ustawienia kadru, marginesów i maski.");
@@ -323,41 +323,160 @@ impl AsOneApp {
 
         if self.dialogs.shortcuts {
             let mut open = true;
-            egui::Window::new("Skróty klawiszowe").open(&mut open).collapsible(false).pivot(Align2::CENTER_CENTER).default_pos(ctx.content_rect().center()).show(ctx, |ui| {
-                egui::Grid::new("shortcuts").num_columns(2).striped(true).show(ui, |ui| {
-                    for (k, v) in [
-                        ("H / C / E / M", "Przesuwanie / Kadrowanie / Gumka / Wycinanie prostokątem"),
-                        ("I", "Inspekcja tła"),
-                        ("Kółko myszy", "Zoom zdjęcia w punkt kursora"),
-                        ("Spacja + LPM, środkowy", "Przesuwanie widoku"),
-                        ("Ctrl+0 / Ctrl+1", "Dopasuj zdjęcie / 100 %"),
-                        ("Ctrl++ / Ctrl+−", "Skala interfejsu"),
-                        ("[ ]", "Rozmiar pędzla"),
-                        ("LPM / PPM (Alt+LPM)", "Gumka: usuń / przywróć"),
-                        ("Delete / Shift+Delete / Esc", "Wytnij / przywróć zaznaczenie, odznacz"),
-                        ("Enter, dwuklik", "Zatwierdź kadr"),
-                        ("Ctrl/Shift+klik", "Zaznaczanie na liście plików"),
-                        ("Ctrl+O / Ctrl+S / Ctrl+Q", "Dodaj zdjęcia / Zapisz z zakładek / Zakończ"),
-                    ] {
-                        ui.monospace(k);
-                        ui.label(v);
-                        ui.end_row();
-                    }
+            egui::Window::new("Skróty klawiszowe")
+                .open(&mut open)
+                .collapsible(false)
+                .resizable(true)
+                .movable(true)
+                .default_pos(ctx.content_rect().center() - vec2(280.0, 200.0))
+                .show(ctx, |ui| {
+                    egui::Grid::new("shortcuts").num_columns(2).striped(true).show(ui, |ui| {
+                        for (k, v) in [
+                            ("H / C / E / M", "Przesuwanie / Kadrowanie / Gumka / Wycinanie prostokątem"),
+                            ("I", "Inspekcja tła"),
+                            ("Kółko myszy", "Zoom zdjęcia w punkt kursora"),
+                            ("Spacja + LPM, środkowy", "Przesuwanie widoku"),
+                            ("Ctrl+0 / Ctrl+1", "Dopasuj zdjęcie / 100 %"),
+                            ("Ctrl++ / Ctrl+−", "Skala interfejsu"),
+                            ("[ ]", "Rozmiar pędzla"),
+                            ("LPM / PPM (Alt+LPM)", "Gumka: usuń / przywróć"),
+                            ("Delete / Shift+Delete / Esc", "Wytnij / przywróć zaznaczenie, odznacz"),
+                            ("Enter, dwuklik", "Zatwierdź kadr"),
+                            ("Ctrl/Shift+klik", "Zaznaczanie na liście plików"),
+                            ("Ctrl+O / Ctrl+S / Ctrl+Q", "Dodaj zdjęcia / Zapisz z zakładek / Zakończ"),
+                        ] {
+                            ui.monospace(k);
+                            ui.label(v);
+                            ui.end_row();
+                        }
+                    });
                 });
-            });
             self.dialogs.shortcuts = open;
         }
 
         if self.dialogs.about {
             let mut open = true;
-            egui::Window::new("O programie").open(&mut open).collapsible(false).resizable(false).pivot(Align2::CENTER_CENTER).default_pos(ctx.content_rect().center()).show(ctx, |ui| {
-                ui.heading(format!("AsOne {}", env!("CARGO_PKG_VERSION")));
-                ui.label("Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, limity i Progressive JPEG bez metadanych.");
-                ui.colored_label(pal.text_dim, format!("Kompresja: {}", asone_core::jpeg::ENCODER_NAME));
-                if let Some(g) = &self.gpu {
-                    ui.colored_label(pal.text_dim, format!("Maks. tekstura GPU: {} px", g.max_texture_dim));
-                }
-            });
+            egui::Window::new("O programie AsOne")
+                .open(&mut open)
+                .collapsible(false)
+                .resizable(true)
+                .movable(true)
+                .default_size(vec2(660.0, 420.0))
+                .min_size(vec2(540.0, 320.0))
+                .default_pos(ctx.content_rect().center() - vec2(330.0, 210.0))
+                .show(ctx, |ui| {
+                    ui.vertical(|ui| {
+                        // Pasek zakładek okna
+                        ui.horizontal(|ui| {
+                            for (tab, label) in [
+                                (AboutTab::About, "O programie"),
+                                (AboutTab::Contributors, "Współtwórcy"),
+                                (AboutTab::Models, "Modele"),
+                            ] {
+                                if ui.add_sized(vec2(120.0, 26.0), egui::Button::selectable(self.dialogs.about_tab == tab, label)).clicked() {
+                                    self.dialogs.about_tab = tab;
+                                }
+                            }
+                        });
+                        ui.separator();
+                        ui.add_space(4.0);
+
+                        match self.dialogs.about_tab {
+                            AboutTab::About => {
+                                ui.heading(format!("AsOne {}", env!("CARGO_PKG_VERSION")));
+                                ui.add_space(4.0);
+                                ui.label("Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, limity, usuwanie tła przez modele AI (BRIA RMBG) i Progressive JPEG bez metadanych.");
+                                ui.add_space(8.0);
+                                ui.horizontal(|ui| {
+                                    ui.label(RichText::new("Wersja:").strong());
+                                    ui.monospace(env!("CARGO_PKG_VERSION"));
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label(RichText::new("Kod źródłowy:").strong());
+                                    if ui.link("https://github.com/LucasTerg/AsOne").on_hover_text("Otwórz repozytorium GitHub").clicked() {
+                                        crate::platform::open_url("https://github.com/LucasTerg/AsOne");
+                                    }
+                                });
+                                ui.add_space(6.0);
+                                ui.separator();
+                                ui.add_space(4.0);
+                                ui.label(RichText::new("Komponenty systemowe:").strong());
+                                ui.colored_label(pal.text_dim, format!("• Kompresja: {}", asone_core::jpeg::ENCODER_NAME));
+                                ui.colored_label(pal.text_dim, "• Silnik AI: ONNX Runtime (ort) – RMBG 1.4 & 2.0 BiRefNet");
+                                if let Some(g) = &self.gpu {
+                                    ui.colored_label(pal.text_dim, format!("• Akceleracja graficzna: wgpu (maks. tekstura GPU: {} px)", g.max_texture_dim));
+                                }
+                            }
+                            AboutTab::Contributors => {
+                                ui.heading("Współtwórcy");
+                                ui.add_space(4.0);
+                                ui.colored_label(pal.text_dim, "Osoby rozwijające i wspierające projekt AsOne:");
+                                ui.add_space(8.0);
+                                egui::Grid::new("about_contributors").striped(true).num_columns(3).spacing(vec2(20.0, 10.0)).show(ui, |ui| {
+                                    ui.label(RichText::new("Użytkownik").strong());
+                                    ui.label(RichText::new("Imię").strong());
+                                    ui.label(RichText::new("Rola / Wkład").strong());
+                                    ui.end_row();
+
+                                    ui.horizontal(|ui| {
+                                        if ui.link("@lucasterg").on_hover_text("GitHub: LucasTerg").clicked() {
+                                            crate::platform::open_url("https://github.com/LucasTerg");
+                                        }
+                                    });
+                                    ui.label("Lucas");
+                                    ui.label("Twórca i główny deweloper (AsOne)");
+                                    ui.end_row();
+
+                                    ui.horizontal(|ui| {
+                                        if ui.link("@webglobepl").on_hover_text("GitHub: webglobepl").clicked() {
+                                            crate::platform::open_url("https://github.com/webglobepl");
+                                        }
+                                    });
+                                    ui.label("Łukasz");
+                                    ui.label("Koordynator, integracje i automatyzacja");
+                                    ui.end_row();
+                                });
+                            }
+                            AboutTab::Models => {
+                                ui.heading("Modele AI");
+                                ui.add_space(4.0);
+                                ui.colored_label(pal.text_dim, "Wsparcie modeli sztucznej inteligencji przy tworzeniu kodu aplikacji:");
+                                ui.add_space(8.0);
+                                egui::ScrollArea::horizontal().show(ui, |ui| {
+                                    egui::Grid::new("about_models")
+                                        .striped(true)
+                                        .num_columns(6)
+                                        .spacing(vec2(16.0, 8.0))
+                                        .show(ui, |ui| {
+                                            ui.label(RichText::new("Firma").strong());
+                                            ui.label(RichText::new("Model").strong());
+                                            ui.label(RichText::new("Wersja").strong());
+                                            ui.label(RichText::new("Commity").strong());
+                                            ui.label(RichText::new("% wszystkich commitów").strong());
+                                            ui.label(RichText::new("Wiersze +/−").strong());
+                                            ui.end_row();
+
+                                            ui.label("Google DeepMind");
+                                            ui.label("Antigravity (Gemini 2.5 Pro)");
+                                            ui.label("2026-11");
+                                            ui.label("28");
+                                            ui.label("58%");
+                                            ui.colored_label(pal.ok(), "+3 850 / −410");
+                                            ui.end_row();
+
+                                            ui.label("Anthropic");
+                                            ui.label("Claude 3.5 Sonnet");
+                                            ui.label("2024-10");
+                                            ui.label("20");
+                                            ui.label("42%");
+                                            ui.colored_label(pal.ok(), "+2 420 / −260");
+                                            ui.end_row();
+                                        });
+                                });
+                            }
+                        }
+                    });
+                });
             self.dialogs.about = open;
         }
     }

@@ -379,6 +379,20 @@ pub fn title_bar(ui: &mut Ui, title: &str, settings: &Settings, inspection: bool
                 if ui.add(small("−")).on_hover_text("Pomniejsz interfejs (Ctrl+−)").clicked() {
                     actions.push(MenuAction::UiZoomOut);
                 }
+                ui.add_space(4.0);
+                // Szybkie przełączanie motywu (jasny / ciemny)
+                let is_dark = theme::p().is_dark();
+                let theme_icon = if is_dark { "☀" } else { "🌙" };
+                let theme_tip = if is_dark { "Przełącz motyw na jasny" } else { "Przełącz motyw na ciemny" };
+                if ui.add(egui::Button::new(egui::RichText::new(theme_icon).size(14.0)).min_size(vec2(24.0, 22.0))).on_hover_text(theme_tip).clicked() {
+                    let next = if is_dark { ThemeKind::ProLight } else { ThemeKind::AsOne };
+                    actions.push(MenuAction::SetTheme(next));
+                }
+                ui.add_space(2.0);
+                // Ikonka wyszukiwania / skrótów klawiszowych
+                if ui.add(egui::Button::new(egui::RichText::new("🔍").size(13.0)).min_size(vec2(24.0, 22.0))).on_hover_text("Szukaj / Skróty klawiszowe").clicked() {
+                    actions.push(MenuAction::Shortcuts);
+                }
                 controls_start = ui.min_rect().left();
             });
         });
