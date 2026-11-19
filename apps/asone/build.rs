@@ -1,6 +1,7 @@
 //! Statystyki „O programie › Modele” liczone z `git log` przy budowaniu.
 //!
-//! Model = stopka `Co-Authored-By: <nazwa> <e-mail>` commita (firma z domeny e-maila).
+//! Model = stopka `Co-Authored-By: <nazwa> <e-mail>` commita (firma z domeny e-maila) albo wpis
+//! w `ai-coauthors.txt` w katalogu głównym (dla commitów bez stopki; ma pierwszeństwo).
 //! Wiersze +/− bez `vendor/`, `Cargo.lock` i plików binarnych. Bez gita (np. paczka źródeł)
 //! tabela jest pusta, a budowanie się udaje.
 
@@ -36,7 +37,22 @@ fn excluded(path: &str) -> bool {
     path.starts_with("vendor/") || path.ends_with("Cargo.lock") || path.starts_with("dist/")
 }
 
+/// `ai-coauthors.txt`: `<początek hasha>  <Firma> | <Model>` (linie z `#` pomijane).
+fn overrides(root: &Path) -> Vec<(String, String, String)> {
+    let text = std::fs::read_to_string(root.join("ai-coauthors.txt")).unwrap_or_default();
+    text.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .filter_map(|l| {
+            let (hash, rest) = l.split_once(char::is_whitespace)?;
+            let (company, model) = rest.split_once('|')?;
+            Some((hash.to_lowercase(), company.trim().to_string(), model.trim().to_string()))
+        })
+        .collect()
+}
+
 fn collect(root: &Path) -> Option<(Vec<Stat>, u32, String)> {
+    let overrides = overrides(root);
     let out = Command::new("git")
         .args(["-c", "safe.directory=*", "-C"])
         .arg(root)
@@ -45,7 +61,7 @@ fn collect(root: &Path) -> Option<(Vec<Stat>, u32, String)> {
             "--no-merges",
             "--date=short",
             "--numstat",
-            "--format=%x1e%h%x1f%ad%x1f%(trailers:key=Co-authored-by,valueonly,separator=%x1d)",
+            "--format=%x1e%H%x1f%h%x1f%ad%x1f%(trailers:key=Co-authored-by,valueonly,separator=%x1d)",
         ])
         .output()
         .ok()?;
@@ -59,22 +75,25 @@ fn collect(root: &Path) -> Option<(Vec<Stat>, u32, String)> {
     for record in text.split('\x1e').filter(|r| !r.trim().is_empty()) {
         let mut lines = record.lines();
         let mut fields = lines.next()?.split('\x1f');
-        let (hash, date, trailers) = (fields.next()?, fields.next()?, fields.next().unwrap_or(""));
+        let (full, hash, date) = (fields.next()?, fields.next()?, fields.next()?);
+        let trailers = fields.next().unwrap_or("");
         if head.is_empty() {
             head = format!("{hash} · {date}");
         }
         total += 1;
         // Pierwszy współautor-AI (nazwa <e-mail>); bez stopki – osobna grupa.
         let coauthor = trailers.split('\x1d').map(str::trim).find(|t| !t.is_empty());
-        let (company, model) = match coauthor {
-            Some(t) => {
+        let manual = overrides.iter().find(|(h, _, _)| full.starts_with(h.as_str()));
+        let (company, model) = match (manual, coauthor) {
+            (Some((_, c, m)), _) => (c.clone(), m.clone()),
+            (None, Some(t)) => {
                 let (name, email) = match t.split_once('<') {
                     Some((n, e)) => (n.trim(), e.trim_end_matches('>').trim()),
                     None => (t, ""),
                 };
                 (company(email), name.to_string())
             }
-            None => ("—".to_string(), "bez stopki Co-Authored-By".to_string()),
+            (None, None) => ("—".to_string(), "bez stopki Co-Authored-By".to_string()),
         };
         let stat = by_model.entry(format!("{company}\x1f{model}")).or_insert_with(|| Stat {
             company,
@@ -106,6 +125,7 @@ fn main() {
     let root = manifest.join("../..");
     println!("cargo:rerun-if-changed=build.rs");
     let git = root.join(".git");
+    println!("cargo:rerun-if-changed={}", root.join("ai-coauthors.txt").display());
     for p in ["HEAD", "logs/HEAD", "packed-refs", "refs/heads"] {
         let path = git.join(p);
         if path.exists() {

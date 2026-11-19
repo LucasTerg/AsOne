@@ -21,6 +21,10 @@ mod git_stats {
     include!(concat!(env!("OUT_DIR"), "/git_stats.rs"));
 }
 
+/// Współtwórcy w „O programie”: (login GitHub, imię, rola / wkład).
+/// Dopisujemy tylko osoby z realnym wkładem – np. przyjętym pull requestem – nigdy „na zapas”.
+const CONTRIBUTORS: &[(&str, &str, &str)] = &[("LucasTerg", "Lucas", "Twórca i główny deweloper")];
+
 /// 12345 → „12 345”.
 fn group(n: u64) -> String {
     let s = n.to_string();
@@ -454,31 +458,32 @@ impl AsOneApp {
                             AboutTab::Contributors => {
                                 ui.heading("Współtwórcy");
                                 ui.add_space(4.0);
-                                ui.colored_label(pal.text_dim, "Osoby rozwijające i wspierające projekt AsOne:");
+                                ui.colored_label(
+                                    pal.text_dim,
+                                    "Twórca projektu i osoby, które wniosły do AsOne realny wkład – np. przyjętym pull requestem:",
+                                );
                                 ui.add_space(8.0);
                                 egui::Grid::new("about_contributors").striped(true).num_columns(3).spacing(vec2(20.0, 10.0)).show(ui, |ui| {
                                     ui.label(RichText::new("Użytkownik").strong());
                                     ui.label(RichText::new("Imię").strong());
                                     ui.label(RichText::new("Rola / Wkład").strong());
                                     ui.end_row();
-
-                                    ui.horizontal(|ui| {
-                                        if ui.link("@lucasterg").on_hover_text("GitHub: LucasTerg").clicked() {
-                                            crate::platform::open_url("https://github.com/LucasTerg");
+                                    for (login, name, role) in CONTRIBUTORS {
+                                        let url = format!("https://github.com/{login}");
+                                        if ui.link(format!("@{login}")).on_hover_text(format!("GitHub: {login}")).clicked() {
+                                            crate::platform::open_url(&url);
                                         }
-                                    });
-                                    ui.label("Lucas");
-                                    ui.label("Twórca i główny deweloper (AsOne)");
-                                    ui.end_row();
-
-                                    ui.horizontal(|ui| {
-                                        if ui.link("@webglobepl").on_hover_text("GitHub: webglobepl").clicked() {
-                                            crate::platform::open_url("https://github.com/webglobepl");
-                                        }
-                                    });
-                                    ui.label("Łukasz");
-                                    ui.label("Koordynator, integracje i automatyzacja");
-                                    ui.end_row();
+                                        ui.label(*name);
+                                        ui.label(*role);
+                                        ui.end_row();
+                                    }
+                                });
+                                ui.add_space(10.0);
+                                ui.horizontal(|ui| {
+                                    ui.label("Chcesz pomóc?");
+                                    if ui.link("Pull requesty na GitHubie").clicked() {
+                                        crate::platform::open_url("https://github.com/LucasTerg/AsOne/pulls");
+                                    }
                                 });
                             }
                             AboutTab::Models => {
@@ -509,8 +514,8 @@ impl AsOneApp {
                                     });
                                     ui.add_space(8.0);
                                     ui.small(format!(
-                                        "Wszystkich commitów: {TOTAL_COMMITS} · ostatni: {STATS_HEAD}. Model = stopka „Co-Authored-By” commita; \
-                                         wiersze bez vendor/ i Cargo.lock."
+                                        "Wszystkich commitów: {TOTAL_COMMITS} · ostatni: {STATS_HEAD}. Model = stopka „Co-Authored-By” commita \
+                                         lub wpis w ai-coauthors.txt; wiersze bez vendor/ i Cargo.lock."
                                     ));
                                 }
                             }

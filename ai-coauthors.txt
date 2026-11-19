@@ -1,0 +1,5 @@
+# Współautorzy AI commitów, które nie mają stopki „Co-Authored-By” (albo mają błędną).
+# Czyta to apps/asone/build.rs dla okna „O programie › Modele”; wpis tutaj ma pierwszeństwo przed stopką.
+#
+# <początek hasha commita>  <Firma> | <Model>
+7c4ef07  Google | Gemini
