@@ -1,0 +1,364 @@
+//! Strefy okna: górny pasek eksportu, pasek narzędzi, raport eksportu, okna dialogowe, nakładki.
+
+use std::time::Duration;
+
+use asone_core::naming::slugify;
+use egui::{Align2, Color32, CornerRadius, RichText, Ui, vec2};
+
+use super::{AsOneApp, ReportEntry};
+use crate::canvas::Tool;
+use crate::document::DocId;
+use crate::platform;
+use crate::theme;
+
+impl AsOneApp {
+    pub(super) fn top_bar(&mut self, ui: &mut Ui, open: &[DocId]) {
+        let pal = theme::p();
+        let frame = egui::Frame::new()
+            .fill(pal.chrome)
+            .inner_margin(egui::Margin::symmetric(10, 6))
+            .stroke(egui::Stroke::new(1.0, pal.separator));
+        egui::Panel::top("top_bar").frame(frame).show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Wklej nazwę:");
+                let field = ui.add(
+                    egui::TextEdit::singleline(&mut self.base_name)
+                        .hint_text("np. 123-marka model")
+                        .desired_width(210.0),
+                );
+                field.context_menu(|ui| {
+                    if platform::CAN_PASTE && ui.button("Wklej").clicked() {
+                        self.pickers.paste_text();
+                        ui.close();
+                    }
+                    if ui.button("Kopiuj").clicked() {
+                        ui.ctx().copy_text(self.base_name.clone());
+                        ui.close();
+                    }
+                    if ui.button("Wytnij").clicked() {
+                        ui.ctx().copy_text(std::mem::take(&mut self.base_name));
+                        ui.close();
+                    }
+                    if ui.button("Wyczyść").clicked() {
+                        self.base_name.clear();
+                        ui.close();
+                    }
+                });
+                if platform::CAN_PASTE
+                    && ui.button("Wklej").on_hover_text("Wkleja nazwę ze schowka (zastępuje obecną)").clicked()
+                {
+                    self.pickers.paste_text();
+                }
+                if !self.base_name.is_empty() && ui.small_button("×").on_hover_text("Wyczyść").clicked() {
+                    self.base_name.clear();
+                }
+                ui.label("Start nr:");
+                ui.add(egui::DragValue::new(&mut self.settings.start_number).range(1..=99_999))
+                    .on_hover_text("Numer pierwszego zdjęcia w paczce");
+                let slug = slugify(&self.base_name);
+                let first = self.settings.start_number.max(1);
+                let preview = if slug.is_empty() { "» …".to_string() } else { format!("» {slug}-{first}.jpg") };
+                ui.colored_label(pal.text_dim, preview);
+                ui.separator();
+
+                ui.label("Jakość");
+                ui.add(egui::Slider::new(&mut self.settings.quality, 1..=100).suffix(" %"));
+                ui.checkbox(&mut self.settings.limit_long_side, "Max dłuższy bok");
+                ui.add_enabled(
+                    self.settings.limit_long_side,
+                    egui::DragValue::new(&mut self.settings.max_long_side).range(16..=16384).suffix(" px"),
+                );
+                ui.separator();
+
+                if platform::CAN_PICK_FOLDER {
+                    let dir = self.default_out_dir(open);
+                    let label = dir
+                        .as_ref()
+                        .and_then(|d| d.file_name())
+                        .map(|n| format!("Folder: {}", n.to_string_lossy()))
+                        .unwrap_or_else(|| "Folder: …".into());
+                    let hover = dir
+                        .as_ref()
+                        .map(|d| format!("Zapis do: {}\nKliknij, aby zmienić", d.display()))
+                        .unwrap_or_else(|| "Domyślnie podfolder obok zdjęć".into());
+                    if ui.button(label).on_hover_text(hover).clicked() {
+                        self.pickers.pick_output_folder(dir);
+                    }
+                } else if platform::EXPORT_TO_FOLDER {
+                    let dir = self.out_dir.clone().unwrap_or_default();
+                    ui.colored_label(pal.text_dim, format!("Zapis: {}", dir.display()));
+                } else {
+                    ui.colored_label(pal.text_dim, "Zapis: pobierane pliki");
+                }
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if let Some(job) = &self.export {
+                        let done = job.entries.len();
+                        ui.add(
+                            egui::ProgressBar::new(done as f32 / job.total.max(1) as f32)
+                                .desired_width(170.0)
+                                .text(format!("Zapisywanie {done}/{}", job.total)),
+                        );
+                    } else {
+                        let blocker = self.export_blocker(open);
+                        let button = egui::Button::new(
+                            RichText::new(format!("Zapisz z zakładek ({})", open.len())).strong().color(pal.accent_text),
+                        )
+                        .fill(pal.accent)
+                        .min_size(vec2(170.0, 26.0));
+                        let response = ui.add_enabled(blocker.is_none(), button);
+                        let limits = self.settings.limits();
+                        let limit_info = match (limits.max_width, limits.max_bytes) {
+                            (Some(w), Some(b)) => format!(
+                                "\nLimity: {w}×{} px, {:.1} MB (Ustawienia › Preferencje › Eksport)",
+                                limits.max_height.unwrap_or(w),
+                                b as f64 / 1_048_576.0
+                            ),
+                            _ => String::new(),
+                        };
+                        let response = match blocker {
+                            Some(reason) => response.on_disabled_hover_text(reason),
+                            None => response.on_hover_text(format!(
+                                "Eksport {} zdjęć w kolejności zakładek ({}, Progressive JPEG, bez metadanych) · Ctrl+S{limit_info}",
+                                open.len(),
+                                asone_core::jpeg::ENCODER_NAME
+                            )),
+                        };
+                        if response.clicked() {
+                            let ctx = ui.ctx().clone();
+                            self.start_export(&ctx, open);
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    pub(super) fn tool_bar(&mut self, ui: &mut Ui) {
+        let pal = theme::p();
+        let frame = egui::Frame::new().fill(pal.chrome).inner_margin(egui::Margin::symmetric(5, 8));
+        egui::Panel::left("tool_bar").exact_size(46.0).resizable(false).frame(frame).show(ui, |ui| {
+            ui.vertical_centered(|ui| {
+                for tool in Tool::ALL {
+                    let icon = match tool {
+                        Tool::Move => egui::include_image!("../../assets/icons/move.svg"),
+                        Tool::Crop => egui::include_image!("../../assets/icons/crop.svg"),
+                        Tool::Eraser => egui::include_image!("../../assets/icons/eraser.svg"),
+                        Tool::RectCut => egui::include_image!("../../assets/icons/marquee.svg"),
+                    };
+                    let selected = self.tool == tool;
+                    let image = egui::Image::new(icon)
+                        .fit_to_exact_size(vec2(20.0, 20.0))
+                        .tint(if selected { pal.accent_text } else { pal.icon });
+                    let button = egui::Button::image(image)
+                        .selected(selected)
+                        .min_size(vec2(34.0, 34.0))
+                        .corner_radius(CornerRadius::same(pal.radius));
+                    let hint = format!("{} ({})", tool.label(), tool.key().name());
+                    if ui.add(button).on_hover_text(hint).clicked() {
+                        self.tool = tool;
+                    }
+                }
+            });
+        });
+    }
+
+    pub(super) fn report_window(&mut self, ctx: &egui::Context) {
+        let Some(report) = &self.report else { return };
+        let pal = theme::p();
+        let mut open = true;
+        let (mut close, mut zip) = (false, false);
+        egui::Window::new("Eksport zakończony")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+            .default_width(520.0)
+            .show(ctx, |ui| {
+                let saved = report.entries.iter().filter(|e| matches!(e, ReportEntry::Saved { .. })).count();
+                let total_bytes: u64 = report
+                    .entries
+                    .iter()
+                    .map(|e| if let ReportEntry::Saved { bytes, .. } = e { *bytes } else { 0 })
+                    .sum();
+                ui.label(format!(
+                    "Zapisano {saved} z {} plików · {:.0} KB · {:.1} s",
+                    report.entries.len(),
+                    total_bytes as f64 / 1024.0,
+                    report.elapsed.as_secs_f64()
+                ));
+                if let Some(dir) = &report.out_dir {
+                    ui.colored_label(pal.text_dim, dir.display().to_string());
+                }
+                ui.separator();
+                egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+                    egui::Grid::new("report").num_columns(3).striped(true).show(ui, |ui| {
+                        for e in &report.entries {
+                            match e {
+                                ReportEntry::Saved { name, bytes, size, quality, notes } => {
+                                    ui.colored_label(pal.ok(), "✔");
+                                    ui.vertical(|ui| {
+                                        ui.label(name);
+                                        for n in notes {
+                                            ui.colored_label(pal.warning, format!("↳ {n}"));
+                                        }
+                                    });
+                                    ui.label(format!(
+                                        "{}×{} · {:.0} KB · jakość {quality}",
+                                        size[0],
+                                        size[1],
+                                        *bytes as f64 / 1024.0
+                                    ));
+                                }
+                                ReportEntry::Failed { name, error } => {
+                                    ui.colored_label(pal.danger, "✖");
+                                    ui.label(name);
+                                    ui.colored_label(pal.danger, error);
+                                }
+                            }
+                            ui.end_row();
+                        }
+                    });
+                });
+                ui.separator();
+                ui.horizontal(|ui| {
+                    if let Some(dir) = report.out_dir.as_ref().filter(|_| platform::CAN_PICK_FOLDER) {
+                        if ui.button("Otwórz folder").clicked() {
+                            platform::open_in_file_manager(dir);
+                        }
+                        if saved > 0 && ui.button("Spakuj do ZIP…").clicked() {
+                            zip = true;
+                        }
+                    }
+                    if ui.button("Zamknij").clicked() {
+                        close = true;
+                    }
+                });
+            });
+        if zip {
+            self.zip_last_export();
+        }
+        if !open || close {
+            self.report = None;
+        }
+    }
+
+    pub(super) fn dialogs_ui(&mut self, ctx: &egui::Context) {
+        let pal = theme::p();
+        if let Some(ids) = self.dialogs.delete.clone() {
+            let mut open = true;
+            let mut choice = None;
+            egui::Window::new("Usuń z dysku")
+                .open(&mut open)
+                .collapsible(false)
+                .resizable(false)
+                .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+                .show(ctx, |ui| {
+                    ui.colored_label(pal.danger, RichText::new("Ostrzeżenie").strong());
+                    ui.label(format!("Pliki ({}) zostaną usunięte z dysku i z listy:", ids.len()));
+                    egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
+                        for id in &ids {
+                            if let Some(p) = self.docs.get(id).and_then(|d| d.source.path()) {
+                                ui.monospace(p.display().to_string());
+                            }
+                        }
+                    });
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Przenieś do kosza").clicked() {
+                            choice = Some(true);
+                        }
+                        let danger = egui::Button::new(RichText::new("Usuń trwale (nieodwracalne)").color(Color32::WHITE))
+                            .fill(pal.danger);
+                        if ui.add(danger).clicked() {
+                            choice = Some(false);
+                        }
+                        if ui.button("Anuluj").clicked() {
+                            self.dialogs.delete = None;
+                        }
+                    });
+                });
+            if let Some(trash) = choice {
+                self.dialogs.delete = None;
+                self.delete_from_disk(&ids, trash);
+            }
+            if !open {
+                self.dialogs.delete = None;
+            }
+        }
+
+        if self.dialogs.shortcuts {
+            let mut open = true;
+            egui::Window::new("Skróty klawiszowe").open(&mut open).collapsible(false).show(ctx, |ui| {
+                egui::Grid::new("shortcuts").num_columns(2).striped(true).show(ui, |ui| {
+                    for (k, v) in [
+                        ("H / C / E / M", "Przesuwanie / Kadrowanie / Gumka / Wycinanie prostokątem"),
+                        ("I", "Inspekcja tła"),
+                        ("Kółko myszy", "Zoom zdjęcia w punkt kursora"),
+                        ("Spacja + LPM, środkowy", "Przesuwanie widoku"),
+                        ("Ctrl+0 / Ctrl+1", "Dopasuj zdjęcie / 100 %"),
+                        ("Ctrl++ / Ctrl+−", "Skala interfejsu"),
+                        ("[ ]", "Rozmiar pędzla"),
+                        ("LPM / PPM (Alt+LPM)", "Gumka: usuń / przywróć"),
+                        ("Delete / Shift+Delete / Esc", "Wytnij / przywróć zaznaczenie, odznacz"),
+                        ("Enter, dwuklik", "Zatwierdź kadr"),
+                        ("Ctrl/Shift+klik", "Zaznaczanie na liście plików"),
+                        ("Ctrl+O / Ctrl+S / Ctrl+Q", "Dodaj zdjęcia / Zapisz z zakładek / Zakończ"),
+                    ] {
+                        ui.monospace(k);
+                        ui.label(v);
+                        ui.end_row();
+                    }
+                });
+            });
+            self.dialogs.shortcuts = open;
+        }
+
+        if self.dialogs.about {
+            let mut open = true;
+            egui::Window::new("O programie").open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
+                ui.heading(format!("AsOne {}", env!("CARGO_PKG_VERSION")));
+                ui.label("Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, limity i Progressive JPEG bez metadanych.");
+                ui.colored_label(pal.text_dim, format!("Kompresja: {}", asone_core::jpeg::ENCODER_NAME));
+                if let Some(g) = &self.gpu {
+                    ui.colored_label(pal.text_dim, format!("Maks. tekstura GPU: {} px", g.max_texture_dim));
+                }
+            });
+            self.dialogs.about = open;
+        }
+    }
+
+    pub(super) fn overlays(&mut self, ctx: &egui::Context) {
+        let pal = theme::p();
+        if ctx.input(|i| !i.raw.hovered_files.is_empty()) {
+            let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("drop")));
+            let rect = ctx.content_rect();
+            painter.rect_filled(rect, 0.0, Color32::from_black_alpha(170));
+            painter.rect_stroke(rect.shrink(12.0), CornerRadius::same(6), egui::Stroke::new(2.0, pal.accent), egui::StrokeKind::Inside);
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                "Upuść, aby dodać do listy plików",
+                egui::FontId::proportional(22.0),
+                Color32::WHITE,
+            );
+        }
+        if let Some((text, error, at)) = &self.toast {
+            if at.elapsed() > Duration::from_secs(5) {
+                self.toast = None;
+            } else {
+                let color = if *error { pal.danger } else { pal.text };
+                egui::Area::new(egui::Id::new("toast"))
+                    .anchor(Align2::CENTER_BOTTOM, vec2(0.0, -16.0))
+                    .order(egui::Order::Tooltip)
+                    .interactable(false)
+                    .show(ctx, |ui| {
+                        egui::Frame::popup(ui.style()).fill(pal.card).show(ui, |ui| {
+                            ui.colored_label(color, text.as_str());
+                        });
+                    });
+                ctx.request_repaint_after(Duration::from_millis(250));
+            }
+        }
+    }
+}

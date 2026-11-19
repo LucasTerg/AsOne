@@ -1,0 +1,5 @@
+/target
+/dist
+**/*.part
+git-switch.sh
+config.ini

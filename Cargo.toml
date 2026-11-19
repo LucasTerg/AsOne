@@ -1,0 +1,27 @@
+[workspace]
+resolver = "3"
+members = ["crates/asone-core", "apps/asone", "apps/asone-cli"]
+default-members = ["crates/asone-core", "apps/asone", "apps/asone-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+asone-core = { path = "crates/asone-core", default-features = false }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "tiff", "bmp"] }
+fast_image_resize = "6.1"
+crossbeam-channel = "0.5"
+
+[profile.dev]
+# Dekodowanie/skalowanie/kompresja w trybie debug są bardzo wolne.
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 4

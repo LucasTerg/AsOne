@@ -1,0 +1,70 @@
+[package]
+name = "asone"
+description = "AsOne – natywny edytor zdjęć produktowych do internetu (wgpu + egui_dock)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+default-run = "asone"
+
+[lib]
+# cdylib: Android (`android_main`); rlib: binarka desktopowa i wasm (trunk buduje bin).
+# Inna nazwa niż binarka, żeby artefakty `.wasm` się nie zderzały.
+name = "asone_app"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "asone"
+path = "src/main.rs"
+
+[features]
+default = ["mozjpeg"]
+# MozJPEG przy eksporcie (desktop/Android). Bez niej – oraz na wasm – czysto rustowy koder.
+mozjpeg = ["asone-core/mozjpeg"]
+nasm = ["asone-core/nasm"]
+
+[dependencies]
+asone-core = { workspace = true }
+# GUI + dokowanie zakładek. egui_dock 0.21 jest zbudowany na egui 0.36,
+# więc cały stos egui trzymamy na 0.36.
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "wgpu", "persistence"] }
+egui = "0.36"
+egui_dock = "0.21"
+egui_extras = { version = "0.36", default-features = false, features = ["svg"] }
+image = { workspace = true }
+fast_image_resize = { workspace = true }
+crossbeam-channel = { workspace = true }
+bytemuck = { version = "1.25", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+web-time = "1.1"
+
+# Desktop + Android: pule wątków.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1.12"
+
+# Desktop: schowek („Wklej nazwę”, także Wayland) i systemowy kosz („Usuń z dysku”).
+[target.'cfg(not(any(target_os = "android", target_arch = "wasm32")))'.dependencies]
+arboard = { version = "3.7", default-features = false, features = ["wayland-data-control"] }
+trash = "5.4"
+
+# Wszystko poza Androidem: okna wyboru plików (rfd tam nie działa), dostępność (accesskit
+# w eframe 0.36 nie łączy się z android-native-activity), Wayland/X11 na Linuksie i BSD.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+rfd = "0.18"
+eframe = { version = "0.36", default-features = false, features = ["accesskit", "wayland", "x11"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+eframe = { version = "0.36", default-features = false, features = ["android-native-activity"] }
+winit = { version = "0.30", default-features = false, features = ["android-native-activity"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "console", "Navigator", "Clipboard", "Location", "UrlSearchParams", "CustomEvent", "CustomEventInit", "Event", "EventTarget", "CssStyleDeclaration"] }
+
+[dev-dependencies]
+# Walidacja shadera WGSL w testach (bez GPU).
+naga = { version = "30", features = ["wgsl-in", "glsl-out"] }
+# Test eksportu na prawdziwym GPU (`--ignored`).
+pollster = "0.4"

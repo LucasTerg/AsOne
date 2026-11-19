@@ -1,0 +1,16 @@
+# Wersja przeglądarkowa: trunk build --release   (z katalogu apps/asone)
+[build]
+target = "index.html"
+dist = "../../dist/web"
+public_url = "./"
+filehash = true
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 8791
+
+# Rzeczywisty rozmiar .wasm (po wasm-opt) dla paska postępu karty startowej.
+[[hooks]]
+stage = "post_build"
+command = "sh"
+command_arguments = ["web/fix-wasm-size.sh"]
