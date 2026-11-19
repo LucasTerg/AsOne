@@ -22,6 +22,7 @@ pub enum MenuAction {
     FitImage,
     ActualSize,
     ToggleInspection,
+    ToggleHidden(crate::settings::HideItem),
     Shortcuts,
     About,
 }
@@ -40,22 +41,123 @@ fn brand_mark(ui: &mut Ui) {
     ui.painter().text(rect.center(), Align2::CENTER_CENTER, "A1", FontId::proportional(9.5), pal.accent_text);
 }
 
+// --- Menu jak w PhotoCrafcie ----------------------------------------------------------------
+//
+// * tytuł otwiera menu na WCIŚNIĘCIE (nie na puszczenie); gest „wciśnij – przeciągnij – puść na
+//   pozycji” od razu ją wykonuje,
+// * gdy jedno menu jest otwarte, najechanie na inny tytuł przełącza menu (jak natywny pasek),
+// * klawiatura: Alt+P/U/W/M otwiera menu, F10 – pierwsze, ←/→ – sąsiednie, Esc zamyka.
+
+/// Tytuły menu i ich litery (Alt+litera).
+const TOP: [(&str, egui::Key); 4] = [
+    ("Plik", egui::Key::P),
+    ("Ustawienia", egui::Key::U),
+    ("Widok", egui::Key::W),
+    ("Pomoc", egui::Key::M),
+];
+
+fn press_gesture_id() -> egui::Id {
+    egui::Id::new("asone-menu-press-gesture")
+}
+
+/// Wciśnięcie na tytule: otwiera zamknięte menu (i zaczyna gest przeciągania) albo zamyka otwarte.
+fn title_press(ctx: &egui::Context, title: &egui::Response) -> Option<egui::SetOpenCommand> {
+    let pressed = ctx.input(|i| i.pointer.primary_pressed()) && (title.is_pointer_button_down_on() || title.clicked());
+    if !pressed {
+        return None;
+    }
+    let open = egui::Popup::is_id_open(ctx, egui::Popup::default_response_id(title));
+    if !open {
+        ctx.data_mut(|d| d.insert_temp(press_gesture_id(), true));
+    }
+    Some(egui::SetOpenCommand::Bool(!open))
+}
+
+/// Czy gest otwierający menu zakończył się puszczeniem przycisku nad tą pozycją?
+fn released_on(ui: &Ui, item: &egui::Response) -> bool {
+    item.enabled()
+        && item.contains_pointer()
+        && ui.input(|i| i.pointer.primary_released())
+        && ui.ctx().data(|d| d.get_temp::<bool>(press_gesture_id())).unwrap_or(false)
+}
+
 fn item(ui: &mut Ui, label: &str, shortcut: &str) -> bool {
     let b = egui::Button::new(label);
     let b = if shortcut.is_empty() { b } else { b.shortcut_text(shortcut) };
-    let clicked = ui.add(b).clicked();
-    if clicked {
+    let r = ui.add(b);
+    let hit = r.clicked() || released_on(ui, &r);
+    if hit {
         ui.close();
     }
-    clicked
+    hit
 }
 
-/// Rysuje menu i zwraca prawą krawędź ostatniego tytułu menu.
-fn menus(ui: &mut Ui, settings: &Settings, inspection: bool, out: &mut Vec<MenuAction>) -> f32 {
-    use crate::settings::PrefsSection;
-    egui::MenuBar::new().ui(ui, |ui| {
-        let mut right = ui.min_rect().left();
-        let r = ui.menu_button("Plik", |ui| {
+/// Pozycja z ptaszkiem (stan włączony/wyłączony).
+fn check_item(ui: &mut Ui, checked: bool, label: &str) -> bool {
+    let text = if checked { format!("✔  {label}") } else { format!("     {label}") };
+    item(ui, &text, "")
+}
+
+/// Najechanie na inny tytuł, gdy menu jest otwarte, przełącza menu.
+fn switch_on_hover(ctx: &egui::Context, buttons: &[egui::Response]) {
+    let ids: Vec<egui::Id> = buttons.iter().map(egui::Popup::default_response_id).collect();
+    let Some(open) = ids.iter().position(|id| egui::Popup::is_id_open(ctx, *id)) else { return };
+    let Some(p) = ctx.pointer_hover_pos() else { return };
+    if ctx.input(|i| i.pointer.delta() == egui::Vec2::ZERO) {
+        return;
+    }
+    let reaches = |b: &egui::Response| {
+        let r = b.interact_rect;
+        let column = Rect::from_min_max(pos2(r.left(), f32::NEG_INFINITY), r.max);
+        column.contains(p) && ctx.layer_id_at(p) == Some(b.layer_id)
+    };
+    if let Some(i) = buttons.iter().position(reaches)
+        && i != open
+    {
+        egui::Popup::open_id(ctx, ids[i]);
+        ctx.request_repaint();
+    }
+}
+
+/// Klawiatura paska menu.
+fn menu_keys(ctx: &egui::Context, buttons: &[egui::Response]) {
+    let ids: Vec<egui::Id> = buttons.iter().map(egui::Popup::default_response_id).collect();
+    let open = ids.iter().position(|id| egui::Popup::is_id_open(ctx, *id));
+    let (alt_key, f10, left, right, esc) = ctx.input(|i| {
+        let alt = TOP.iter().position(|(_, k)| i.modifiers.alt && !i.modifiers.command && i.key_pressed(*k));
+        (alt, i.key_pressed(egui::Key::F10), i.key_pressed(egui::Key::ArrowLeft), i.key_pressed(egui::Key::ArrowRight), i.key_pressed(egui::Key::Escape))
+    });
+    let target = if let Some(k) = alt_key {
+        Some(k)
+    } else if f10 {
+        Some(open.map_or(0, |_| usize::MAX))
+    } else if let Some(o) = open {
+        if left {
+            Some((o + ids.len() - 1) % ids.len())
+        } else if right {
+            Some((o + 1) % ids.len())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    match target {
+        Some(usize::MAX) => egui::Popup::close_all(ctx),
+        Some(k) => egui::Popup::open_id(ctx, ids[k]),
+        None => {
+            if esc && open.is_some() {
+                egui::Popup::close_all(ctx);
+            }
+        }
+    }
+}
+
+fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, inspection: bool, out: &mut Vec<MenuAction>) {
+    use crate::settings::{HideItem, PrefsSection};
+    ui.set_min_width(220.0);
+    match index {
+        0 => {
             if crate::platform::CAN_PICK_FILES && item(ui, "Dodaj zdjęcia…", "Ctrl+O") {
                 out.push(MenuAction::AddFiles);
             }
@@ -72,28 +174,37 @@ fn menus(ui: &mut Ui, settings: &Settings, inspection: bool, out: &mut Vec<MenuA
                     out.push(MenuAction::Quit);
                 }
             }
-        });
-        right = right.max(r.response.rect.right());
-        let r = ui.menu_button("Ustawienia", |ui| {
+        }
+        1 => {
             ui.menu_button("Preferencje", |ui| {
+                ui.set_min_width(200.0);
                 if item(ui, "Interfejs…", "") {
                     out.push(MenuAction::Preferences(PrefsSection::Interface));
                 }
                 if item(ui, "Eksport i limity…", "") {
                     out.push(MenuAction::Preferences(PrefsSection::Export));
                 }
+                if item(ui, "Usuwanie tła (AI)…", "") {
+                    out.push(MenuAction::Preferences(PrefsSection::Ai));
+                }
             });
             ui.menu_button("Motyw", |ui| {
                 for kind in ThemeKind::ALL {
-                    if ui.radio(settings.theme == kind, kind.label()).clicked() {
+                    if check_item(ui, settings.theme == kind, kind.label()) {
                         out.push(MenuAction::SetTheme(kind));
-                        ui.close();
                     }
                 }
             });
-        });
-        right = right.max(r.response.rect.right());
-        let r = ui.menu_button("Widok", |ui| {
+            ui.menu_button("Ukryj", |ui| {
+                ui.set_min_width(260.0);
+                for hide in HideItem::ALL {
+                    if check_item(ui, settings.hidden(hide), hide.label()) {
+                        out.push(MenuAction::ToggleHidden(hide));
+                    }
+                }
+            });
+        }
+        2 => {
             if item(ui, "Powiększ interfejs", "Ctrl++") {
                 out.push(MenuAction::UiZoomIn);
             }
@@ -110,26 +221,69 @@ fn menus(ui: &mut Ui, settings: &Settings, inspection: bool, out: &mut Vec<MenuA
             if item(ui, "Zdjęcie 100 %", "Ctrl+1") {
                 out.push(MenuAction::ActualSize);
             }
-            ui.separator();
-            let label = if inspection { "✔ Inspekcja tła" } else { "Inspekcja tła" };
-            if item(ui, label, "I") {
-                out.push(MenuAction::ToggleInspection);
+            if !settings.hide_inspection {
+                ui.separator();
+                if check_item(ui, inspection, "Inspekcja tła   (I)") {
+                    out.push(MenuAction::ToggleInspection);
+                }
             }
-        });
-        right = right.max(r.response.rect.right());
-        let r = ui.menu_button("Pomoc", |ui| {
+        }
+        _ => {
             if item(ui, "Skróty klawiszowe", "F1") {
                 out.push(MenuAction::Shortcuts);
             }
             if item(ui, "O programie AsOne", "") {
                 out.push(MenuAction::About);
             }
+        }
+    }
+}
+
+/// Rysuje menu i zwraca prawą krawędź ostatniego tytułu menu.
+fn menus(ui: &mut Ui, settings: &Settings, inspection: bool, out: &mut Vec<MenuAction>) -> f32 {
+    let pal = theme::p();
+    let ctx = ui.ctx().clone();
+    let mut right = ui.cursor().left();
+    ui.scope(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        let v = &mut ui.style_mut().visuals;
+        v.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+        v.widgets.inactive.bg_stroke = Stroke::NONE;
+        v.widgets.hovered.bg_stroke = Stroke::NONE;
+        egui::MenuBar::new().ui(ui, |ui| {
+            ui.spacing_mut().button_padding = vec2(7.0, 3.0);
+            let mut buttons = Vec::with_capacity(TOP.len());
+            for (k, (name, _)) in TOP.iter().enumerate() {
+                let title = ui.add(egui::Button::new(egui::RichText::new(*name).color(pal.text_dim)));
+                let bar = egui::containers::menu::MenuConfig::find(ui);
+                let config = egui::containers::menu::MenuConfig::new()
+                    .close_behavior(bar.close_behavior)
+                    .style(bar.style.clone());
+                let open = title_press(&ctx, &title);
+                // Puszczenie przycisku kończące gest otwarcia nie może zamknąć menu.
+                let opening = title.clicked() && ctx.data(|d| d.get_temp::<bool>(press_gesture_id())).unwrap_or(false);
+                let close = if opening { egui::PopupCloseBehavior::IgnoreClicks } else { config.close_behavior };
+                egui::Popup::menu(&title)
+                    .open_memory(open)
+                    .close_behavior(close)
+                    .style(config.style.clone())
+                    .info(
+                        egui::UiStackInfo::new(egui::UiKind::Menu)
+                            .with_tag_value(egui::containers::menu::MenuConfig::MENU_CONFIG_TAG, config),
+                    )
+                    .show(|ui| menu_contents(k, ui, settings, inspection, out));
+                right = right.max(title.rect.right());
+                buttons.push(title);
+            }
+            switch_on_hover(&ctx, &buttons);
+            menu_keys(&ctx, &buttons);
         });
-        right = right.max(r.response.rect.right());
-        // Pasek menu zajmuje całą szerokość – liczy się tylko obszar tytułów menu.
-        right
-    })
-    .inner
+    });
+    // Gest „wciśnij – przeciągnij” kończy się z puszczeniem przycisku.
+    if ctx.input(|i| i.pointer.primary_released() || !i.pointer.primary_down()) {
+        ctx.data_mut(|d| d.remove::<bool>(press_gesture_id()));
+    }
+    right
 }
 
 /// Przycisk okna (minimalizuj / maksymalizuj / zamknij) rysowany jak w PhotoCrafcie.

@@ -1,31 +1,42 @@
 # AsOne – zdjęcia produktowe do internetu
 
 Lekki edytor (Rust + `wgpu` + `egui_dock`) do jednego zadania: szybko przygotować paczkę ~10 zdjęć
-produktu do publikacji w sieci. Kadr, marginesy, białe tło, kwadrat 1:1, usuwanie tła (gumka,
-prostokąt, interfejs pod AI), nazwy przyjazne dla URL i eksport do Progressive JPEG bez metadanych.
-
-Specyfikacja: [`specyfikacja_i_opis_projektu.md`](specyfikacja_i_opis_projektu.md),
-zadanie: [`prompt_do_budowy_aplikacji.md`](prompt_do_budowy_aplikacji.md).
+produktu do publikacji w sieci. Kadr, marginesy, białe tło, kwadrat 1:1, usuwanie tła (lokalny
+model AI, gumka, prostokąt), nazwy przyjazne dla URL i eksport do Progressive JPEG bez metadanych
+z limitami pilnowanymi przy każdym zapisie.
 
 ## Struktura (workspace jak w programach Craft)
 
 | Ścieżka | Co to jest |
 |---|---|
-| `crates/asone-core` | Rdzeń bez GUI: `naming` (slug + numeracja), `edits` (kadr, marginesy, tło, maska), `imageio` (dekodowanie z orientacją EXIF, Lanczos3), `compose` (kompozycja CPU), `jpeg` (MozJPEG / `jpeg-encoder`), `batch` (eksport wsadowy z ochroną oryginałów). |
-| `apps/asone` | Aplikacja okienkowa: `main.rs`, `lib.rs`, `app.rs`, `document.rs`, `renderer.rs`, `shader.wgsl`, `export.rs`, `canvas.rs`, `tabs.rs`, `loader.rs`, `ai.rs`, `platform.rs`, `theme.rs`. |
+| `crates/asone-core` | Rdzeń bez GUI: `naming` (slug + numeracja), `edits` (kadr, marginesy, tło, maska), `imageio` (dekodowanie z orientacją EXIF, Lanczos3), `compose` (kompozycja CPU), `jpeg` (MozJPEG / `jpeg-encoder`), `finish` (limity 3000×3600 / 3 MB), `autocrop`, `archive` (ZIP, PDF), `batch` (eksport wsadowy z ochroną oryginałów). |
+| `apps/asone` | Aplikacja okienkowa: `app/` (stan, panele, inspektor, pliki), `document.rs`, `renderer.rs` + `shader.wgsl`, `canvas.rs`, `tabs.rs`, `export.rs`, `loader.rs`, `ai.rs` (RMBG przez ONNX Runtime), `titlebar.rs`, `prefs.rs`, `settings.rs`, `theme.rs`, `platform.rs`, `web.rs`; wersja web: `index.html`, `web/loader.mjs`. |
+| `packaging/linux` | AppImage i Flatpak: `package.sh`, `AppRun`, `.desktop`, metadane AppStream, ikony. |
 | `apps/asone-cli` | `asone-cli`: `export`, `names`, `inspect`, `mcp` (serwer MCP na `rmcp`). |
 
 ## Przepływ pracy
 
 1. Przeciągnij zdjęcia (albo folder) na okno → **Lista plików** (miniatury).
-2. Kliknij miniaturę → zdjęcie otwiera się w osobnej zakładce `#1`, `#2`, …
-3. Wpisz nazwę paczki, np. `123-marka model` → pliki `123-marka-model-1.jpg`, `-2.jpg`, …
-4. Przeciągnij zakładki, żeby zmienić kolejność – numeracja przelicza się od razu.
+2. Kliknij miniaturę → zdjęcie otwiera się w osobnej zakładce `#1`, `#2`, … (ponowny klik zamyka
+   zakładkę). „Odznacz” zamyka wszystkie zakładki, „Wyczyść listę” usuwa zdjęcia z listy.
+3. Wklej nazwę paczki (przycisk „Wklej”), np. `123-marka model` → `123-marka-model-1.jpg`, `-2.jpg`, …
+   („Start nr” zmienia pierwszy numer).
+4. Przeciągnij miniatury na liście albo zakładki, żeby zmienić kolejność – numeracja przelicza się od razu.
 5. Kadruj (C), dodaj marginesy, białe tło, „Dopasuj do kwadratu 1:1”, usuń tło gumką (E) lub prostokątem (M).
 6. **Zapisz z zakładek (N)** albo `Ctrl+S` – eksport tylko otwartych zakładek, w ich kolejności.
 
 Domyślny folder zapisu to `web/` obok zdjęć (zmiana: przycisk „Folder” w górnym pasku).
 Oryginały nigdy nie są modyfikowane ani nadpisywane.
+
+**Ustawienia › Preferencje** (jak w PhotoCrafcie): *Interfejs* (16 motywów, w tym Sepia, kolor
+płótna, skala interfejsu − / +, systemowy pasek tytułu, „Ukryj”), *Eksport i limity* (maks. 3000 ×
+3600 px i 3 MB, pilnowane przy każdym zapisie – najpierw spada jakość, potem wymiary),
+*Usuwanie tła (AI)*. **Ustawienia › Ukryj** chowa: Edytuj w GIMP, Usuń z dysku, Inspekcja tła,
+Maska aktywna (ta i tak pokazuje się tylko dla PNG z przezroczystością albo po edycji maski).
+
+Z Asystenta PIM: Kadruj (auto), Ramka / Paski 5 px, Min. 500 px, Inspekcja tła (`I`), Start nr,
+menu kontekstowe listy (otwórz plik/folder, GIMP, ZIP, PDF, wczytaj ponownie, usuń z dysku do
+kosza lub trwale, usuń z listy / wszystkie z listy).
 
 ### Skróty
 
@@ -39,7 +50,10 @@ Oryginały nigdy nie są modyfikowane ani nadpisywane.
 | LPM / PPM (lub `Alt`+LPM) | gumka: usuń / przywróć |
 | `Delete` / `Shift+Delete` / `Esc` | wytnij / przywróć zaznaczenie, odznacz |
 | `Enter` lub dwuklik | zatwierdź kadr |
-| `Ctrl+S` | Zapisz z zakładek |
+| `I` | inspekcja tła |
+| `Ctrl++` / `Ctrl+−` | skala interfejsu |
+| `Alt+P/U/W/M`, `F10`, `←` `→`, `Esc` | menu Plik / Ustawienia / Widok / Pomoc |
+| `Ctrl+S` / `Ctrl+O` / `Ctrl+Q` | Zapisz z zakładek / Dodaj zdjęcia / Zakończ |
 
 ## Budowanie
 
@@ -48,7 +62,22 @@ cargo run --release -p asone            # aplikacja okienkowa
 cargo run --release -p asone -- *.jpg   # od razu z plikami w zakładkach
 cargo build --release -p asone-cli      # CLI + MCP
 cargo test --workspace                  # testy (bez GPU)
+packaging/linux/package.sh              # dist/AsOne-<wersja>-x86_64.AppImage + .flatpak
 ```
+
+### Pakiety Linuksa
+
+`packaging/linux/package.sh [appimage|flatpak|all]` buduje z tych samych binarek release:
+
+- **AppImage** – jeden plik, `AsOne.AppImage --cli …` uruchamia `asone-cli` (np. dla MCP);
+  przy pierwszym starcie dodaje skrót i ikonę do menu (`ASONE_NO_DESKTOP_INTEGRATION=1` wyłącza).
+- **Flatpak** – `io.github.lucasterg.AsOne`, runtime `org.freedesktop.Platform 26.08`; potrzebne jest
+  tylko polecenie `flatpak` (bez flatpak-buildera i SDK). Instalacja:
+  `flatpak install --user dist/AsOne-<wersja>-x86_64.flatpak`. Uprawnienia: Wayland/X11, GPU, sieć
+  (pobieranie modelu AI), foldery Obrazy / Pobrane / Dokumenty / Pulpit – bez wychodzenia poza
+  piaskownicę (dlatego „Edytuj w GIMP” w Flatpaku tylko podpowiada, jak otworzyć plik).
+
+Binarki zbudowane w kontenerze Debian 13 wymagają glibc ≥ 2.39 (GUI) / 2.34 (CLI).
 
 MozJPEG to biblioteka C – potrzebny jest kompilator C (`cc`/`gcc`/`clang`/MSVC) i `cmake`.
 Funkcja `nasm` włącza wstawki SIMD (szybsza kompresja), jeśli `nasm` jest zainstalowany:
@@ -116,14 +145,23 @@ wcześniejsze pliki `.jpg` o tych samych nazwach, nigdy oryginałów.
 
 ## Usuwanie tła AI
 
-`apps/asone/src/ai.rs` definiuje `BackgroundRemover` i wątek roboczy. Przycisk „Usuń tło (AI)”
-działa już w całym potoku (pomniejszona kopia → model → maska skalowana Lanczos3 → GPU), ale
-`OnnxBackgroundRemover` jest zaślepką: po dodaniu `ort` i pliku `models/rmbg-1.4.onnx` wystarczy
-zaimplementować `predict_mask` (instrukcja w komentarzu modułu).
+Lokalnie, przez ONNX Runtime (`ort`, wkompilowany statycznie) – zdjęcia nie są nigdzie wysyłane.
+Ustawienia › Preferencje › **Usuwanie tła (AI)**: wybór modelu, ścieżka pliku („Wybierz…”),
+„Pobierz model” z paskiem postępu.
+
+| Model | Plik | Dostęp |
+|---|---|---|
+| BRIA RMBG-1.4 | [model.onnx](https://huggingface.co/briaai/RMBG-1.4/resolve/main/onnx/model.onnx) (~176 MB) | publiczny |
+| BRIA RMBG-2.0 | [model.onnx](https://huggingface.co/briaai/RMBG-2.0/resolve/main/onnx/model.onnx) (~1 GB) | token Hugging Face (darmowy po rejestracji, <https://huggingface.co/settings/tokens>) + akceptacja licencji na stronie modelu |
+
+Domyślne miejsce: `~/.local/share/asone/models/`. Modele BRIA są darmowe do użytku
+niekomercyjnego. AI działa w wersjach desktopowych (Linux, Windows, macOS); w przeglądarce,
+na Androidzie i FreeBSD przycisk zgłasza, że funkcja jest niedostępna.
+Test na prawdziwym modelu: `cargo test -p asone rmbg14 -- --ignored`.
 
 ## Ograniczenia
 
 - Profile ICC (np. Display P3 z iPhone'a) nie są konwertowane do sRGB – są usuwane, więc kolory
   takich zdjęć mogą się lekko przesunąć.
 - Każde otwarte zdjęcie trzyma teksturę z mipmapami i maskę w VRAM/RAM (~130 MB dla 24 Mpx).
-- Brak Undo/Redo (Etap 4) i prawdziwego modelu AI (Etap 5).
+- Brak Undo/Redo.

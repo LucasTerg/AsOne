@@ -21,6 +21,8 @@ pub mod titlebar;
 pub mod web;
 
 pub const APP_TITLE: &str = "AsOne – zdjęcia produktowe do internetu";
+/// Identyfikator aplikacji (desktop, Flatpak, AppStream).
+pub const APP_ID: &str = "io.github.lucasterg.AsOne";
 
 /// Opcje okna natywnego (desktop i Android).
 #[cfg(not(target_arch = "wasm32"))]
@@ -29,7 +31,8 @@ pub fn native_options() -> eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         viewport: egui::ViewportBuilder::default()
             .with_title(APP_TITLE)
-            .with_app_id("asone")
+            // = nazwa pliku .desktop (Wayland dopasowuje po niej ikonę w doku/pasku zadań).
+            .with_app_id(APP_ID)
             .with_inner_size([1280.0, 800.0])
             .with_min_inner_size([900.0, 560.0])
             .with_drag_and_drop(true)

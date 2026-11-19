@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Metadane AppStream (centra oprogramowania, Flathub). @VERSION@ i @DATE@ podstawiają skrypty pakujące. -->
+<component type="desktop-application">
+  <id>io.github.lucasterg.AsOne</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <name>AsOne</name>
+  <summary>Product photos for the web, in one batch</summary>
+  <summary xml:lang="pl">Zdjęcia produktowe do internetu – cała paczka naraz</summary>
+  <developer id="io.github.lucasterg">
+    <name>LucasTerg</name>
+  </developer>
+  <description>
+    <p>
+      AsOne prepares a batch of product photos for an online shop: crop, margins,
+      white background, square 1:1, background removal, URL-friendly file names
+      and a metadata-free progressive JPEG export that respects size limits.
+    </p>
+    <ul>
+      <li>GPU preview with zoom, crop, eraser and rectangle cut-outs</li>
+      <li>Background removal with local BRIA RMBG models (ONNX)</li>
+      <li>Export limits enforced on every save (e.g. 3000×3600 px, 3 MB)</li>
+      <li>CLI and MCP server for automation</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.lucasterg.AsOne.desktop</launchable>
+  <icon type="stock">io.github.lucasterg.AsOne</icon>
+  <url type="homepage">https://github.com/LucasTerg/AsOne</url>
+  <url type="bugtracker">https://github.com/LucasTerg/AsOne/issues</url>
+  <categories>
+    <category>Graphics</category>
+    <category>Photography</category>
+  </categories>
+  <keywords>
+    <keyword>photo</keyword>
+    <keyword>product</keyword>
+    <keyword>jpeg</keyword>
+    <keyword xml:lang="pl">zdjęcia</keyword>
+  </keywords>
+  <branding>
+    <color type="primary" scheme_preference="light">#9cc6f7</color>
+    <color type="primary" scheme_preference="dark">#1b5fb8</color>
+  </branding>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="@VERSION@" date="@DATE@" />
+  </releases>
+</component>

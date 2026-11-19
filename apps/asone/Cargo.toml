@@ -18,7 +18,9 @@ name = "asone"
 path = "src/main.rs"
 
 [features]
-default = ["mozjpeg"]
+default = ["mozjpeg", "ai"]
+# Usuwanie tła AI lokalnie (ONNX Runtime przez `ort`, modele BRIA RMBG) – Linux, Windows, macOS.
+ai = ["dep:ort", "dep:ureq"]
 # MozJPEG przy eksporcie (desktop/Android). Bez niej – oraz na wasm – czysto rustowy koder.
 mozjpeg = ["asone-core/mozjpeg"]
 nasm = ["asone-core/nasm"]
@@ -41,6 +43,11 @@ web-time = "1.1"
 # Desktop + Android: pule wątków.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rayon = "1.12"
+
+# AI: ONNX Runtime (prebudowane binarki pobierane przy budowaniu) i pobieranie modeli.
+[target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))'.dependencies]
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "download-binaries", "copy-dylibs", "tls-native", "api-24"], optional = true }
+ureq = { version = "3.5", optional = true }
 
 # Desktop: schowek („Wklej nazwę”, także Wayland) i systemowy kosz („Usuń z dysku”).
 [target.'cfg(not(any(target_os = "android", target_arch = "wasm32")))'.dependencies]

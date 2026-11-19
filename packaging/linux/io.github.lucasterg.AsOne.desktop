@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=AsOne
+GenericName=Edytor zdjęć produktowych
+GenericName[en]=Product photo editor
+Comment=Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, Progressive JPEG bez metadanych
+Comment[en]=Product photos for the web: crop, margins, white background, metadata-free progressive JPEG
+Exec=asone %F
+TryExec=asone
+Icon=io.github.lucasterg.AsOne
+Terminal=false
+# Natywny runner nie kończy powiadomień o starcie.
+StartupNotify=false
+StartupWMClass=io.github.lucasterg.AsOne
+Categories=Graphics;2DGraphics;RasterGraphics;Photography;
+Keywords=zdjęcia;produkt;sklep;jpeg;tło;e-commerce;photo;product;background;
+MimeType=image/jpeg;image/png;image/webp;image/tiff;image/bmp;
+# AppRun sam rejestruje skrót i ikony; zewnętrzne integratory AppImage nie dodają duplikatu.
+X-AppImage-Integrate=false

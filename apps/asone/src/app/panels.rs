@@ -172,7 +172,8 @@ impl AsOneApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+            .pivot(Align2::CENTER_CENTER)
+            .default_pos(ctx.content_rect().center())
             .default_width(520.0)
             .show(ctx, |ui| {
                 let saved = report.entries.iter().filter(|e| matches!(e, ReportEntry::Saved { .. })).count();
@@ -252,7 +253,8 @@ impl AsOneApp {
                 .open(&mut open)
                 .collapsible(false)
                 .resizable(false)
-                .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+                .pivot(Align2::CENTER_CENTER)
+            .default_pos(ctx.content_rect().center())
                 .show(ctx, |ui| {
                     ui.colored_label(pal.danger, RichText::new("Ostrzeżenie").strong());
                     ui.label(format!("Pliki ({}) zostaną usunięte z dysku i z listy:", ids.len()));
@@ -287,9 +289,41 @@ impl AsOneApp {
             }
         }
 
+        if self.dialogs.clear_list {
+            let mut open = true;
+            let mut confirm = false;
+            let n = self.order.len();
+            egui::Window::new("Wyczyść listę")
+                .open(&mut open)
+                .collapsible(false)
+                .resizable(false)
+                .pivot(Align2::CENTER_CENTER)
+                .default_pos(ctx.content_rect().center())
+                .show(ctx, |ui| {
+                    ui.label(format!("Usunąć z listy wszystkie zdjęcia ({n})?"));
+                    ui.colored_label(pal.text_dim, "Pliki na dysku zostają; tracisz tylko ustawienia kadru, marginesów i maski.");
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Wyczyść listę").clicked() {
+                            confirm = true;
+                        }
+                        if ui.button("Anuluj").clicked() {
+                            self.dialogs.clear_list = false;
+                        }
+                    });
+                });
+            if confirm {
+                self.dialogs.clear_list = false;
+                self.clear_list();
+            }
+            if !open {
+                self.dialogs.clear_list = false;
+            }
+        }
+
         if self.dialogs.shortcuts {
             let mut open = true;
-            egui::Window::new("Skróty klawiszowe").open(&mut open).collapsible(false).show(ctx, |ui| {
+            egui::Window::new("Skróty klawiszowe").open(&mut open).collapsible(false).pivot(Align2::CENTER_CENTER).default_pos(ctx.content_rect().center()).show(ctx, |ui| {
                 egui::Grid::new("shortcuts").num_columns(2).striped(true).show(ui, |ui| {
                     for (k, v) in [
                         ("H / C / E / M", "Przesuwanie / Kadrowanie / Gumka / Wycinanie prostokątem"),
@@ -316,7 +350,7 @@ impl AsOneApp {
 
         if self.dialogs.about {
             let mut open = true;
-            egui::Window::new("O programie").open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
+            egui::Window::new("O programie").open(&mut open).collapsible(false).resizable(false).pivot(Align2::CENTER_CENTER).default_pos(ctx.content_rect().center()).show(ctx, |ui| {
                 ui.heading(format!("AsOne {}", env!("CARGO_PKG_VERSION")));
                 ui.label("Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, limity i Progressive JPEG bez metadanych.");
                 ui.colored_label(pal.text_dim, format!("Kompresja: {}", asone_core::jpeg::ENCODER_NAME));

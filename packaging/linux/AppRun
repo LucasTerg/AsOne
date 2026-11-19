@@ -1,0 +1,56 @@
+#!/bin/sh
+# AsOne – punkt wejścia AppImage (packaging/linux/AppRun).
+#
+# `AsOne.AppImage --cli <argumenty>` uruchamia dołączone asone-cli (np. `--cli mcp …` dla klientów MCP).
+# Przy pierwszym uruchomieniu (i po zmianie ścieżki AppImage) instaluje skrót .desktop i ikony
+# w $XDG_DATA_HOME, żeby Wayland pokazał właściwą ikonę w doku. Wyłączenie: ASONE_NO_DESKTOP_INTEGRATION=1.
+set -u
+
+APPDIR="$(dirname "$(readlink -f "$0")")"
+DESK_ID=io.github.lucasterg.AsOne
+
+if [ "${1:-}" = --cli ]; then
+  shift
+  exec "$APPDIR/usr/bin/asone-cli" "$@"
+fi
+case "${ARGV0:-}" in
+  asone-cli | */asone-cli) exec "$APPDIR/usr/bin/asone-cli" "$@" ;;
+esac
+
+integrate() {
+  case "${ASONE_NO_DESKTOP_INTEGRATION:-}" in 1 | true | yes) return 0 ;; esac
+  appimage="${APPIMAGE:-}"
+  [ -n "$appimage" ] && [ -f "$appimage" ] || return 0
+  appimage="$(readlink -f "$appimage")" || return 0
+  # Exec= interpretuje środowisko graficzne: ścieżki z cudzysłowem, $, \, % lub nową linią pomijamy.
+  case "$appimage" in *[\"\`\$\\%]* | *'
+'*) return 0 ;; esac
+  home="${HOME:-}"
+  [ -n "$home" ] || return 0
+  data="${XDG_DATA_HOME:-$home/.local/share}"
+  apps="$data/applications"
+  mkdir -p "$apps" 2>/dev/null || return 0
+  src="$APPDIR/usr/share/applications/$DESK_ID.desktop"
+  [ -f "$src" ] || return 0
+  tmp="$apps/.$DESK_ID.tmp.$$"
+  esc="$(printf '%s' "$appimage" | sed 's/[\\&|]/\\&/g')"
+  if sed -e "s|^Exec=.*|Exec=\"$esc\" %F|" -e '/^TryExec=/d' "$src" >"$tmp" 2>/dev/null; then
+    if cmp -s "$tmp" "$apps/$DESK_ID.desktop"; then
+      rm -f "$tmp"
+    elif mv -f "$tmp" "$apps/$DESK_ID.desktop" 2>/dev/null; then
+      command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$apps" >/dev/null 2>&1
+    else
+      rm -f "$tmp"
+    fi
+  else
+    rm -f "$tmp"
+  fi
+  icons="$data/icons/hicolor"
+  (cd "$APPDIR/usr/share/icons/hicolor" 2>/dev/null && find . -type f) | while IFS= read -r rel; do
+    mkdir -p "$icons/$(dirname "$rel")" 2>/dev/null || continue
+    cmp -s "$APPDIR/usr/share/icons/hicolor/$rel" "$icons/$rel" || cp "$APPDIR/usr/share/icons/hicolor/$rel" "$icons/$rel" 2>/dev/null || true
+  done
+}
+
+integrate
+exec "$APPDIR/usr/bin/asone" "$@"

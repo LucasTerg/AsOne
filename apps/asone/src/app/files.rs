@@ -119,6 +119,13 @@ impl AsOneApp {
         }
     }
 
+    pub(super) fn clear_list(&mut self) {
+        let all = self.order.clone();
+        let n = all.len();
+        self.remove_docs(&all);
+        self.toast(format!("Wyczyszczono listę ({n} zdjęć) – pliki na dysku zostały"), false);
+    }
+
     fn remove_docs(&mut self, ids: &[DocId]) {
         for id in ids {
             self.close_tab(*id);
@@ -197,6 +204,13 @@ impl AsOneApp {
                     self.pickers.pick_save_target(SaveKind::PdfSelected, name, start);
                 }
                 Action::DeleteFromDisk(ids) => self.dialogs.delete = Some(ids),
+                Action::CloseAllTabs => {
+                    for id in photo_tab_order(&self.dock) {
+                        self.close_tab(id);
+                    }
+                    self.selected.clear();
+                }
+                Action::ClearList => self.dialogs.clear_list = true,
             }
         }
     }

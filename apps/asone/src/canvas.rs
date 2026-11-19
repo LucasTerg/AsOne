@@ -350,6 +350,7 @@ pub fn photo_ui(
                     let dirty = stamp_segment(&mut doc.mask_cpu, src, from, cur, brush.radius, restore);
                     if dirty.is_some() {
                         doc.edits.use_bg_removal = true;
+                        doc.mask_touched = true;
                     }
                     doc.mask_dirty = union_opt(doc.mask_dirty, dirty);
                     doc.canvas.last_brush = Some(cur);

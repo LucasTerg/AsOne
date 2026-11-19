@@ -138,6 +138,10 @@ pub enum Action {
     ZipSelected(Vec<DocId>),
     PdfSelected(Vec<DocId>),
     DeleteFromDisk(Vec<DocId>),
+    /// „Odznacz”: zamyka wszystkie zakładki ze zdjęciami i czyści zaznaczenie.
+    CloseAllTabs,
+    /// „Wyczyść listę” / „Usuń wszystkie z listy” (z potwierdzeniem).
+    ClearList,
 }
 
 pub struct Viewer<'a> {
@@ -146,6 +150,7 @@ pub struct Viewer<'a> {
     /// Numer `#n` i nazwa wyjściowa dla otwartych zdjęć.
     pub numbering: &'a HashMap<DocId, (usize, Option<String>)>,
     pub selected: &'a mut HashSet<DocId>,
+    pub settings: &'a crate::settings::Settings,
     pub gpu: Option<&'a Arc<GpuShared>>,
     pub tool: Tool,
     pub brush: &'a BrushSettings,
@@ -234,6 +239,21 @@ impl Viewer<'_> {
                 if ui.add_enabled(can_open_all, egui::Button::new("Otwórz wszystkie")).clicked() {
                     self.actions.push(Action::OpenAll);
                 }
+                let can_deselect = open_count > 0 || !self.selected.is_empty();
+                if ui
+                    .add_enabled(can_deselect, egui::Button::new("Odznacz"))
+                    .on_hover_text("Zamyka wszystkie zakładki ze zdjęciami (pliki zostają na liście)")
+                    .clicked()
+                {
+                    self.actions.push(Action::CloseAllTabs);
+                }
+                if ui
+                    .add_enabled(!self.order.is_empty(), egui::Button::new("Wyczyść listę"))
+                    .on_hover_text("Usuwa wszystkie zdjęcia z listy (pliki na dysku zostają)")
+                    .clicked()
+                {
+                    self.actions.push(Action::ClearList);
+                }
                 let mut info = format!("Plików: {} · w zakładkach: {open_count}", self.order.len());
                 if !self.selected.is_empty() {
                     info.push_str(&format!(" · zaznaczone: {}", self.selected.len()));
@@ -304,6 +324,10 @@ impl Viewer<'_> {
             } else {
                 self.selected.insert(id);
             }
+        } else if self.numbering.contains_key(&id) {
+            // Kliknięcie otwartego zdjęcia zamyka jego zakładkę (odznacza).
+            self.selected.remove(&id);
+            self.actions.push(Action::CloseTab(id));
         } else {
             self.selected.clear();
             self.selected.insert(id);
@@ -388,7 +412,7 @@ impl Viewer<'_> {
         let hover = match &doc.thumb {
             ThumbState::Failed(e) => format!("{}\n{e}", doc.file_name),
             _ => format!(
-                "{}\n{:.1} MB · klik – otwórz · Ctrl/Shift+klik – zaznacz · przeciągnij – zmień kolejność",
+                "{}\n{:.1} MB · klik – otwórz / zamknij zakładkę · Ctrl/Shift+klik – zaznacz · przeciągnij – zmień kolejność",
                 doc.file_name,
                 doc.file_size as f64 / 1e6
             ),
@@ -421,7 +445,7 @@ impl Viewer<'_> {
                     self.actions.push(Action::OpenFolder(id));
                     ui.close();
                 }
-                if !many && ui.button("Edytuj w GIMP").clicked() {
+                if !many && !self.settings.hide_gimp && ui.button("Edytuj w GIMP").clicked() {
                     self.actions.push(Action::EditInGimp(id));
                     ui.close();
                 }
@@ -444,7 +468,11 @@ impl Viewer<'_> {
                 self.actions.push(Action::Remove(targets.clone()));
                 ui.close();
             }
-            if crate::platform::FILE_OPS && has_path {
+            if ui.button(format!("Usuń wszystkie z listy ({})", self.order.len())).clicked() {
+                self.actions.push(Action::ClearList);
+                ui.close();
+            }
+            if crate::platform::FILE_OPS && has_path && !self.settings.hide_delete_from_disk {
                 let danger = egui::RichText::new(format!("Usuń z dysku…{suffix}")).color(theme::p().danger);
                 if ui.button(danger).clicked() {
                     self.actions.push(Action::DeleteFromDisk(targets.clone()));

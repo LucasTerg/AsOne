@@ -74,6 +74,8 @@ pub struct Document {
     pub mask_cpu: Vec<u8>,
     /// Obszar maski zmieniony od ostatniego wysłania na GPU.
     pub mask_dirty: Option<PxRect>,
+    /// Maska coś zmienia (PNG z przezroczystością, gumka, prostokąt, AI) – wtedy pokazujemy „Maska aktywna”.
+    pub mask_touched: bool,
     pub edits: EditParams,
     /// Kłódka „Spnij wszystkie boki”.
     pub margins_linked: bool,
@@ -102,6 +104,7 @@ impl Document {
             gpu: None,
             mask_cpu: Vec::new(),
             mask_dirty: None,
+            mask_touched: false,
             edits: EditParams::default(),
             margins_linked: false,
             camera: Camera::default(),

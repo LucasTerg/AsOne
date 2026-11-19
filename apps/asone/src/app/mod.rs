@@ -15,13 +15,13 @@ use crossbeam_channel::{Receiver, Sender};
 use egui::{Key, Ui};
 use egui_dock::{DockArea, DockState};
 
-use crate::ai::{AiWorker, DEFAULT_MODEL_PATH, OnnxBackgroundRemover};
+use crate::ai::{AiModel, AiWorker, DownloadMsg, OnnxBackgroundRemover};
 use crate::canvas::{BrushSettings, Tool, zoom_at};
 use crate::document::{AiState, DocId, Document, LoadState, PxRect, ThumbState, fill_rect, union_opt};
 use crate::export::ExportMsg;
 use crate::loader::{LoadResult, Loader};
 use crate::platform::{self, ImageSource, Instant, PickerEvent, Pickers, Tasks};
-use crate::prefs::{PrefsDialog, PrefsResult};
+use crate::prefs::{DownloadView, PrefsDialog};
 use crate::renderer::GpuShared;
 use crate::settings::{STORAGE_KEY, Settings};
 use crate::tabs::{AppTab, Viewer, photo_tab_order, reorder_list_by_tabs, reorder_photo_tabs};
@@ -52,9 +52,18 @@ pub(crate) enum OpsMsg {
     AutoCrop { id: DocId, rect: Option<PxRect> },
 }
 
+/// Pobieranie modelu AI w toku.
+pub(crate) struct AiDownload {
+    rx: Receiver<DownloadMsg>,
+    model: AiModel,
+    done: u64,
+    total: Option<u64>,
+}
+
 #[derive(Default)]
 pub(crate) struct Dialogs {
     delete: Option<Vec<DocId>>,
+    clear_list: bool,
     about: bool,
     shortcuts: bool,
 }
@@ -96,6 +105,7 @@ pub struct AsOneApp {
     pending_pdf: Vec<DocId>,
     export: Option<ExportJob>,
     report: Option<ExportReport>,
+    ai_download: Option<AiDownload>,
     dialogs: Dialogs,
     toast: Option<(String, bool, Instant)>,
 }
@@ -131,7 +141,7 @@ impl AsOneApp {
         ctx.options_mut(|o| o.zoom_with_keyboard = false);
 
         let gpu = cc.wgpu_render_state.as_ref().map(GpuShared::new);
-        let remover = Arc::new(OnnxBackgroundRemover { model_path: DEFAULT_MODEL_PATH.into() });
+        let remover = Arc::new(OnnxBackgroundRemover::default());
         let (ops_tx, ops_rx) = crossbeam_channel::unbounded();
         let mut app = Self {
             dock: DockState::new(vec![AppTab::FileList]).with_translations(polish_translations()),
@@ -163,6 +173,7 @@ impl AsOneApp {
             gpu,
             export: None,
             report: None,
+            ai_download: None,
             dialogs: Dialogs::default(),
             toast: None,
             settings,
@@ -270,6 +281,7 @@ impl AsOneApp {
                         doc.camera.needs_fit = true;
                         if has_alpha {
                             doc.edits.use_bg_removal = true;
+                            doc.mask_touched = true;
                         }
                     }
                 }
@@ -293,6 +305,7 @@ impl AsOneApp {
                             doc.mask_cpu = mask;
                             doc.mask_dirty = Some(PxRect { x0: 0, y0: 0, x1: size[0], y1: size[1] });
                             doc.edits.use_bg_removal = true;
+                            doc.mask_touched = true;
                         }
                         doc.ai = AiState::Idle;
                     }
@@ -318,6 +331,7 @@ impl AsOneApp {
                     }
                 }
                 PickerEvent::SaveTarget(kind, path) => self.save_archive(kind, path),
+                PickerEvent::ModelFile(path) => self.prefs.set_model_path(path),
             }
         }
 
@@ -335,6 +349,31 @@ impl AsOneApp {
                     (None, Some(_)) => self.toast("Nie znaleziono obiektu na jasnym tle", true),
                     _ => {}
                 },
+            }
+        }
+
+        if let Some(dl) = &mut self.ai_download {
+            let mut finished = None;
+            for msg in dl.rx.try_iter() {
+                match msg {
+                    DownloadMsg::Progress { done, total } => {
+                        dl.done = done;
+                        dl.total = total;
+                    }
+                    DownloadMsg::Done(path) => finished = Some(Ok(path)),
+                    DownloadMsg::Failed(e) => finished = Some(Err(e)),
+                }
+            }
+            match finished {
+                Some(Ok(path)) => {
+                    self.ai_download = None;
+                    self.toast(format!("Model zapisany: {}", path.display()), false);
+                }
+                Some(Err(e)) => {
+                    self.ai_download = None;
+                    self.toast(e, true);
+                }
+                None => {}
             }
         }
 
@@ -390,7 +429,15 @@ impl AsOneApp {
                     zoom_at(&mut doc.camera, center, factor);
                 }
             }
-            MenuAction::ToggleInspection => self.inspection = !self.inspection,
+            MenuAction::ToggleInspection => {
+                if !self.settings.hide_inspection {
+                    self.inspection = !self.inspection;
+                }
+            }
+            MenuAction::ToggleHidden(item) => {
+                let hidden = self.settings.hidden_mut(item);
+                *hidden = !*hidden;
+            }
             MenuAction::Shortcuts => self.dialogs.shortcuts = true,
             MenuAction::About => self.dialogs.about = true,
         }
@@ -445,7 +492,7 @@ impl AsOneApp {
         if let Some(t) = tool_key {
             self.tool = t;
         }
-        if inspect {
+        if inspect && !self.settings.hide_inspection {
             self.inspection = !self.inspection;
         }
         if enter && self.tool == Tool::Crop {
@@ -471,6 +518,7 @@ impl AsOneApp {
             let dirty = fill_rect(&mut doc.mask_cpu, size, sel, if shift { 255 } else { 0 });
             doc.mask_dirty = union_opt(doc.mask_dirty, dirty);
             doc.edits.use_bg_removal = true;
+            doc.mask_touched = true;
         }
         if escape {
             doc.selection = None;
@@ -495,6 +543,22 @@ impl AsOneApp {
         self.add_sources(sources, 0);
         for id in self.order[first_new..].to_vec() {
             self.open_doc(id);
+        }
+    }
+
+    fn start_model_download(&mut self, ctx: &egui::Context, model: AiModel, path: PathBuf, token: String) {
+        if self.ai_download.is_some() {
+            return;
+        }
+        #[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+        {
+            let rx = crate::ai::download_model(model, path, token, ctx.clone());
+            self.ai_download = Some(AiDownload { rx, model, done: 0, total: None });
+        }
+        #[cfg(not(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos"))))]
+        {
+            let _ = (ctx, model, path, token);
+            self.toast("Pobieranie modeli AI działa w wersji desktopowej", true);
         }
     }
 
@@ -547,6 +611,7 @@ impl eframe::App for AsOneApp {
                 order: &self.order,
                 numbering: &numbering,
                 selected: &mut self.selected,
+                settings: &self.settings,
                 gpu: self.gpu.as_ref(),
                 tool: self.tool,
                 brush: &self.brush,
@@ -572,9 +637,21 @@ impl eframe::App for AsOneApp {
         self.update_active_doc(&open);
         self.report_window(&ctx);
         self.dialogs_ui(&ctx);
-        if let PrefsResult::Apply(new) = self.prefs.show(&ctx) {
+        let view = self.ai_download.as_ref().map(|d| DownloadView { model: d.model, done: d.done, total: d.total });
+        let prefs = self.prefs.show(&ctx, view.as_ref());
+        if let Some(new) = prefs.apply {
             self.settings = new;
             self.apply_view_settings(&ctx);
+        }
+        if prefs.pick_model {
+            let start = self.settings.ai_model_path().parent().map(|p| p.to_path_buf());
+            self.pickers.pick_model_file(start);
+        }
+        if let Some((model, path, token)) = prefs.download {
+            self.start_model_download(&ctx, model, path, token);
+        }
+        if self.settings.hide_inspection {
+            self.inspection = false;
         }
         self.overlays(&ctx);
         titlebar::resize_edges(&ctx, &self.settings);

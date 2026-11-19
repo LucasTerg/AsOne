@@ -41,6 +41,11 @@ impl AsOneApp {
         let max_long = self.settings.limit_long_side.then_some(self.settings.max_long_side);
         let limits = self.settings.limits();
         let tool = self.tool;
+        let ai_model = self.settings.ai_model;
+        let ai_path = self.settings.ai_model_path();
+        let hide_mask = self.settings.hide_mask_toggle;
+        let hide_inspection = self.settings.hide_inspection;
+        let mut open_ai_prefs = false;
         let mut switch_tool = None;
         let mut ai_job = None;
         let mut apply_all = false;
@@ -105,14 +110,23 @@ impl AsOneApp {
                     });
                 }
                 state => {
-                    if ui.button("Usuń tło (AI)").clicked()
-                        && let Some(image) = doc.ai_proxy.clone()
-                    {
-                        ai_job = Some(AiJob { id, image, full_size: src });
-                        doc.ai = AiState::Running;
-                    }
+                    ui.horizontal(|ui| {
+                        let tip = format!("{} · {}", ai_model.label(), ai_path.display());
+                        if ui.button("Usuń tło (AI)").on_hover_text(tip).clicked()
+                            && let Some(image) = doc.ai_proxy.clone()
+                        {
+                            ai_job = Some(AiJob { id, image, full_size: src, model: ai_model, path: ai_path.clone() });
+                            doc.ai = AiState::Running;
+                        }
+                        if ui.small_button("⚙").on_hover_text("Model i plik: Ustawienia › Preferencje › Usuwanie tła (AI)").clicked() {
+                            open_ai_prefs = true;
+                        }
+                    });
                     if let AiState::Failed(e) = state {
-                        ui.colored_label(pal.danger, e);
+                        ui.colored_label(pal.danger, &e);
+                        if crate::ai::AVAILABLE && !ai_path.is_file() && ui.button("Pobierz model…").clicked() {
+                            open_ai_prefs = true;
+                        }
                     }
                 }
             }
@@ -120,19 +134,28 @@ impl AsOneApp {
             if ui.checkbox(&mut white, "Białe tło").changed() {
                 doc.edits.bg_color = white.then_some(WHITE);
             }
-            ui.checkbox(&mut doc.edits.use_bg_removal, "Maska aktywna (usunięte tło)");
+            // „Maska aktywna” tylko tam, gdzie maska coś zmienia (PNG z przezroczystością, gumka, AI).
+            let show_mask = !hide_mask && doc.mask_touched;
+            if show_mask {
+                ui.checkbox(&mut doc.edits.use_bg_removal, "Maska aktywna (usunięte tło)");
+            }
             if !white {
                 ui.colored_label(pal.text_dim, "JPEG nie ma przezroczystości – w pliku tło będzie białe.");
             }
-            ui.horizontal(|ui| {
-                if ui.button("Resetuj maskę").clicked() {
-                    doc.mask_cpu.fill(255);
-                    doc.mask_dirty = Some(PxRect { x0: 0, y0: 0, x1: src[0], y1: src[1] });
-                    doc.edits.use_bg_removal = false;
-                }
-                ui.toggle_value(&mut self.inspection, "Inspekcja tła (I)")
-                    .on_hover_text("Ekstremalny kontrast przy bieli: czyste białe zostaje białe, każdy szary piksel tła (cień, kurz, obwódka) od razu widać. Tylko podgląd.");
-            });
+            if show_mask || !hide_inspection {
+                ui.horizontal(|ui| {
+                    if show_mask && ui.button("Resetuj maskę").clicked() {
+                        doc.mask_cpu.fill(255);
+                        doc.mask_dirty = Some(PxRect { x0: 0, y0: 0, x1: src[0], y1: src[1] });
+                        doc.edits.use_bg_removal = false;
+                        doc.mask_touched = false;
+                    }
+                    if !hide_inspection {
+                        ui.toggle_value(&mut self.inspection, "Inspekcja tła (I)")
+                            .on_hover_text("Ekstremalny kontrast przy bieli: czyste białe zostaje białe, każdy szary piksel tła (cień, kurz, obwódka) od razu widać. Tylko podgląd.");
+                    }
+                });
+            }
             ui.separator();
 
             section(ui, "Kadrowanie");
@@ -259,6 +282,7 @@ impl AsOneApp {
                                         let dirty = fill_rect(&mut doc.mask_cpu, src, sel, value);
                                         doc.mask_dirty = union_opt(doc.mask_dirty, dirty);
                                         doc.edits.use_bg_removal = true;
+                                        doc.mask_touched = true;
                                     }
                                 }
                             });
@@ -288,6 +312,9 @@ impl AsOneApp {
 
         if let Some(job) = ai_job {
             self.ai.submit(job);
+        }
+        if open_ai_prefs {
+            self.prefs.open(crate::settings::PrefsSection::Ai, &self.settings);
         }
         if let Some(t) = switch_tool {
             self.tool = t;

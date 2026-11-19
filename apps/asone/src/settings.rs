@@ -47,6 +47,54 @@ impl CanvasColor {
     }
 }
 
+/// Model usuwania tła.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AiModel {
+    /// BRIA RMBG-1.4 – publiczny, bez rejestracji.
+    #[default]
+    Rmbg14,
+    /// BRIA RMBG-2.0 – dokładniejszy; repozytorium wymaga tokenu Hugging Face i akceptacji licencji.
+    Rmbg20,
+}
+
+impl AiModel {
+    pub const ALL: [AiModel; 2] = [AiModel::Rmbg14, AiModel::Rmbg20];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            AiModel::Rmbg14 => "RMBG-1.4 (BRIA, ~176 MB)",
+            AiModel::Rmbg20 => "RMBG-2.0 (BRIA, ~1 GB)",
+        }
+    }
+
+    /// Strona modelu (licencja, akceptacja warunków).
+    pub fn page_url(self) -> &'static str {
+        match self {
+            AiModel::Rmbg14 => "https://huggingface.co/briaai/RMBG-1.4",
+            AiModel::Rmbg20 => "https://huggingface.co/briaai/RMBG-2.0",
+        }
+    }
+
+    /// Bezpośredni link do pliku ONNX.
+    pub fn download_url(self) -> &'static str {
+        match self {
+            AiModel::Rmbg14 => "https://huggingface.co/briaai/RMBG-1.4/resolve/main/onnx/model.onnx",
+            AiModel::Rmbg20 => "https://huggingface.co/briaai/RMBG-2.0/resolve/main/onnx/model.onnx",
+        }
+    }
+
+    pub fn needs_token(self) -> bool {
+        self == AiModel::Rmbg20
+    }
+
+    pub fn file_name(self) -> &'static str {
+        match self {
+            AiModel::Rmbg14 => "rmbg-1.4.onnx",
+            AiModel::Rmbg20 => "rmbg-2.0.onnx",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -60,6 +108,21 @@ pub struct Settings {
     pub animations: bool,
     /// Systemowy pasek tytułu zamiast własnego (Linux/Windows).
     pub system_title_bar: bool,
+
+    // --- Ustawienia › Ukryj ---
+    pub hide_gimp: bool,
+    pub hide_delete_from_disk: bool,
+    pub hide_inspection: bool,
+    pub hide_mask_toggle: bool,
+
+    // --- AI (usuwanie tła) ---
+    pub ai_model: AiModel,
+    /// Ścieżka pliku RMBG-1.4 (pusta = domyślna w katalogu danych AsOne).
+    pub ai_path_14: String,
+    /// Ścieżka pliku RMBG-2.0 (pusta = domyślna w katalogu danych AsOne).
+    pub ai_path_20: String,
+    /// Token Hugging Face (tylko do pobrania RMBG-2.0; zapisywany lokalnie).
+    pub hf_token: String,
 
     // --- Eksport (górny pasek) ---
     pub quality: u8,
@@ -91,6 +154,14 @@ impl Default for Settings {
             show_tooltips: true,
             animations: true,
             system_title_bar: false,
+            hide_gimp: false,
+            hide_delete_from_disk: false,
+            hide_inspection: false,
+            hide_mask_toggle: false,
+            ai_model: AiModel::Rmbg14,
+            ai_path_14: String::new(),
+            ai_path_20: String::new(),
+            hf_token: String::new(),
             quality: 90,
             limit_long_side: false,
             max_long_side: 1200,
@@ -108,7 +179,60 @@ impl Default for Settings {
     }
 }
 
+/// Elementy, które można ukryć (Ustawienia › Ukryj).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HideItem {
+    Gimp,
+    DeleteFromDisk,
+    Inspection,
+    MaskToggle,
+}
+
+impl HideItem {
+    pub const ALL: [HideItem; 4] = [HideItem::Gimp, HideItem::DeleteFromDisk, HideItem::Inspection, HideItem::MaskToggle];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            HideItem::Gimp => "Edytuj w GIMP",
+            HideItem::DeleteFromDisk => "Usuń z dysku",
+            HideItem::Inspection => "Inspekcja tła",
+            HideItem::MaskToggle => "Maska aktywna (usunięte tło, PNG)",
+        }
+    }
+}
+
 impl Settings {
+    pub fn hidden_mut(&mut self, item: HideItem) -> &mut bool {
+        match item {
+            HideItem::Gimp => &mut self.hide_gimp,
+            HideItem::DeleteFromDisk => &mut self.hide_delete_from_disk,
+            HideItem::Inspection => &mut self.hide_inspection,
+            HideItem::MaskToggle => &mut self.hide_mask_toggle,
+        }
+    }
+
+    pub fn hidden(&self, item: HideItem) -> bool {
+        match item {
+            HideItem::Gimp => self.hide_gimp,
+            HideItem::DeleteFromDisk => self.hide_delete_from_disk,
+            HideItem::Inspection => self.hide_inspection,
+            HideItem::MaskToggle => self.hide_mask_toggle,
+        }
+    }
+
+    /// Ścieżka pliku modelu: wpisana w Ustawieniach albo domyślna w katalogu danych AsOne.
+    pub fn ai_model_path(&self) -> std::path::PathBuf {
+        let custom = match self.ai_model {
+            AiModel::Rmbg14 => self.ai_path_14.trim(),
+            AiModel::Rmbg20 => self.ai_path_20.trim(),
+        };
+        if custom.is_empty() {
+            default_models_dir().join(self.ai_model.file_name())
+        } else {
+            std::path::PathBuf::from(custom)
+        }
+    }
+
     pub fn limits(&self) -> ExportLimits {
         ExportLimits {
             max_width: self.enforce_dimensions.then_some(self.max_width.max(16)),
@@ -158,6 +282,15 @@ impl Settings {
                 self.show_tooltips = d.show_tooltips;
                 self.animations = d.animations;
                 self.system_title_bar = d.system_title_bar;
+                self.hide_gimp = d.hide_gimp;
+                self.hide_delete_from_disk = d.hide_delete_from_disk;
+                self.hide_inspection = d.hide_inspection;
+                self.hide_mask_toggle = d.hide_mask_toggle;
+            }
+            PrefsSection::Ai => {
+                self.ai_model = d.ai_model;
+                self.ai_path_14 = d.ai_path_14;
+                self.ai_path_20 = d.ai_path_20;
             }
             PrefsSection::Export => {
                 self.enforce_dimensions = d.enforce_dimensions;
@@ -179,6 +312,19 @@ pub enum PrefsSection {
     #[default]
     Interface,
     Export,
+    Ai,
+}
+
+/// Katalog modeli AI w danych aplikacji (np. `~/.local/share/asone/models`).
+pub fn default_models_dir() -> std::path::PathBuf {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        eframe::storage_dir("asone").unwrap_or_else(|| std::path::PathBuf::from(".")).join("models")
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        std::path::PathBuf::from("models")
+    }
 }
 
 #[cfg(test)]

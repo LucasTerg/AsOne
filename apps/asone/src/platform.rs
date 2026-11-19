@@ -178,6 +178,8 @@ pub enum PickerEvent {
     OutputFolder(PathBuf),
     /// Tekst ze schowka (przycisk „Wklej”).
     Pasted(String),
+    /// Plik modelu AI wybrany w Preferencjach.
+    ModelFile(PathBuf),
     SaveTarget(SaveKind, PathBuf),
 }
 
@@ -269,6 +271,26 @@ impl Pickers {
                 }
             });
         }
+    }
+
+    /// Okno wyboru pliku modelu ONNX (Preferencje › Usuwanie tła).
+    pub fn pick_model_file(&self, start: Option<PathBuf>) {
+        #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
+        {
+            let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
+            run_dialog(move || {
+                let mut dialog = rfd::FileDialog::new().set_title("Plik modelu ONNX").add_filter("Model ONNX", &["onnx"]);
+                if let Some(dir) = start.filter(|d| d.is_dir()) {
+                    dialog = dialog.set_directory(dir);
+                }
+                if let Some(path) = dialog.pick_file() {
+                    let _ = tx.send(PickerEvent::ModelFile(path));
+                    ctx.request_repaint();
+                }
+            });
+        }
+        #[cfg(any(target_os = "android", target_arch = "wasm32"))]
+        let _ = start;
     }
 
     /// Okno „Zapisz jako” (ZIP / PDF).
@@ -393,8 +415,12 @@ pub fn open_in_gimp(path: &Path) -> Result<(), String> {
     #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
     {
         use std::process::Command;
+        let in_flatpak = Path::new("/.flatpak-info").exists();
         let tries: Vec<(&str, Vec<std::ffi::OsString>)> = if cfg!(target_os = "macos") {
             vec![("open", vec!["-a".into(), "GIMP".into(), path.into()])]
+        } else if in_flatpak {
+            // Piaskownica Flatpaka nie uruchamia programów hosta (bez dodatkowego uprawnienia).
+            return Err("W wersji Flatpak otwórz zdjęcie w GIMP-ie ręcznie (Otwórz folder pliku)".into());
         } else {
             vec![
                 ("gimp", vec![path.into()]),
