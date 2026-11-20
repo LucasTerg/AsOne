@@ -9,13 +9,22 @@
   code { background: #f2f2f4; padding: .1rem .3rem; border-radius: 4px; word-break: break-all; }
   a.button { display: inline-block; background: #2f7cf6; color: #fff; padding: .6rem 1rem; border-radius: 8px; text-decoration: none; }
   small { color: #666; }
+  .qr { display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap; margin: 1.2rem 0; }
+  .qr img { width: 220px; height: 220px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
 </style>
 </head>
 <body>
 <h1>AsOne – repozytorium F-Droid</h1>
 <p>Własne repozytorium z wersją AsOne na Androida (arm64), budowaną przez GitHub Actions z
 <a href="https://github.com/LucasTerg/AsOne">kodu źródłowego</a>.</p>
-<p><a class="button" href="fdroidrepos://@HOST_PATH@?fingerprint=@FINGERPRINT@">Dodaj do F-Droid</a></p>
+<div class="qr">
+  <img src="qr.svg" alt="Kod QR repozytorium AsOne dla F-Droid">
+  <div>
+    <p><strong>Zeskanuj w F-Droid</strong>: <em>Ustawienia › Repozytoria › + › skanuj kod QR</em>
+    (albo aparatem telefonu).</p>
+    <p><a class="button" href="fdroidrepos://@HOST_PATH@?fingerprint=@FINGERPRINT@">Dodaj do F-Droid</a></p>
+  </div>
+</div>
 <p>Albo ręcznie w aplikacji F-Droid: <em>Ustawienia › Repozytoria › +</em> i adres:</p>
 <p><code>@REPO_URL@?fingerprint=@FINGERPRINT@</code></p>
 <p><small>Odcisk klucza repozytorium (SHA-256): <code>@FINGERPRINT@</code><br>

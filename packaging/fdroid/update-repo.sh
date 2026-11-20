@@ -10,7 +10,7 @@
 #   REPO_URL   (domyślnie https://lucasterg.github.io/AsOne/fdroid/repo)
 #   NO_PUSH=1  (bez publikacji – do testów; wynik zostaje w $SITE)
 # Potrzebne: fdroidserver, JDK 21 (keytool, jarsigner – na Ubuntu 24.04 `openjdk-21-jdk-headless`,
-# bo fdroid używa /usr/lib/jvm/default-java), git.
+# bo fdroid używa /usr/lib/jvm/default-java), git, qrencode (kod QR na stronie).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -78,6 +78,12 @@ HOST_PATH="${REPO_URL#https://}"
 sed -e "s|@REPO_URL@|$REPO_URL|g" -e "s|@HOST_PATH@|$HOST_PATH|g" -e "s|@FINGERPRINT@|$FINGERPRINT|g" \
   "$HERE/index.html.in" > "$SITE/index.html"
 touch "$SITE/.nojekyll"
+# Kod QR z adresem repozytorium i odciskiem klucza (skaner F-Droid albo aparat telefonu).
+if command -v qrencode >/dev/null; then
+  qrencode -t SVG -l M -m 2 -o "$SITE/qr.svg" "$REPO_URL?fingerprint=$FINGERPRINT"
+else
+  echo "uwaga: brak qrencode – strona bez kodu QR" >&2
+fi
 echo "Repozytorium: $REPO_URL?fingerprint=$FINGERPRINT"
 ls -la "$SITE/fdroid/repo" | grep -E '\.apk|index' || true
 

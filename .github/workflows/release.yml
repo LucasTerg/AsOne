@@ -411,7 +411,7 @@ jobs:
         if: steps.keys.outputs.skip != '1'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends fdroidserver openjdk-21-jdk-headless apksigner
+          sudo apt-get install -y -qq --no-install-recommends fdroidserver openjdk-21-jdk-headless apksigner qrencode
       - name: Aktualizacja repozytorium na gh-pages
         if: steps.keys.outputs.skip != '1'
         run: packaging/fdroid/update-repo.sh apk/*.apk
