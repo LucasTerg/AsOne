@@ -1,12 +1,15 @@
-# Wydanie AsOne na wszystkie platformy → GitHub Release.
+# AsOne na wszystkie platformy.
 #
-# Uruchamia się po wypchnięciu tagu `v*` (np. `git tag v0.1.1 && git push origin v0.1.1`)
-# albo ręcznie (Actions › Release › Run workflow) dla podanego tagu.
+# * push na `main` – samo budowanie (sprawdzenie, czy wszystko się kompiluje i pakuje),
+# * tag `v*` (np. `git tag v0.1.1 && git push origin v0.1.1`) albo ręcznie (Actions › Release ›
+#   Run workflow) – budowanie i GitHub Release z plikami.
+# Przy błędzie końcówka logu trafia do adnotacji („Końcówka logu”) – widać ją bez logowania.
 
 name: Release
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -50,9 +53,21 @@ jobs:
         env:
           FEATURES: ${{ matrix.features }}
         run: |
-          packaging/linux/package.sh all
+          set -o pipefail
+          packaging/linux/package.sh all 2>&1 | tee -a "$RUNNER_TEMP/build.log"
           V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
           tar czf "dist/AsOne-$V-linux-${{ matrix.arch }}.tar.gz" -C target/release asone asone-cli
+          df -h . | tail -n 1
+      - name: Końcówka logu (przy błędzie)
+        if: failure()
+        shell: bash
+        run: |
+          f="$RUNNER_TEMP/build.log"
+          [ -f "$f" ] || exit 0
+          enc() { sed 's/\r//g; s/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked' "$f" | tail -n 40 | enc)"
+          echo "::error title=Końcówka logu::$(tail -n 60 "$f" | enc)"
+          echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - uses: actions/upload-artifact@v5
         with:
           name: linux-${{ matrix.arch }}
@@ -83,7 +98,19 @@ jobs:
           key: ${{ matrix.target }}
       - name: Budowanie
         shell: bash
-        run: cargo build --release --target ${{ matrix.target }} -p asone -p asone-cli
+        run: |
+          set -o pipefail
+          cargo build --release --target ${{ matrix.target }} -p asone -p asone-cli 2>&1 | tee -a "$RUNNER_TEMP/build.log"
+      - name: Końcówka logu (przy błędzie)
+        if: failure()
+        shell: bash
+        run: |
+          f="$RUNNER_TEMP/build.log"
+          [ -f "$f" ] || exit 0
+          enc() { sed 's/\r//g; s/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked' "$f" | tail -n 40 | enc)"
+          echo "::error title=Końcówka logu::$(tail -n 60 "$f" | enc)"
+          echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - name: Paczka ZIP
         shell: bash
         run: |
@@ -145,8 +172,19 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Budowanie
         run: |
-          cargo build --release --target ${{ matrix.target }} -p asone -p asone-cli
+          set -o pipefail
+          cargo build --release --target ${{ matrix.target }} -p asone -p asone-cli 2>&1 | tee -a "$RUNNER_TEMP/build.log"
           otool -L target/${{ matrix.target }}/release/asone
+      - name: Końcówka logu (przy błędzie)
+        if: failure()
+        shell: bash
+        run: |
+          f="$RUNNER_TEMP/build.log"
+          [ -f "$f" ] || exit 0
+          enc() { sed 's/\r//g; s/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked' "$f" | tail -n 40 | enc)"
+          echo "::error title=Końcówka logu::$(tail -n 60 "$f" | enc)"
+          echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - name: AsOne.app (ZIP)
         run: packaging/macos/bundle.sh ${{ matrix.target }} ${{ matrix.arch }}
       - uses: actions/upload-artifact@v5
@@ -215,10 +253,21 @@ jobs:
           fi
           export CARGO_APK_RELEASE_KEYSTORE="$KS"
           export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="$PASS"
-          cargo apk build --release -p asone --lib
+          set -o pipefail
+          cargo apk build --release -p asone --lib 2>&1 | tee -a "$RUNNER_TEMP/build.log"
           V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
           mkdir -p dist
           cp target/release/apk/AsOne.apk "dist/AsOne-$V-android-arm64.apk"
+      - name: Końcówka logu (przy błędzie)
+        if: failure()
+        shell: bash
+        run: |
+          f="$RUNNER_TEMP/build.log"
+          [ -f "$f" ] || exit 0
+          enc() { sed 's/\r//g; s/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked' "$f" | tail -n 40 | enc)"
+          echo "::error title=Końcówka logu::$(tail -n 60 "$f" | enc)"
+          echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - uses: actions/upload-artifact@v5
         with:
           name: android-arm64
@@ -246,9 +295,20 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Budowanie
         run: |
-          (cd apps/asone && trunk build --release)
+          set -o pipefail
+          (cd apps/asone && trunk build --release) 2>&1 | tee -a "$RUNNER_TEMP/build.log"
           V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
           (cd dist/web && zip -qr "../AsOne-$V-web.zip" .)
+      - name: Końcówka logu (przy błędzie)
+        if: failure()
+        shell: bash
+        run: |
+          f="$RUNNER_TEMP/build.log"
+          [ -f "$f" ] || exit 0
+          enc() { sed 's/\r//g; s/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked' "$f" | tail -n 40 | enc)"
+          echo "::error title=Końcówka logu::$(tail -n 60 "$f" | enc)"
+          echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - uses: actions/upload-artifact@v5
         with:
           name: web
@@ -258,8 +318,9 @@ jobs:
   release:
     name: Wydanie na GitHubie
     needs: [linux, windows, macos, freebsd, android, web]
-    # Publikuj to, co się zbudowało, nawet gdy któraś platforma zawiodła.
-    if: ${{ !cancelled() }}
+    # Tylko dla tagu lub uruchomienia ręcznego; publikuj to, co się zbudowało,
+    # nawet gdy któraś platforma zawiodła.
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
