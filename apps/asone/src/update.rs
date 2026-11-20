@@ -2,8 +2,9 @@
 //!
 //! Gdy AsOne działa jako AppImage (zmienna `APPIMAGE` od środowiska AppImage), sprawdza najnowsze
 //! wydanie na GitHubie, pobiera nowy plik AppImage dla tej samej architektury, weryfikuje sumę
-//! SHA-256 z `SHA256SUMS.txt` z wydania i podmienia plik (nowa nazwa z nową wersją, stary plik
-//! usuwany). Działająca kopia czyta ze starego pliku do zamknięcia – „Uruchom ponownie” startuje nową.
+//! SHA-256 z `SHA256SUMS.txt` z wydania i podmienia plik **pod tą samą ścieżką** – skróty w menu
+//! (KDE trzyma w pamięci ścieżkę z pliku .desktop), skróty Steam i na pulpicie dalej działają.
+//! Działająca kopia czyta ze starego pliku do zamknięcia – „Uruchom ponownie” startuje nową.
 //! AppImage ma też wbudowaną informację o aktualizacji (zsync) dla AppImageUpdate / GearLever.
 
 use std::io::{Read, Write};
@@ -46,6 +47,15 @@ fn agent() -> ureq::Agent {
 
 /// Najnowsze wydanie, jeśli jest nowsze od tej wersji i ma AppImage dla tej architektury.
 pub fn check() -> Result<Option<Release>, String> {
+    let json = latest_json()?;
+    let tag = json.get("tag_name").and_then(Value::as_str).ok_or("Sprawdzanie aktualizacji: brak wersji w odpowiedzi")?;
+    if !is_newer(tag, env!("CARGO_PKG_VERSION")) {
+        return Ok(None);
+    }
+    release_from(&json).map(Some)
+}
+
+fn latest_json() -> Result<Value, String> {
     let mut resp = agent()
         .get(LATEST)
         .header("User-Agent", "AsOne-updater")
@@ -53,40 +63,38 @@ pub fn check() -> Result<Option<Release>, String> {
         .call()
         .map_err(|e| format!("Sprawdzanie aktualizacji: {e}"))?;
     let text = resp.body_mut().read_to_string().map_err(|e| format!("Sprawdzanie aktualizacji: {e}"))?;
-    let json: Value = serde_json::from_str(&text).map_err(|e| format!("Sprawdzanie aktualizacji: {e}"))?;
+    serde_json::from_str(&text).map_err(|e| format!("Sprawdzanie aktualizacji: {e}"))
+}
+
+/// Plik AppImage tej architektury i sumy kontrolne z opisu wydania (JSON API GitHuba).
+fn release_from(json: &Value) -> Result<Release, String> {
     let tag = json.get("tag_name").and_then(Value::as_str).ok_or("Sprawdzanie aktualizacji: brak wersji w odpowiedzi")?;
     let version = tag.trim_start_matches('v').to_string();
-    if !is_newer(&version, env!("CARGO_PKG_VERSION")) {
-        return Ok(None);
-    }
     let assets = json.get("assets").and_then(Value::as_array).cloned().unwrap_or_default();
     let find = |name: &str| assets.iter().find(|a| a.get("name").and_then(Value::as_str) == Some(name));
     let appimage_name = format!("AsOne-{version}-{}.AppImage", std::env::consts::ARCH);
     let asset = find(&appimage_name).ok_or_else(|| format!("Wydanie {version} nie ma pliku {appimage_name}"))?;
     let url = |a: &Value| a.get("browser_download_url").and_then(Value::as_str).map(String::from);
-    Ok(Some(Release {
+    Ok(Release {
         version,
         appimage_url: url(asset).ok_or("Sprawdzanie aktualizacji: brak adresu pliku")?,
         size: asset.get("size").and_then(Value::as_u64).unwrap_or(0),
         sums_url: find("SHA256SUMS.txt").and_then(url),
         appimage_name,
-    }))
+    })
 }
 
-/// Nowa ścieżka: nazwa z nową wersją, gdy obecna zawiera starą (inaczej ta sama ścieżka).
-pub fn new_path(current: &Path, release: &Release) -> PathBuf {
-    let old = env!("CARGO_PKG_VERSION");
-    match current.file_name().and_then(|n| n.to_str()) {
-        Some(name) if name.contains(old) => current.with_file_name(name.replace(old, &release.version)),
-        _ => current.to_path_buf(),
-    }
+/// Plik tymczasowy pobierania: ukryty, obok AppImage (ten sam system plików – podmiana jest atomowa).
+fn part_path(current: &Path) -> PathBuf {
+    let name = current.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "AsOne.AppImage".into());
+    current.with_file_name(format!(".{name}.part"))
 }
 
-/// Pobiera nowy AppImage, sprawdza SHA-256 i podmienia plik; zwraca ścieżkę nowej wersji.
+/// Pobiera nowy AppImage, sprawdza SHA-256 i podmienia plik pod tą samą ścieżką (zwraca ją).
 /// `progress` – 0–1000.
 pub fn install(release: &Release, current: &Path, progress: &AtomicU32) -> Result<PathBuf, String> {
-    let target = new_path(current, release);
-    let part = target.with_extension("AppImage.part");
+    let target = current.to_path_buf();
+    let part = part_path(current);
     let result = (|| -> Result<(), String> {
         let mut resp = agent()
             .get(&release.appimage_url)
@@ -138,10 +146,6 @@ pub fn install(release: &Release, current: &Path, progress: &AtomicU32) -> Resul
         let _ = std::fs::remove_file(&part);
         return Err(e);
     }
-    if target != current {
-        // Stary plik nie jest już potrzebny (działająca kopia ma go otwartego do zamknięcia).
-        let _ = std::fs::remove_file(current);
-    }
     progress.store(1000, Ordering::Relaxed);
     Ok(target)
 }
@@ -175,17 +179,37 @@ mod tests {
         assert_eq!(expected_sum(sums, "inny"), None);
     }
 
+    /// Prawdziwe pobranie najnowszego AppImage (ok. 26 MB) w miejsce pliku testowego.
+    /// `cargo test -p asone aktualizacja_na_zywo -- --ignored --nocapture`
     #[test]
-    fn nowa_nazwa_pliku() {
-        let r = Release {
-            version: "9.9.9".into(),
-            appimage_name: String::new(),
-            appimage_url: String::new(),
-            size: 0,
-            sums_url: None,
-        };
-        let cur = PathBuf::from(format!("/apps/AsOne-{}-x86_64.AppImage", env!("CARGO_PKG_VERSION")));
-        assert_eq!(new_path(&cur, &r), PathBuf::from("/apps/AsOne-9.9.9-x86_64.AppImage"));
-        assert_eq!(new_path(Path::new("/apps/AsOne.AppImage"), &r), PathBuf::from("/apps/AsOne.AppImage"));
+    #[ignore = "pobiera najnowsze wydanie z GitHuba"]
+    fn aktualizacja_na_zywo() {
+        let release = release_from(&latest_json().unwrap()).unwrap();
+        let dir = std::env::temp_dir().join(format!("asone-update-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let current = dir.join("AsOne-test-x86_64.appimage");
+        std::fs::write(&current, b"stara wersja").unwrap();
+        let progress = AtomicU32::new(0);
+        let path = install(&release, &current, &progress).unwrap();
+        assert_eq!(path, current, "ta sama ścieżka");
+        let bytes = std::fs::read(&path).unwrap();
+        eprintln!("{}: {} B, postęp {}", release.appimage_name, bytes.len(), progress.load(Ordering::Relaxed));
+        assert_eq!(bytes.len() as u64, release.size);
+        assert_eq!(&bytes[..4], b"\x7fELF");
+        assert!(!part_path(&current).exists(), "bez pliku tymczasowego");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o111, 0o111);
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn plik_tymczasowy_obok() {
+        assert_eq!(
+            part_path(Path::new("/apps/AsOne-0.1.18-x86_64.appimage")),
+            PathBuf::from("/apps/.AsOne-0.1.18-x86_64.appimage.part")
+        );
     }
 }

@@ -9,7 +9,9 @@ z limitami pilnowanymi przy każdym zapisie.
 
 **Najnowsza wersja:** <https://github.com/LucasTerg/AsOne/releases/latest> – albo przyciski pobierania
 na <https://asone.lmk.one/>. AppImage aktualizuje się sam: sprawdza nową wersję przy starcie (wyłączenie:
-Preferencje › Interfejs) i w menu Pomoc › Sprawdź aktualizacje; pobrany plik jest sprawdzany sumą SHA-256.
+Preferencje › Interfejs) i w menu Pomoc › Sprawdź aktualizacje; pobrany plik jest sprawdzany sumą SHA-256
+i zastępuje stary pod tą samą nazwą – skróty w menu, na pulpicie i w Steam dalej działają (bieżąca wersja:
+Pomoc › O programie).
 Ma też wbudowaną informację o aktualizacji dla AppImageUpdate / GearLever (zsync – tylko zmienione części).
 
 Linux pod Waylandem: AsOne otwiera okno przez XWayland (X11), bo tylko tak działa przeciąganie plików
