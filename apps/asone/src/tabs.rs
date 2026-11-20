@@ -10,6 +10,7 @@ use egui::{Color32, CornerRadius, Id, Rect, Sense, Stroke, Ui, WidgetText, pos2,
 use egui_dock::{DockState, Node, NodeIndex, NodePath, Tree};
 
 use crate::canvas::{BrushSettings, Tool, photo_ui};
+use crate::settings::ListView;
 use crate::document::{DocId, Document, LoadState, ThumbState};
 use crate::renderer::GpuShared;
 use crate::theme;
@@ -174,6 +175,8 @@ pub struct Viewer<'a> {
     pub numbering: &'a HashMap<DocId, (usize, Option<String>)>,
     pub selected: &'a mut HashSet<DocId>,
     pub settings: &'a crate::settings::Settings,
+    /// Widok listy plików (zapisywany z powrotem do ustawień po narysowaniu).
+    pub list: &'a mut crate::settings::ListOptions,
     pub gpu: Option<&'a Arc<GpuShared>>,
     pub tool: Tool,
     pub brush: &'a BrushSettings,
@@ -258,7 +261,6 @@ impl egui_dock::TabViewer for Viewer<'_> {
     }
 }
 
-const CELL: egui::Vec2 = egui::Vec2::new(132.0, 166.0);
 
 impl Viewer<'_> {
     fn file_list(&mut self, ui: &mut Ui) {
@@ -301,6 +303,7 @@ impl Viewer<'_> {
                 }
                 ui.colored_label(pal.text_dim, info);
             });
+            self.list_options_bar(ui);
         });
         ui.separator();
 
@@ -309,20 +312,42 @@ impl Viewer<'_> {
                 let hint = if cfg!(target_os = "android") {
                     "Wpisz folder ze zdjęciami i naciśnij „Wczytaj”"
                 } else {
-                    "Przeciągnij tutaj zdjęcia (JPG, PNG, WebP, TIFF, BMP)\nlub użyj „Dodaj zdjęcia…”"
+                    "Przeciągnij tutaj zdjęcia (JPG, PNG, WebP, AVIF, TIFF, BMP)\nlub użyj „Dodaj zdjęcia…”"
                 };
                 ui.colored_label(pal.text_dim, hint);
             });
             return;
         }
 
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-            ui.horizontal_wrapped(|ui| {
+        // Ctrl + kółko nad listą: rozmiar miniatur.
+        if ui.rect_contains_pointer(ui.max_rect()) {
+            let zoom = ui.input(|i| i.zoom_delta());
+            if zoom != 1.0 && self.list.view != ListView::Details {
+                self.list.thumb_size = (self.list.thumb_size * zoom).clamp(THUMB_MIN, THUMB_MAX);
+            }
+        }
+        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| match self.list.view {
+            ListView::Thumbnails => {
+                ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+                ui.horizontal_wrapped(|ui| {
+                    for &id in self.order {
+                        self.grid_cell(ui, id);
+                    }
+                });
+            }
+            ListView::List => {
+                ui.spacing_mut().item_spacing = vec2(0.0, 2.0);
                 for &id in self.order {
-                    self.thumbnail_cell(ui, id);
+                    self.list_row(ui, id);
                 }
-            });
+            }
+            ListView::Details => {
+                ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+                details_header(ui);
+                for (i, &id) in self.order.iter().enumerate() {
+                    self.details_row(ui, id, i % 2 == 1);
+                }
+            }
         });
 
         // Miniatura „w locie” przy kursorze podczas przeciągania.
@@ -376,86 +401,214 @@ impl Viewer<'_> {
         }
     }
 
-    fn thumbnail_cell(&mut self, ui: &mut Ui, id: DocId) {
+    /// Widok listy: Miniatury / Lista / Szczegóły, rozmiar miniatur, nazwy.
+    fn list_options_bar(&mut self, ui: &mut Ui) {
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Widok:");
+            for (view, label, tip) in [
+                (ListView::Thumbnails, "Miniatury", "Siatka miniatur"),
+                (ListView::List, "Lista", "Miniatura i pełna, zawijana nazwa w wierszu"),
+                (ListView::Details, "Szczegóły", "Tabela: nazwa, wymiary, rozmiar, typ"),
+            ] {
+                if ui.selectable_label(self.list.view == view, label).on_hover_text(tip).clicked() {
+                    self.list.view = view;
+                }
+            }
+            if self.list.view != ListView::Details {
+                ui.separator();
+                ui.label("Rozmiar");
+                ui.add(egui::Slider::new(&mut self.list.thumb_size, THUMB_MIN..=THUMB_MAX).show_value(false))
+                    .on_hover_text("Rozmiar miniatur (też Ctrl + kółko myszy nad listą)");
+            }
+            if self.list.view == ListView::Thumbnails {
+                ui.checkbox(&mut self.list.show_names, "Nazwy");
+            }
+        });
+    }
+
+    /// Tło pozycji: zaznaczenie, najechanie, przeciąganie, ramka otwartej zakładki.
+    fn item_background(&self, ui: &Ui, id: DocId, rect: Rect, response: &egui::Response, striped: bool) {
         let pal = theme::p();
-        let Some(doc) = self.docs.get(&id) else { return };
-        let (rect, response) = ui.allocate_exact_size(CELL, Sense::click_and_drag());
-        let number = self.numbering.get(&id).map(|(n, _)| *n);
         let selected = self.selected.contains(&id);
         let dragging_this = egui::DragAndDrop::payload::<DocId>(ui.ctx()).is_some_and(|p| *p == id);
-        let painter = ui.painter_at(rect.expand(5.0));
-
         let bg = if selected {
             pal.row_selected
         } else if response.hovered() {
             pal.hover
+        } else if striped {
+            pal.field.gamma_multiply(0.6)
         } else {
             pal.field
         };
+        let painter = ui.painter_at(rect.expand(2.0));
         painter.rect_filled(rect, CornerRadius::same(pal.radius), if dragging_this { bg.gamma_multiply(0.5) } else { bg });
-        if number.is_some() {
+        if self.numbering.contains_key(&id) {
             painter.rect_stroke(rect, CornerRadius::same(pal.radius), Stroke::new(1.5, pal.accent), egui::StrokeKind::Inside);
         }
+    }
 
-        let img_area = Rect::from_min_size(rect.min + vec2(6.0, 6.0), vec2(CELL.x - 12.0, CELL.x - 12.0));
+    /// Miniatura wpisana w `area` (albo spinner / „Błąd”).
+    fn paint_thumb(&self, ui: &mut Ui, doc: &Document, area: Rect) {
+        let pal = theme::p();
         match &doc.thumb {
             ThumbState::Ready(tex) => {
                 let s = tex.size_vec2();
-                let scale = (img_area.width() / s.x).min(img_area.height() / s.y);
-                let r = Rect::from_center_size(img_area.center(), s * scale);
-                painter.image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                let scale = (area.width() / s.x).min(area.height() / s.y);
+                let r = Rect::from_center_size(area.center(), s * scale);
+                ui.painter().image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
             }
             ThumbState::Loading => {
-                ui.scope_builder(egui::UiBuilder::new().max_rect(img_area), |ui| {
+                ui.scope_builder(egui::UiBuilder::new().max_rect(area), |ui| {
                     ui.centered_and_justified(|ui| ui.spinner());
                 });
             }
             ThumbState::Failed(_) => {
-                painter.text(img_area.center(), egui::Align2::CENTER_CENTER, "Błąd", egui::FontId::proportional(13.0), pal.danger);
+                let font = egui::FontId::proportional((area.height() * 0.2).clamp(10.0, 13.0));
+                ui.painter().text(area.center(), egui::Align2::CENTER_CENTER, "Błąd", font, pal.danger);
             }
         }
+    }
 
-        if let Some(n) = number {
-            let badge = Rect::from_min_size(rect.min + vec2(4.0, 4.0), vec2(30.0, 18.0));
-            painter.rect_filled(badge, CornerRadius::same(3), pal.accent);
-            painter.text(badge.center(), egui::Align2::CENTER_CENTER, format!("#{n}"), egui::FontId::proportional(12.0), pal.accent_text);
+    /// Plakietki `#n` i `verN` od lewego górnego rogu.
+    fn paint_badges(&self, ui: &Ui, doc: &Document, at: egui::Pos2) {
+        let pal = theme::p();
+        let mut x = at.x;
+        if let Some((n, _)) = self.numbering.get(&doc.id) {
+            let text = format!("#{n}");
+            let w = 12.0 + 7.0 * text.len() as f32;
+            let badge = Rect::from_min_size(pos2(x, at.y), vec2(w, 18.0));
+            ui.painter().rect_filled(badge, CornerRadius::same(3), pal.accent);
+            ui.painter().text(badge.center(), egui::Align2::CENTER_CENTER, text, egui::FontId::proportional(12.0), pal.accent_text);
+            x += w + 4.0;
         }
         if let Some(v) = doc.version {
-            let x = if number.is_some() { 38.0 } else { 4.0 };
-            let badge = Rect::from_min_size(rect.min + vec2(x, 4.0), vec2(36.0, 18.0));
-            painter.rect_filled(badge, CornerRadius::same(3), pal.warning);
-            painter.text(badge.center(), egui::Align2::CENTER_CENTER, format!("ver{v}"), egui::FontId::proportional(11.0), Color32::BLACK);
+            let badge = Rect::from_min_size(pos2(x, at.y), vec2(36.0, 18.0));
+            ui.painter().rect_filled(badge, CornerRadius::same(3), pal.warning);
+            ui.painter().text(badge.center(), egui::Align2::CENTER_CENTER, format!("ver{v}"), egui::FontId::proportional(11.0), Color32::BLACK);
         }
+    }
+
+    fn grid_cell(&mut self, ui: &mut Ui, id: DocId) {
+        let pal = theme::p();
+        let Some(doc) = self.docs.get(&id) else { return };
+        let s = self.list.thumb_size.round();
+        let names = self.list.show_names;
+        // Nazwa zawijana do 2 wierszy pod miniaturą, pod nią wymiary.
+        let name_galley = names.then(|| {
+            let mut job = egui::text::LayoutJob::simple(doc.file_name.clone(), egui::FontId::proportional(12.0), pal.text, s);
+            job.wrap.max_rows = 2;
+            job.wrap.break_anywhere = true;
+            job.halign = egui::Align::Center;
+            ui.painter().layout_job(job)
+        });
+        let text_h = name_galley.as_ref().map_or(0.0, |g| g.size().y + 20.0);
+        let (rect, response) = ui.allocate_exact_size(vec2(s + 12.0, s + 12.0 + text_h), Sense::click_and_drag());
+        self.item_background(ui, id, rect, &response, false);
+        let img_area = Rect::from_min_size(rect.min + vec2(6.0, 6.0), vec2(s, s));
+        self.paint_thumb(ui, doc, img_area);
+        self.paint_badges(ui, doc, rect.min + vec2(4.0, 4.0));
         if matches!(doc.load, LoadState::Loading) {
-            painter.circle_filled(rect.right_top() + vec2(-14.0, 14.0), 5.0, pal.accent);
+            ui.painter().circle_filled(rect.right_top() + vec2(-14.0, 14.0), 5.0, pal.accent);
         }
-
-        let name_pos = pos2(rect.center().x, img_area.bottom() + 12.0);
-        painter.text(name_pos, egui::Align2::CENTER_CENTER, truncate(&doc.file_name, 18), egui::FontId::proportional(12.0), pal.text);
-        if let Some([w, h]) = doc.dims {
-            painter.text(
-                name_pos + vec2(0.0, 15.0),
-                egui::Align2::CENTER_CENTER,
-                format!("{w}×{h}"),
-                egui::FontId::proportional(11.0),
-                pal.text_dim,
-            );
+        if let Some(g) = name_galley {
+            let top = pos2(rect.center().x, img_area.bottom() + 4.0);
+            ui.painter().galley(top, g.clone(), pal.text);
+            if let Some([w, h]) = doc.dims {
+                let y = top.y + g.size().y + 8.0;
+                ui.painter().text(pos2(rect.center().x, y), egui::Align2::CENTER_CENTER, format!("{w}×{h}"), egui::FontId::proportional(11.0), pal.text_dim);
+            }
         }
+        self.item_behavior(ui, id, response, rect, false);
+    }
 
+    fn list_row(&mut self, ui: &mut Ui, id: DocId) {
+        let pal = theme::p();
+        let Some(doc) = self.docs.get(&id) else { return };
+        let t = (self.list.thumb_size * 0.5).clamp(32.0, 140.0);
+        let width = ui.available_width();
+        let text_x = t + 18.0;
+        let wrap = (width - text_x - 8.0).max(60.0);
+        let has_badges = self.numbering.contains_key(&id) || doc.version.is_some();
+        let name = ui.painter().layout(doc.file_name.clone(), egui::FontId::proportional(13.0), pal.text, wrap);
+        let badge_h = if has_badges { 22.0 } else { 0.0 };
+        let text_h = badge_h + name.size().y + 18.0;
+        let (rect, response) = ui.allocate_exact_size(vec2(width, (t + 8.0).max(text_h + 8.0)), Sense::click_and_drag());
+        self.item_background(ui, id, rect, &response, false);
+        let img_area = Rect::from_min_size(pos2(rect.left() + 6.0, rect.center().y - t / 2.0), vec2(t, t));
+        self.paint_thumb(ui, doc, img_area);
+        let x = rect.left() + text_x;
+        let mut y = rect.center().y - text_h / 2.0;
+        if has_badges {
+            self.paint_badges(ui, doc, pos2(x, y));
+            y += badge_h;
+        }
+        ui.painter().galley(pos2(x, y), name.clone(), pal.text);
+        ui.painter().text(pos2(x, y + name.size().y + 2.0), egui::Align2::LEFT_TOP, file_info(doc), egui::FontId::proportional(11.0), pal.text_dim);
+        self.item_behavior(ui, id, response, rect, true);
+    }
+
+    fn details_row(&mut self, ui: &mut Ui, id: DocId, striped: bool) {
+        let pal = theme::p();
+        let Some(doc) = self.docs.get(&id) else { return };
+        let width = ui.available_width();
+        let cols = details_columns(width);
+        let name = ui.painter().layout(doc.file_name.clone(), egui::FontId::proportional(13.0), pal.text, cols.name_w);
+        let (rect, response) = ui.allocate_exact_size(vec2(width, (name.size().y + 10.0).max(34.0)), Sense::click_and_drag());
+        self.item_background(ui, id, rect, &response, striped);
+        let cy = rect.center().y;
+        let at = |x: f32| pos2(rect.left() + x, cy);
+        let small = egui::FontId::proportional(12.0);
+        if let Some((n, _)) = self.numbering.get(&id) {
+            ui.painter().text(at(cols.num), egui::Align2::LEFT_CENTER, format!("#{n}"), small.clone(), pal.accent);
+        }
+        self.paint_thumb(ui, doc, Rect::from_center_size(at(cols.thumb + 14.0), vec2(26.0, 26.0)));
+        ui.painter().galley(pos2(rect.left() + cols.name, cy - name.size().y / 2.0), name.clone(), pal.text);
+        if let Some(v) = doc.version {
+            let name_end = cols.name + cols.name_w + 10.0;
+            ui.painter().text(at(name_end), egui::Align2::RIGHT_CENTER, format!("ver{v}"), small.clone(), pal.warning);
+        }
+        if let Some(x) = cols.dims {
+            let dims = doc.dims.map_or("…".to_string(), |[w, h]| format!("{w}×{h}"));
+            ui.painter().text(at(x), egui::Align2::LEFT_CENTER, dims, small.clone(), pal.text);
+        }
+        if let Some(x) = cols.size {
+            ui.painter().text(at(x), egui::Align2::LEFT_CENTER, human_size(doc.file_size), small.clone(), pal.text_dim);
+        }
+        if let Some(x) = cols.kind {
+            ui.painter().text(at(x), egui::Align2::LEFT_CENTER, extension(doc), small, pal.text_dim);
+        }
+        self.item_behavior(ui, id, response, rect, true);
+    }
+
+    /// Wspólne dla wszystkich widoków: przeciąganie (kolejność), klik, podpowiedź, menu kontekstowe.
+    fn item_behavior(&mut self, ui: &mut Ui, id: DocId, response: egui::Response, rect: Rect, rows: bool) {
+        let pal = theme::p();
+        let number = self.numbering.get(&id).map(|(n, _)| *n);
         // Przeciąganie: miniatura jest źródłem i celem upuszczenia.
         response.dnd_set_drag_payload(id);
+        // Siatka: znacznik pionowy (przed / za); lista i szczegóły: poziomy (nad / pod).
+        let before_of = |p: egui::Pos2| if rows { p.y < rect.center().y } else { p.x < rect.center().x };
         if let Some(payload) = response.dnd_hover_payload::<DocId>()
             && *payload != id
             && let Some(p) = ui.ctx().pointer_latest_pos()
         {
-            let x = if p.x < rect.center().x { rect.left() - 4.0 } else { rect.right() + 4.0 };
-            painter.line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], Stroke::new(3.0, pal.accent));
+            let painter = ui.painter_at(rect.expand(5.0));
+            let stroke = Stroke::new(3.0, pal.accent);
+            if rows {
+                let y = if before_of(p) { rect.top() - 1.0 } else { rect.bottom() + 1.0 };
+                painter.line_segment([pos2(rect.left(), y), pos2(rect.right(), y)], stroke);
+            } else {
+                let x = if before_of(p) { rect.left() - 4.0 } else { rect.right() + 4.0 };
+                painter.line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], stroke);
+            }
         }
         if let Some(payload) = response.dnd_release_payload::<DocId>() {
-            let before = ui.ctx().pointer_latest_pos().is_none_or(|p| p.x < rect.center().x);
+            let before = ui.ctx().pointer_latest_pos().is_none_or(before_of);
             self.actions.push(Action::Move { id: *payload, target: id, before });
         }
 
+        let Some(doc) = self.docs.get(&id) else { return };
         let hover = match &doc.thumb {
             ThumbState::Failed(e) => format!("{}\n{e}", doc.file_name),
             _ => format!(
@@ -532,12 +685,93 @@ impl Viewer<'_> {
     }
 }
 
-fn truncate(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
-        return s.to_string();
+const THUMB_MIN: f32 = 56.0;
+const THUMB_MAX: f32 = 280.0;
+
+/// Kolumny widoku „Szczegóły” (x od lewej krawędzi wiersza); przy wąskiej liście znikają
+/// kolejno: Typ, Rozmiar, Wymiary – nazwa zawsze zostaje.
+struct DetailsColumns {
+    num: f32,
+    thumb: f32,
+    name: f32,
+    name_w: f32,
+    dims: Option<f32>,
+    size: Option<f32>,
+    kind: Option<f32>,
+}
+
+fn details_columns(width: f32) -> DetailsColumns {
+    let (num, thumb, name) = (8.0, 48.0, 84.0);
+    const MIN_NAME: f32 = 100.0;
+    const DIMS: f32 = 84.0;
+    const SIZE: f32 = 70.0;
+    const KIND: f32 = 44.0;
+    // Najważniejsze kolumny zostają najdłużej: Wymiary, potem Rozmiar, na końcu Typ.
+    let mut budget = width - name - 12.0 - MIN_NAME;
+    let mut fits = |w: f32| {
+        let ok = budget >= w;
+        if ok {
+            budget -= w;
+        }
+        ok
+    };
+    let show_dims = fits(DIMS);
+    let show_size = show_dims && fits(SIZE);
+    let show_kind = show_size && fits(KIND);
+    // Pozycje od prawej: Typ | Rozmiar | Wymiary (lewa krawędź każdej kolumny).
+    let mut right = width;
+    let mut place = |show: bool, w: f32| {
+        show.then(|| {
+            right -= w;
+            right
+        })
+    };
+    let kind = place(show_kind, KIND);
+    let size = place(show_size, SIZE);
+    let dims = place(show_dims, DIMS);
+    let name_end = dims.or(size).or(kind).unwrap_or(width);
+    DetailsColumns { num, thumb, name, name_w: (name_end - name - 12.0).max(40.0), dims, size, kind }
+}
+
+fn details_header(ui: &mut Ui) {
+    let pal = theme::p();
+    let width = ui.available_width();
+    let cols = details_columns(width);
+    let (rect, _) = ui.allocate_exact_size(vec2(width, 22.0), Sense::hover());
+    let font = egui::FontId::proportional(12.0);
+    for (x, text) in [(Some(cols.num), "#"), (Some(cols.name), "Nazwa"), (cols.dims, "Wymiary"), (cols.size, "Rozmiar"), (cols.kind, "Typ")] {
+        if let Some(x) = x {
+            ui.painter().text(pos2(rect.left() + x, rect.center().y), egui::Align2::LEFT_CENTER, text, font.clone(), pal.text_dim);
+        }
     }
-    let head: String = s.chars().take(max - 1).collect();
-    format!("{head}…")
+    ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, pal.separator));
+}
+
+/// „516 B”, „2.9 KB”, „1.23 MB”.
+pub fn human_size(bytes: u64) -> String {
+    match bytes {
+        b if b < 1024 => format!("{b} B"),
+        b if b < 1024 * 1024 => format!("{:.1} KB", b as f64 / 1024.0),
+        b => format!("{:.2} MB", b as f64 / 1_048_576.0),
+    }
+}
+
+fn extension(doc: &Document) -> String {
+    std::path::Path::new(&doc.file_name).extension().map_or(String::new(), |e| e.to_string_lossy().to_uppercase())
+}
+
+/// „1600×1100 · 2.31 MB · JPG”
+fn file_info(doc: &Document) -> String {
+    let mut parts = Vec::new();
+    if let Some([w, h]) = doc.dims {
+        parts.push(format!("{w}×{h}"));
+    }
+    parts.push(human_size(doc.file_size));
+    let ext = extension(doc);
+    if !ext.is_empty() {
+        parts.push(ext);
+    }
+    parts.join(" · ")
 }
 
 #[cfg(test)]
@@ -610,8 +844,22 @@ mod tests {
     }
 
     #[test]
-    fn skracanie_nazw() {
-        assert_eq!(truncate("krotka.jpg", 18), "krotka.jpg");
-        assert_eq!(truncate("bardzo-dluga-nazwa-pliku.jpg", 10), "bardzo-dl…");
+    fn kolumny_szczegolow_nie_nachodza() {
+        for width in [200.0, 320.0, 450.0, 600.0, 1200.0] {
+            let c = details_columns(width);
+            assert!(c.num < c.thumb && c.thumb < c.name);
+            let mut edge = c.name + c.name_w;
+            for col in [c.dims, c.size, c.kind].into_iter().flatten() {
+                assert!(col >= edge, "szerokość {width}: kolumna {col} nachodzi na {edge}");
+                edge = col;
+            }
+            assert!(edge < width);
+        }
+        assert!(details_columns(1200.0).kind.is_some());
+        let narrow = details_columns(320.0);
+        assert!(narrow.dims.is_some() && narrow.kind.is_none(), "wąsko: wymiary zostają, typ znika");
+        assert!(details_columns(250.0).dims.is_none());
+        assert_eq!(human_size(516), "516 B");
+        assert_eq!(human_size(3 * 1024), "3.0 KB");
     }
 }

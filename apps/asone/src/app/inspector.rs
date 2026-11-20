@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use asone_core::imageio::fit_within;
 use egui::{RichText, Ui, vec2};
 
-use super::AsOneApp;
+use super::{AsOneApp, InspectorTab};
 use crate::ai::AiJob;
 use crate::canvas::Tool;
 use crate::document::{AiState, BOTTOM, DocId, LEFT, LoadState, PxRect, RIGHT, TOP, WHITE, fill_rect, union_opt};
@@ -21,8 +21,20 @@ impl AsOneApp {
             .inner_margin(egui::Margin::symmetric(10, 8))
             .stroke(egui::Stroke::new(1.0, pal.separator));
         egui::Panel::right("inspector").exact_size(280.0).resizable(false).frame(frame).show(ui, |ui| {
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                self.inspector_contents(ui, open, numbering);
+            // Zakładki panelu: narzędzia edycji albo podgląd metadanych pliku.
+            ui.horizontal(|ui| {
+                let w = (ui.available_width() - ui.spacing().item_spacing.x) / 2.0;
+                for (tab, label) in [(InspectorTab::Tools, "Narzędzia"), (InspectorTab::Metadata, "Metadane")] {
+                    let button = egui::Button::selectable(self.inspector_tab == tab, label).min_size(vec2(w, 24.0));
+                    if ui.add(button).clicked() {
+                        self.inspector_tab = tab;
+                    }
+                }
+            });
+            ui.separator();
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| match self.inspector_tab {
+                InspectorTab::Tools => self.inspector_contents(ui, open, numbering),
+                InspectorTab::Metadata => self.metadata_panel(ui),
             });
         });
     }

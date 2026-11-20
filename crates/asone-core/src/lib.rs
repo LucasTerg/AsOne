@@ -21,5 +21,6 @@ pub mod edits;
 pub mod finish;
 pub mod imageio;
 pub mod jpeg;
+pub mod metadata;
 pub mod naming;
 pub mod rename;

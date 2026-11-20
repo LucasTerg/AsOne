@@ -58,10 +58,10 @@ pub struct EditOptions {
     /// Najniższa jakość przy dopasowaniu do limitu rozmiaru (domyślnie 65).
     #[arg(long, value_name = "Q")]
     pub min_quality: Option<u8>,
-    /// Dopełnij tłem zdjęcia mniejsze niż podany bok w px (np. 500).
+    /// Najmniejszy bok w px – mniejsze zdjęcia dopełniane tłem (domyślnie 500).
     #[arg(long, value_name = "PX")]
     pub min_side: Option<u32>,
-    /// Wyłącz domyślne limity (3000×3600 px, 3 MB).
+    /// Wyłącz domyślne limity (3000×3600 px, 3 MB, min. bok 500 px).
     #[arg(long, num_args = 0..=1, default_missing_value = "true", value_name = "BOOL")]
     pub no_limits: Option<bool>,
 }

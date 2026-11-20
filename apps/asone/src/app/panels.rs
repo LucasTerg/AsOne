@@ -104,29 +104,15 @@ impl AsOneApp {
                     self.settings.limit_long_side,
                     egui::DragValue::new(&mut self.settings.max_long_side).range(16..=16384).suffix(" px"),
                 );
-                ui.separator();
 
-                if platform::CAN_PICK_FOLDER {
-                    let dir = self.default_out_dir(open);
-                    let label = dir
-                        .as_ref()
-                        .and_then(|d| d.file_name())
-                        .map(|n| format!("Folder: {}", n.to_string_lossy()))
-                        .unwrap_or_else(|| "Folder: …".into());
-                    let hover = dir
-                        .as_ref()
-                        .map(|d| format!("Zapis do: {}\nKliknij, aby zmienić", d.display()))
-                        .unwrap_or_else(|| "Domyślnie podfolder obok zdjęć".into());
-                    if ui.button(label).on_hover_text(hover).clicked() {
-                        self.pickers.pick_output_folder(dir);
-                    }
-                } else if platform::EXPORT_TO_FOLDER {
-                    let dir = self.out_dir.clone().unwrap_or_default();
-                    ui.colored_label(pal.text_dim, format!("Zapis: {}", dir.display()));
-                } else {
-                    ui.colored_label(pal.text_dim, "Zapis: pobierane pliki");
+                // Folder + „Zmień tylko nazwę” + „Zapisz z zakładek” to jedna grupa przy prawej krawędzi;
+                // gdy nie mieści się w bieżącym wierszu, cała przechodzi do następnego (zamiast nachodzić).
+                let group_id = ui.id().with("top_actions_width");
+                let need = ui.ctx().data(|d| d.get_temp::<f32>(group_id)).unwrap_or(460.0);
+                // W układzie zawijanym available_width() to cały wiersz – liczy się reszta bieżącego wiersza.
+                if ui.available_rect_before_wrap().width() < need + 12.0 {
+                    ui.end_row();
                 }
-
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if let Some(job) = &self.export {
                         let done = job.entries.len();
@@ -180,6 +166,28 @@ impl AsOneApp {
                             }
                         }
                     }
+                    if platform::CAN_PICK_FOLDER {
+                        let dir = self.default_out_dir(open);
+                        let label = dir
+                            .as_ref()
+                            .and_then(|d| d.file_name())
+                            .map(|n| format!("Folder: {}", n.to_string_lossy()))
+                            .unwrap_or_else(|| "Folder: …".into());
+                        let hover = dir
+                            .as_ref()
+                            .map(|d| format!("Zapis do: {}\nKliknij, aby zmienić", d.display()))
+                            .unwrap_or_else(|| "Domyślnie podfolder obok zdjęć".into());
+                        if ui.button(label).on_hover_text(hover).clicked() {
+                            self.pickers.pick_output_folder(dir);
+                        }
+                    } else if platform::EXPORT_TO_FOLDER {
+                        let dir = self.out_dir.clone().unwrap_or_default();
+                        ui.colored_label(pal.text_dim, format!("Zapis: {}", dir.display()));
+                    } else {
+                        ui.colored_label(pal.text_dim, "Zapis: pobierane pliki");
+                    }
+                    let width = ui.min_rect().width();
+                    ui.ctx().data_mut(|d| d.insert_temp(group_id, width));
                 });
             });
         });

@@ -7,7 +7,9 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
-default = ["mozjpeg"]
+default = ["mozjpeg", "avif"]
+# Wczytywanie AVIF.
+avif = ["dep:avif-decode"]
 # MozJPEG (biblioteka C, silnik ze Squoosh). Bez tej funkcji – i zawsze na wasm – używany jest
 # czysto rustowy `jpeg-encoder` (też Progressive JPEG z optymalizacją Huffmana, bez metadanych).
 mozjpeg = ["dep:mozjpeg"]
@@ -19,8 +21,14 @@ image = { workspace = true }
 fast_image_resize = { workspace = true }
 deunicode = "1.6"
 jpeg-encoder = "0.7"
+# Podgląd metadanych (EXIF w JPEG/PNG/WebP/HEIF/AVIF/TIFF) i teksty PNG zTXt/iTXt.
+kamadak-exif = "0.6"
+miniz_oxide = "0.8"
 # ZIP bez kompresji (Stored) – bez bibliotek C, działa wszędzie.
 zip = { version = "9.7", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# AVIF (czysty Rust: avif-decode = avif-parse + rav1d; w przeglądarce rav1d nie ma wątków).
+# avif-decode z łatką: rav1d bez asm (vendor/avif-decode/ASONE-PATCH.md).
+avif-decode = { version = "3", optional = true, default-features = false }
 mozjpeg = { version = "0.10", default-features = false, features = ["parallel"], optional = true }

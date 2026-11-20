@@ -260,7 +260,8 @@ mod tests {
         assert_eq!(entries[1].file_name, "Zolte-buty-2.jpg");
         for e in &entries {
             let saved = e.result.clone().unwrap();
-            assert_eq!(saved.size, [100, 100]);
+            // 100×100 (dłuższy bok + kwadrat) → domyślnie dopełnione białym tłem do min. 500 px.
+            assert_eq!(saved.size, [500, 500]);
             assert_eq!(std::fs::metadata(&e.output).unwrap().len(), saved.bytes);
         }
 

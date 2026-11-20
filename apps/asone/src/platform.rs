@@ -481,6 +481,71 @@ pub fn open_in_file_manager(dir: &Path) {
     let _ = dir;
 }
 
+/// Skąd pobrano plik – adresy, które przeglądarki zapisują przy pobieraniu:
+/// Linux/BSD `user.xdg.origin.url` / `user.xdg.referrer.url`, macOS `kMDItemWhereFroms`,
+/// Windows `Zone.Identifier` (HostUrl / ReferrerUrl). Pary (etykieta, wartość).
+pub fn download_origin(path: &Path) -> Vec<(String, String)> {
+    #[allow(unused_mut)]
+    let mut out: Vec<(String, String)> = Vec::new();
+    let _ = path;
+    #[cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))]
+    {
+        let get = |name: &str| xattr::get(path, name).ok().flatten();
+        for (name, label) in [("user.xdg.origin.url", "Pobrano z"), ("user.xdg.referrer.url", "Strona, z której pobrano")] {
+            if let Some(v) = get(name) {
+                let v = String::from_utf8_lossy(&v).trim_matches(char::from(0)).trim().to_string();
+                if !v.is_empty() {
+                    out.push((label.into(), v));
+                }
+            }
+        }
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(plist) = get("com.apple.metadata:kMDItemWhereFroms") {
+                for (i, url) in printable_urls(&plist).into_iter().enumerate() {
+                    out.push((if i == 0 { "Pobrano z" } else { "Strona, z której pobrano" }.into(), url));
+                }
+            }
+            if let Some(q) = get("com.apple.quarantine") {
+                let q = String::from_utf8_lossy(&q).into_owned();
+                if let Some(agent) = q.split(';').nth(2).filter(|a| !a.is_empty()) {
+                    out.push(("Pobrane przez".into(), agent.to_string()));
+                }
+            }
+        }
+    }
+    #[cfg(windows)]
+    {
+        if let Ok(text) = std::fs::read_to_string(format!("{}:Zone.Identifier", path.display())) {
+            for line in text.lines() {
+                let line = line.trim();
+                if let Some(v) = line.strip_prefix("HostUrl=") {
+                    out.push(("Pobrano z".into(), v.to_string()));
+                } else if let Some(v) = line.strip_prefix("ReferrerUrl=") {
+                    out.push(("Strona, z której pobrano".into(), v.to_string()));
+                } else if line == "ZoneId=3" {
+                    out.push(("Strefa".into(), "Internet".into()));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Ciągi „http…” z binarnego plistu (macOS `kMDItemWhereFroms`).
+#[cfg(target_os = "macos")]
+fn printable_urls(bytes: &[u8]) -> Vec<String> {
+    let mut urls = Vec::new();
+    let mut i = 0;
+    while let Some(p) = bytes[i..].windows(4).position(|w| w == b"http") {
+        let start = i + p;
+        let end = bytes[start..].iter().position(|&c| !(0x21..0x7f).contains(&c)).map_or(bytes.len(), |e| start + e);
+        urls.push(String::from_utf8_lossy(&bytes[start..end]).into_owned());
+        i = end;
+    }
+    urls
+}
+
 /// Otwiera URL w domyślnej przeglądarce internetowej (desktop/flatpak/wasm).
 pub fn open_url(url: &str) {
     #[cfg(not(target_arch = "wasm32"))]

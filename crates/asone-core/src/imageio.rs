@@ -6,7 +6,52 @@ use std::path::{Path, PathBuf};
 use fast_image_resize as fr;
 use image::{DynamicImage, ImageDecoder, ImageReader, RgbaImage};
 
-pub const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "tif", "tiff", "bmp"];
+pub const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "avif", "tif", "tiff", "bmp"];
+
+/// Czy to kontener AVIF (`ftyp` z marką `avif`/`avis` – główną albo zgodną).
+pub fn is_avif(bytes: &[u8]) -> bool {
+    if bytes.len() < 16 || &bytes[4..8] != b"ftyp" {
+        return false;
+    }
+    let size = (u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize).clamp(16, bytes.len());
+    let brand = |b: &[u8]| b == b"avif" || b == b"avis";
+    brand(&bytes[8..12]) || bytes[16..size].as_chunks::<4>().0.iter().any(|b| brand(b))
+}
+
+/// Dekoduje AVIF do RGBA 8 bit (10/12 bit → 8 bit).
+#[cfg(all(feature = "avif", not(target_arch = "wasm32")))]
+pub fn decode_avif(bytes: &[u8]) -> Result<RgbaImage, String> {
+    use avif_decode::Image;
+    let err = |e: &dyn std::fmt::Display| format!("Błąd dekodowania AVIF: {e}");
+    let image = avif_decode::Decoder::from_avif(bytes).and_then(|d| d.to_image()).map_err(|e| err(&e))?;
+    // Obrazy 10/12-bitowe dekoder zwraca w pełnym zakresie 16 bit.
+    let f16 = |v: u16| (v >> 8) as u8;
+    let (w, h, px): (usize, usize, Vec<u8>) = match image {
+        Image::Rgb8(i) => (i.width(), i.height(), i.pixels().flat_map(|p| [p.r, p.g, p.b, 255]).collect()),
+        Image::Rgba8(i) => (i.width(), i.height(), i.pixels().flat_map(|p| [p.r, p.g, p.b, p.a]).collect()),
+        Image::Rgb16(i) => (i.width(), i.height(), i.pixels().flat_map(|p| [f16(p.r), f16(p.g), f16(p.b), 255]).collect()),
+        Image::Rgba16(i) => {
+            (i.width(), i.height(), i.pixels().flat_map(|p| [f16(p.r), f16(p.g), f16(p.b), f16(p.a)]).collect())
+        }
+        Image::Gray8(i) => (i.width(), i.height(), i.pixels().flat_map(|p| { let v = p.value(); [v, v, v, 255] }).collect()),
+        Image::Gray16(i) => (i.width(), i.height(), i.pixels().flat_map(|p| { let v = f16(p.value()); [v, v, v, 255] }).collect()),
+    };
+    RgbaImage::from_raw(w as u32, h as u32, px).ok_or_else(|| err(&"zły rozmiar obrazu"))
+}
+
+#[cfg(not(all(feature = "avif", not(target_arch = "wasm32"))))]
+pub fn decode_avif(_bytes: &[u8]) -> Result<RgbaImage, String> {
+    Err("AVIF nie jest obsługiwany w tej wersji (np. w przeglądarce)".into())
+}
+
+fn read_head(path: &Path) -> Vec<u8> {
+    use std::io::Read;
+    let mut head = Vec::with_capacity(64);
+    if let Ok(f) = std::fs::File::open(path) {
+        let _ = f.take(64).read_to_end(&mut head);
+    }
+    head
+}
 
 pub fn is_supported(path: &Path) -> bool {
     path.extension()
@@ -48,6 +93,10 @@ fn decode_reader<R: std::io::BufRead + std::io::Seek>(mut reader: ImageReader<R>
 
 /// Dekoduje plik i obraca go zgodnie z orientacją EXIF (zdjęcia z telefonów).
 pub fn decode_path(path: &Path) -> Result<RgbaImage, String> {
+    if is_avif(&read_head(path)) {
+        let bytes = std::fs::read(path).map_err(|e| format!("Nie można otworzyć pliku: {e}"))?;
+        return decode_avif(&bytes);
+    }
     let reader = ImageReader::open(path)
         .map_err(|e| format!("Nie można otworzyć pliku: {e}"))?
         .with_guessed_format()
@@ -57,6 +106,9 @@ pub fn decode_path(path: &Path) -> Result<RgbaImage, String> {
 
 /// Jak [`decode_path`], ale z bajtów w pamięci (przeglądarka, MCP).
 pub fn decode_bytes(bytes: &[u8]) -> Result<RgbaImage, String> {
+    if is_avif(bytes) {
+        return decode_avif(bytes);
+    }
     let reader = ImageReader::new(Cursor::new(bytes))
         .with_guessed_format()
         .map_err(|e| format!("Nie można odczytać danych: {e}"))?;
@@ -80,6 +132,13 @@ pub struct ImageInfo {
 /// Odczytuje informacje o obrazie (pełne dekodowanie – sprawdza też realną przezroczystość).
 pub fn probe_path(path: &Path) -> Result<ImageInfo, String> {
     let bytes = std::fs::metadata(path).map(|m| m.len()).map_err(|e| format!("{e}"))?;
+    if is_avif(&read_head(path)) {
+        let data = std::fs::read(path).map_err(|e| format!("Nie można otworzyć pliku: {e}"))?;
+        let img = decode_avif(&data)?;
+        let has_alpha = alpha_mask(&img).is_some();
+        let has_exif = crate::metadata::has_exif(&data);
+        return Ok(ImageInfo { format: "avif".into(), width: img.width(), height: img.height(), has_alpha, has_exif, has_icc: false, bytes });
+    }
     let reader = ImageReader::open(path)
         .map_err(|e| format!("Nie można otworzyć pliku: {e}"))?
         .with_guessed_format()
@@ -163,6 +222,26 @@ pub fn resize_gray(src: &[u8], size: [u32; 2], new_size: [u32; 2]) -> Result<Vec
 
 #[cfg(test)]
 mod tests {
+
+    #[cfg(all(feature = "avif", not(target_arch = "wasm32")))]
+    #[test]
+    fn avif_8_10_bit_i_alfa() {
+        let data = |n: &str| std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data").join(n)).unwrap();
+        for name in ["test-8bit.avif", "test-10bit.avif"] {
+            let bytes = data(name);
+            assert!(is_avif(&bytes), "{name}");
+            let img = decode_bytes(&bytes).unwrap();
+            assert_eq!(img.dimensions(), (64, 48));
+            // Lewa połowa czerwona (200,40,30), prawa niebieska (30,60,220) – kompresja stratna.
+            let (l, r) = (img.get_pixel(8, 24).0, img.get_pixel(56, 24).0);
+            assert!(l[0] > 170 && l[2] < 70 && l[3] == 255, "{name} lewa {l:?}");
+            assert!(r[2] > 190 && r[0] < 70, "{name} prawa {r:?}");
+        }
+        let img = decode_bytes(&data("test-alpha.avif")).unwrap();
+        assert!(img.get_pixel(8, 24).0[3] > 240 && img.get_pixel(56, 24).0[3] < 15);
+        assert!(alpha_mask(&img).is_some());
+        assert!(!is_avif(b"\x89PNG\r\n\x1a\n...."));
+    }
     use super::*;
 
     #[test]

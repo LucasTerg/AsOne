@@ -241,10 +241,12 @@ fn export_page(ui: &mut Ui, s: &mut Settings) {
                 .on_hover_text("Do tej jakości wolno zejść, żeby zmieścić plik w limicie; dalej zdjęcie jest zmniejszane.");
         });
         row(ui, "Min. bok", |ui| {
+            let floor = asone_core::finish::MIN_SIDE;
+            s.min_side = s.min_side.max(floor);
             ui.horizontal(|ui| {
-                ui.checkbox(&mut s.enforce_min_side, "");
-                ui.add_enabled(s.enforce_min_side, egui::DragValue::new(&mut s.min_side).range(16..=4000).suffix(" px"));
-                ui.colored_label(pal.text_dim, "mniejsze zdjęcia dopełnij tłem");
+                ui.add(egui::DragValue::new(&mut s.min_side).range(floor..=4000).suffix(" px"))
+                    .on_hover_text(format!("Nie mniej niż {floor} px."));
+                ui.colored_label(pal.text_dim, "mniejsze zdjęcia dopełniane białym tłem");
             });
         });
         row(ui, "Podfolder eksportu", |ui| {

@@ -10,6 +10,35 @@ pub const STORAGE_KEY: &str = "asone-settings";
 /// Dostępne skale interfejsu (%), przełączane przyciskami −/+ na pasku tytułu.
 pub const UI_SCALES: [u32; 9] = [75, 85, 100, 110, 125, 150, 175, 200, 250];
 
+/// Widok listy plików.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ListView {
+    /// Siatka miniatur (rozmiar suwakiem, nazwy opcjonalnie).
+    #[default]
+    Thumbnails,
+    /// Wiersze: miniatura + pełna, zawijana nazwa.
+    List,
+    /// Tabela: nazwa, wymiary, rozmiar, typ.
+    Details,
+}
+
+/// Ustawienia listy plików.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ListOptions {
+    pub view: ListView,
+    /// Bok miniatury w siatce (w liście – połowa).
+    pub thumb_size: f32,
+    /// Nazwy pod miniaturami.
+    pub show_names: bool,
+}
+
+impl Default for ListOptions {
+    fn default() -> Self {
+        Self { view: ListView::Thumbnails, thumb_size: 120.0, show_names: true }
+    }
+}
+
 /// Co pokazuje zakładka zdjęcia.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TabTitle {
@@ -122,6 +151,8 @@ pub struct Settings {
     pub photo_tabs_bottom: bool,
     /// Pełna nazwa na zakładce albo tylko numer `#n`.
     pub tab_title: TabTitle,
+    /// Lista plików: widok, rozmiar miniatur, nazwy.
+    pub list: ListOptions,
 
     // --- Ustawienia › Ukryj ---
     pub hide_gimp: bool,
@@ -154,7 +185,6 @@ pub struct Settings {
     pub enforce_file_size: bool,
     pub max_file_mb: f32,
     pub min_quality: u8,
-    pub enforce_min_side: bool,
     pub min_side: u32,
 }
 
@@ -170,6 +200,7 @@ impl Default for Settings {
             system_title_bar: false,
             photo_tabs_bottom: false,
             tab_title: TabTitle::Full,
+            list: ListOptions::default(),
             hide_gimp: false,
             hide_delete_from_disk: false,
             hide_inspection: false,
@@ -189,7 +220,6 @@ impl Default for Settings {
             enforce_file_size: true,
             max_file_mb: 3.0,
             min_quality: 65,
-            enforce_min_side: false,
             min_side: 500,
         }
     }
@@ -274,7 +304,8 @@ impl Settings {
             max_width: self.enforce_dimensions.then_some(self.max_width.max(16)),
             max_height: self.enforce_dimensions.then_some(self.max_height.max(16)),
             max_bytes: self.enforce_file_size.then(|| (self.max_file_mb.max(0.05) as f64 * MIB as f64) as u64),
-            min_side: self.enforce_min_side.then_some(self.min_side.max(1)),
+            // Zawsze: zapisane zdjęcie ma co najmniej 500 px na każdym boku (dopełnienie białym tłem).
+            min_side: Some(self.min_side.max(asone_core::finish::MIN_SIDE)),
             min_quality: self.min_quality.clamp(1, 100),
         }
     }
@@ -337,7 +368,6 @@ impl Settings {
                 self.enforce_file_size = d.enforce_file_size;
                 self.max_file_mb = d.max_file_mb;
                 self.min_quality = d.min_quality;
-                self.enforce_min_side = d.enforce_min_side;
                 self.min_side = d.min_side;
                 self.out_subfolder = d.out_subfolder;
             }
@@ -374,7 +404,10 @@ mod tests {
         let l = Settings::default().limits();
         assert_eq!((l.max_width, l.max_height), (Some(3000), Some(3600)));
         assert_eq!(l.max_bytes, Some(3 * MIB));
-        assert_eq!(l.min_side, None);
+        assert_eq!(l.min_side, Some(500));
+        // Niższej wartości z ustawień nie da się wymusić.
+        let low = Settings { min_side: 100, ..Settings::default() };
+        assert_eq!(low.limits().min_side, Some(500));
     }
 
     #[test]

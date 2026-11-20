@@ -2,7 +2,7 @@
 resolver = "3"
 members = ["crates/asone-core", "apps/asone", "apps/asone-cli"]
 default-members = ["crates/asone-core", "apps/asone", "apps/asone-cli"]
-exclude = ["vendor/egui_dock"]
+exclude = ["vendor/egui_dock", "vendor/avif-decode"]
 
 [workspace.package]
 version = "0.1.1"
@@ -27,7 +27,9 @@ opt-level = 3
 lto = "thin"
 codegen-units = 4
 
-# egui_dock 0.21.1 z łatką: pasek zakładek na dole liścia (TabViewer::tab_bar_at_bottom).
-# Szczegóły: vendor/egui_dock/ASONE-PATCH.md
+# Łatki (szczegóły w vendor/*/ASONE-PATCH.md):
+# * egui_dock 0.21.1 – pasek zakładek na dole liścia (TabViewer::tab_bar_at_bottom),
+# * avif-decode 3.0.0 – rav1d bez asm (bez nasm, linkuje się do cdylib).
 [patch.crates-io]
 egui_dock = { path = "vendor/egui_dock" }
+avif-decode = { path = "vendor/avif-decode" }

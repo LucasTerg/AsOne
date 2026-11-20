@@ -391,6 +391,11 @@ pub fn title_bar(ui: &mut Ui, title: &str, settings: &Settings, state: MenuState
         }
         let mut menus_end = full.left();
         let mut controls_start = full.right();
+        // Wąskie okno: menu i przyciski okna zostają zawsze; tytuł znika pierwszy (niżej),
+        // potem lupa i motyw, na końcu skala interfejsu (miejsce liczone z poprzedniej klatki).
+        let captions = if custom { 3.0 * 46.0 + 8.0 } else { 0.0 };
+        let room = full.right() - (gap_l - 6.0) - captions;
+        let (show_zoom, show_extra) = (room >= 130.0, room >= 200.0);
         ui.horizontal_centered(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
             brand_mark(ui);
@@ -412,17 +417,23 @@ pub fn title_bar(ui: &mut Ui, title: &str, settings: &Settings, state: MenuState
                 }
                 ui.spacing_mut().item_spacing.x = 2.0;
                 let small = |t: &str| egui::Button::new(egui::RichText::new(t).size(15.0)).min_size(vec2(24.0, 22.0));
-                if ui.add(small("+")).on_hover_text("Powiększ interfejs (Ctrl++)").clicked() {
-                    actions.push(MenuAction::UiZoomIn);
+                if show_zoom {
+                    if ui.add(small("+")).on_hover_text("Powiększ interfejs (Ctrl++)").clicked() {
+                        actions.push(MenuAction::UiZoomIn);
+                    }
+                    let pct = egui::Button::new(format!("{} %", settings.ui_scale)).min_size(vec2(54.0, 22.0)).frame(false);
+                    if ui.add(pct).on_hover_text("Skala interfejsu – kliknij, aby wrócić do 100 %").clicked() {
+                        actions.push(MenuAction::UiZoomReset);
+                    }
+                    if ui.add(small("−")).on_hover_text("Pomniejsz interfejs (Ctrl+−)").clicked() {
+                        actions.push(MenuAction::UiZoomOut);
+                    }
+                    ui.add_space(4.0);
                 }
-                let pct = egui::Button::new(format!("{} %", settings.ui_scale)).min_size(vec2(54.0, 22.0)).frame(false);
-                if ui.add(pct).on_hover_text("Skala interfejsu – kliknij, aby wrócić do 100 %").clicked() {
-                    actions.push(MenuAction::UiZoomReset);
+                if !show_extra {
+                    controls_start = ui.min_rect().left();
+                    return;
                 }
-                if ui.add(small("−")).on_hover_text("Pomniejsz interfejs (Ctrl+−)").clicked() {
-                    actions.push(MenuAction::UiZoomOut);
-                }
-                ui.add_space(4.0);
                 // Szybkie przełączanie motywu (jasny / ciemny)
                 let is_dark = theme::p().is_dark();
                 let theme_icon = if is_dark { "☀" } else { "🌙" };

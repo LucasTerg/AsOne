@@ -2,7 +2,8 @@
 //!
 //! Limity z Ustawień działają nawet wtedy, gdy ktoś zapomni o nich przy pojedynczym zdjęciu:
 //! 1. obraz nie może przekroczyć `max_width × max_height` (domyślnie 3000 × 3600) – zmniejszenie Lanczos3,
-//! 2. opcjonalnie: mniejsze niż `min_side` dopełniamy tłem (jak „Zwiększ do 500 px” w Asystencie PIM),
+//! 2. bok mniejszy niż `min_side` (domyślnie 500 px) dopełniamy tłem – białym – bez powiększania
+//!    pikseli (jak „Zwiększ do 500 px” w Asystencie PIM),
 //! 3. plik nie może przekroczyć `max_bytes` (domyślnie 3 MB) – najpierw obniżamy jakość
 //!    (szukając najwyższej mieszczącej się, nie niżej niż `min_quality`), a gdy to nie wystarczy,
 //!    zmniejszamy obraz o 10 % na krok.
@@ -29,11 +30,14 @@ impl Default for ExportLimits {
             max_width: Some(3000),
             max_height: Some(3600),
             max_bytes: Some(3 * MIB),
-            min_side: None,
+            min_side: Some(MIN_SIDE),
             min_quality: 65,
         }
     }
 }
+
+/// Najmniejszy bok zapisanego zdjęcia (px); mniejsze dopełniane są tłem.
+pub const MIN_SIDE: u32 = 500;
 
 impl ExportLimits {
     pub const NONE: ExportLimits =
@@ -209,10 +213,21 @@ mod tests {
 
     #[test]
     fn limit_wymiarow_dziala_bez_ustawienia_przez_uzytkownika() {
-        let limits = ExportLimits { max_width: Some(300), max_height: Some(360), max_bytes: None, ..Default::default() };
+        let limits = ExportLimits { max_width: Some(300), max_height: Some(360), max_bytes: None, min_side: None, ..Default::default() };
         let f = finish([600, 400], vec![200; 600 * 400 * 3], None, 90, [255; 3], &limits).unwrap();
         assert_eq!(f.size, [300, 200]);
         assert_eq!(f.notes.len(), 1);
+    }
+
+    #[test]
+    fn domyslnie_min_500_px_bialym_tlem() {
+        // 300×200 (np. po „Max dłuższy bok”) → 500×500, środek zostaje, brzegi białe.
+        let f = finish([300, 200], vec![10; 300 * 200 * 3], None, 95, [255; 3], &ExportLimits::default()).unwrap();
+        assert_eq!(f.size, [500, 500]);
+        assert!(f.notes.iter().any(|n| n.contains("min. 500 px")), "{:?}", f.notes);
+        let img = image::load_from_memory(&f.jpeg).unwrap().to_rgb8();
+        assert!(img.get_pixel(5, 5).0.iter().all(|&c| c > 245), "róg biały");
+        assert!(img.get_pixel(250, 250).0.iter().all(|&c| c < 30), "środek ze zdjęcia");
     }
 
     #[test]

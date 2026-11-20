@@ -23,7 +23,9 @@ po wypchnięciu tagu: `git tag v0.1.1 && git push origin v0.1.1`.
 
 ## Przepływ pracy
 
-1. Przeciągnij zdjęcia (albo folder) na okno → **Lista plików** (miniatury).
+1. Przeciągnij zdjęcia (JPG, PNG, WebP, AVIF, TIFF, BMP; albo folder) na okno → **Lista plików**.
+   Widok: *Miniatury* (suwak rozmiaru, Ctrl + kółko, nazwy pod miniaturą albo bez), *Lista*
+   (miniatura i pełna, zawijana nazwa) lub *Szczegóły* (tabela: nazwa, wymiary, rozmiar, typ).
 2. Kliknij miniaturę → zdjęcie otwiera się w osobnej zakładce `#1`, `#2`, … (ponowny klik zamyka
    zakładkę). „Odznacz” zamyka wszystkie zakładki, „Wyczyść listę” usuwa zdjęcia z listy.
 3. Wklej nazwę (przycisk „Wklej”), np. `123-marka model` → `123-marka-model-1.jpg`, `-2.jpg`, …
@@ -42,9 +44,15 @@ ich nazwy i nie nadpisuje istniejących plików.
 **Ustawienia › Preferencje** (jak w PhotoCrafcie): *Interfejs* (16 motywów, w tym Sepia, kolor
 płótna, skala interfejsu − / +, zakładki zdjęć na górze lub na dole, na zakładce pełna nazwa albo
 tylko numer `#1`, systemowy pasek tytułu, „Ukryj”), *Eksport i limity* (maks. 3000 ×
-3600 px i 3 MB, pilnowane przy każdym zapisie – najpierw spada jakość, potem wymiary),
+3600 px i 3 MB, pilnowane przy każdym zapisie – najpierw spada jakość, potem wymiary; min. bok
+500 px – mniejsze zdjęcia są dopełniane białym tłem, nie da się ustawić mniej),
 *Usuwanie tła (AI)*. **Ustawienia › Ukryj** chowa: Edytuj w GIMP, Usuń z dysku, Inspekcja tła,
 Maska aktywna (ta i tak pokazuje się tylko dla PNG z przezroczystością albo po edycji maski).
+
+**Prawy panel › Metadane**: skąd jest plik (adres pobrania zapisany przez przeglądarkę), prawa
+autorskie i licencja (w tym rozpoznanie banków zdjęć), oznaczenia AI (IPTC, C2PA, program, parametry
+PNG), GPS i dane osobowe, a pod spodem pełne EXIF / XMP / IPTC / teksty PNG. „Zapisz z zakładek”
+usuwa wszystkie metadane.
 
 **Edycja › Cofnij / Ponów** (też przyciski na pasku narzędzi): osobna historia każdego zdjęcia –
 kadr, marginesy, tło, gumka, wycinanie prostokątem, usunięcie tła AI. Jeden krok = jedna czynność

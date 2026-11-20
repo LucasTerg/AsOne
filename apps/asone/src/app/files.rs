@@ -130,6 +130,7 @@ impl AsOneApp {
         for id in ids {
             self.close_tab(*id);
             self.docs.remove(id);
+            self.forget_metadata(*id);
             self.selected.remove(id);
             if self.active_doc == Some(*id) {
                 self.active_doc = None;
@@ -140,6 +141,7 @@ impl AsOneApp {
 
     fn reload(&mut self, ids: &[DocId]) {
         for id in ids {
+            self.forget_metadata(*id);
             let Some(doc) = self.docs.get_mut(id) else { continue };
             doc.thumb = ThumbState::Loading;
             doc.file_size = doc.source.size_hint();
@@ -385,6 +387,7 @@ impl AsOneApp {
                     if !plan.is_noop() {
                         changed += 1;
                     }
+                    self.forget_metadata(id);
                     if let Some(doc) = self.docs.get_mut(&id) {
                         doc.source = ImageSource::Path(path);
                         doc.file_name = doc.source.name();

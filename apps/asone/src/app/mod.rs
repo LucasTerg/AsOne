@@ -3,6 +3,7 @@
 
 mod files;
 mod inspector;
+mod metadata;
 mod panels;
 
 use std::collections::{HashMap, HashSet};
@@ -119,6 +120,17 @@ pub struct AsOneApp {
     ai_download: Option<AiDownload>,
     dialogs: Dialogs,
     toast: Option<(String, bool, Instant)>,
+    /// Prawy panel: „Narzędzia” albo „Metadane”.
+    inspector_tab: InspectorTab,
+    meta: HashMap<DocId, metadata::MetaState>,
+    meta_channel: metadata::MetaChannel,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum InspectorTab {
+    #[default]
+    Tools,
+    Metadata,
 }
 
 fn polish_translations() -> egui_dock::Translations {
@@ -205,6 +217,9 @@ impl AsOneApp {
             ai_download: None,
             dialogs: Dialogs::default(),
             toast: None,
+            inspector_tab: InspectorTab::default(),
+            meta: HashMap::new(),
+            meta_channel: metadata::MetaChannel::default(),
             settings,
         };
         app.apply_view_settings(ctx);
@@ -354,6 +369,7 @@ impl AsOneApp {
         }
 
         self.ai.release_when_idle();
+        self.poll_metadata();
 
         for event in self.pickers.rx.try_iter().collect::<Vec<_>>() {
             match event {
@@ -669,6 +685,7 @@ impl eframe::App for AsOneApp {
         self.inspector(ui, &open, &numbering);
 
         let mut actions = Vec::new();
+        let mut list = self.settings.list;
         {
             let style = self.dock_style.clone();
             let dock = &mut self.dock;
@@ -678,6 +695,7 @@ impl eframe::App for AsOneApp {
                 numbering: &numbering,
                 selected: &mut self.selected,
                 settings: &self.settings,
+                list: &mut list,
                 gpu: self.gpu.as_ref(),
                 tool: self.tool,
                 brush: &self.brush,
@@ -696,6 +714,7 @@ impl eframe::App for AsOneApp {
                     .show_inside(ui, &mut viewer);
             });
         }
+        self.settings.list = list;
         self.apply_actions(actions);
         self.sync_order();
 

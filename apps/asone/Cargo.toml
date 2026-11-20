@@ -18,7 +18,9 @@ name = "asone"
 path = "src/main.rs"
 
 [features]
-default = ["mozjpeg", "ai"]
+default = ["mozjpeg", "ai", "avif"]
+# Wczytywanie AVIF (poza przeglądarką).
+avif = ["asone-core/avif"]
 # Usuwanie tła AI lokalnie (ONNX Runtime przez `ort`, modele BRIA RMBG) – Linux, Windows, macOS.
 ai = ["dep:ort", "dep:ureq"]
 # MozJPEG przy eksporcie (desktop/Android). Bez niej – oraz na wasm – czysto rustowy koder.
@@ -53,6 +55,10 @@ ureq = { version = "3.5", optional = true }
 [target.'cfg(not(any(target_os = "android", target_arch = "wasm32")))'.dependencies]
 arboard = { version = "3.7", default-features = false, features = ["wayland-data-control"] }
 trash = "5.4"
+
+# „Metadane › Pobrano z”: adres zapisany przez przeglądarkę w atrybutach pliku (Linux, BSD, macOS).
+[target.'cfg(all(unix, not(target_os = "android")))'.dependencies]
+xattr = "1"
 
 # Wszystko poza Androidem: okna wyboru plików (rfd tam nie działa), dostępność (accesskit
 # w eframe 0.36 nie łączy się z android-native-activity), Wayland/X11 na Linuksie i BSD.
