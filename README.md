@@ -63,7 +63,7 @@ ich nazwy i nie nadpisuje istniejących plików.
 
 **Ustawienia › Preferencje** (jak w PhotoCrafcie): *Interfejs* (16 motywów, w tym Sepia, kolor
 płótna, skala interfejsu − / +, zakładki zdjęć na górze lub na dole, na zakładce pełna nazwa albo
-tylko numer `#1`, połysk paska menu, systemowy pasek tytułu, „Ukryj”), *Eksport i limity* (maks. 3000 ×
+tylko numer `#1`, pasek menu: płaski z linią, połysk albo bez efektu, systemowy pasek tytułu, „Ukryj”), *Eksport i limity* (maks. 3000 ×
 3600 px i 3 MB, pilnowane przy każdym zapisie – najpierw spada jakość, potem wymiary; min. bok
 500 px – mniejsze zdjęcia są dopełniane białym tłem, nie da się ustawić mniej; ramka przy
 zmniejszaniu – gdy duże zdjęcie trzeba zmniejszyć do limitu, ramka / marginesy do 100 px zostają
@@ -84,6 +84,12 @@ kadr, marginesy, tło, gumka, wycinanie prostokątem, usunięcie tła AI. Jeden 
 białego tła, a w nim zdjęcie smartfona ze schowka (obraz albo skopiowany plik) lub z pliku –
 warstwa do przesunięcia i skalowania myszką (narzędzie Przesuwanie, rogi = rozmiar) albo polami
 w sekcji „Smartfon (warstwa)”; trafia do zapisanego JPG.
+
+**Ekran startowy** (pusta lista): Dodaj zdjęcia / Dodaj folder i **Ostatnie** – kafelki ostatnio
+otwieranych folderów (miniatura pierwszego zdjęcia, ścieżka, liczba zdjęć); kliknięcie wczytuje
+folder, prawy przycisk – „Usuń z ostatnich”. Przyciski i widok listy plików (Miniatury / Lista /
+Szczegóły, rozmiar, nazwy) są w osobnej zakładce **Opcje listy** – nad listą, do przeciągnięcia
+w inne miejsce.
 
 **Prawy przycisk na zdjęciu**: smartfon (wklej / podmień / dopasuj / usuń), Usuń tło, Kadruj (auto),
 Dopasuj do kwadratu, Ramka 5 px, Zeruj marginesy, Dopasuj widok, Cofnij / Ponów.

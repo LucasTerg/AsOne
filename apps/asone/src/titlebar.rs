@@ -5,7 +5,7 @@
 use egui::{Align2, Color32, CornerRadius, CursorIcon, FontId, Rect, Sense, Stroke, Ui, ViewportCommand, pos2, vec2};
 use egui::viewport::ResizeDirection;
 
-use crate::settings::Settings;
+use crate::settings::{BarStyle, Settings};
 use crate::theme::{self, ThemeKind};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -373,10 +373,12 @@ pub fn title_bar(ui: &mut Ui, title: &str, settings: &Settings, state: MenuState
         .inner_margin(egui::Margin { left: 8, right: if custom { 0 } else { 8 }, top: 0, bottom: 0 });
     egui::Panel::top("title_bar").exact_size(BAR_HEIGHT).resizable(false).frame(frame).show(ui, |ui| {
         let full = ui.max_rect();
-        if settings.glossy_bar {
-            // Cały pasek (razem z marginesami ramki), pod menu i przyciskami.
-            let bar = Rect::from_x_y_ranges(full.left() - 8.0..=full.right() + if custom { 0.0 } else { 8.0 }, full.y_range());
-            pal.paint_gloss(&ui.painter().with_clip_rect(bar), bar);
+        // Cały pasek (razem z marginesami ramki), pod menu i przyciskami.
+        let bar = Rect::from_x_y_ranges(full.left() - 8.0..=full.right() + if custom { 0.0 } else { 8.0 }, full.y_range());
+        match settings.bar_style {
+            BarStyle::Flat => pal.paint_bar_line(&ui.painter().with_clip_rect(bar), bar),
+            BarStyle::Gloss => pal.paint_gloss(&ui.painter().with_clip_rect(bar), bar),
+            BarStyle::Plain => {}
         }
         let ctx = ui.ctx().clone();
         let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));

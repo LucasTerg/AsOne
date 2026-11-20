@@ -25,7 +25,7 @@ use crate::platform::{self, ImageSource, Instant, PickerEvent, Pickers, Tasks};
 use crate::prefs::{DownloadView, PrefsDialog};
 use crate::renderer::GpuShared;
 use crate::settings::{STORAGE_KEY, Settings};
-use crate::tabs::{AppTab, Viewer, photo_tab_order, reorder_list_by_tabs, reorder_photo_tabs};
+use crate::tabs::{AppTab, RecentPreview, Viewer, photo_tab_order, reorder_list_by_tabs, reorder_photo_tabs};
 use crate::theme;
 use crate::titlebar::{self, MenuAction};
 
@@ -104,6 +104,8 @@ pub struct AsOneApp {
     active_doc: Option<DocId>,
     copy_crop_too: bool,
     folder_input: String,
+    /// Ekran startowy: podglądy folderów z „Ostatnich”.
+    recent_previews: HashMap<String, RecentPreview>,
 
     gpu: Option<Arc<GpuShared>>,
     loader: Loader,
@@ -137,6 +139,14 @@ pub(crate) enum InspectorTab {
     #[default]
     Tools,
     Metadata,
+}
+
+/// Układ startowy: „Opcje listy” nad „Listą plików”; zdjęcia otwierają się obok (po prawej).
+fn default_dock() -> DockState<AppTab> {
+    let mut dock = DockState::new(vec![AppTab::FileList]).with_translations(polish_translations());
+    // Ułamek dotyczy górnej części (tu: Opcje listy).
+    dock.main_surface_mut().split_above(egui_dock::NodeIndex::root(), 0.2, vec![AppTab::ListTools]);
+    dock
 }
 
 fn polish_translations() -> egui_dock::Translations {
@@ -193,7 +203,7 @@ impl AsOneApp {
         let remover = Arc::new(OnnxBackgroundRemover::default());
         let (ops_tx, ops_rx) = crossbeam_channel::unbounded();
         let mut app = Self {
-            dock: DockState::new(vec![AppTab::FileList]).with_translations(polish_translations()),
+            dock: default_dock(),
             dock_style: theme::dock_style(&theme::current_style(ctx)),
             docs: HashMap::new(),
             order: Vec::new(),
@@ -231,6 +241,7 @@ impl AsOneApp {
             #[cfg(target_os = "android")]
             android_light_bars: None,
             meta: HashMap::new(),
+            recent_previews: HashMap::new(),
             meta_channel: metadata::MetaChannel::default(),
             settings,
         };
@@ -343,6 +354,15 @@ impl AsOneApp {
     fn poll_background(&mut self, ctx: &egui::Context) {
         for msg in self.loader.rx.try_iter().collect::<Vec<_>>() {
             match msg {
+                LoadResult::FolderPreview { dir, exists, count, image } => {
+                    let preview = if exists {
+                        let thumb = image.map(|img| ctx.load_texture(format!("recent-{dir}"), img, egui::TextureOptions::LINEAR));
+                        RecentPreview::Ready { count, thumb }
+                    } else {
+                        RecentPreview::Missing
+                    };
+                    self.recent_previews.insert(dir, preview);
+                }
                 LoadResult::Thumbnail { id, dims, image } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
                         let tex = ctx.load_texture(format!("thumb-{}", id.0), image, egui::TextureOptions::LINEAR);
@@ -716,6 +736,16 @@ impl AsOneApp {
         self.tool_bar(ui);
         self.inspector(ui, &open, &numbering);
 
+        // Ekran startowy (pusta lista): podglądy ostatnich folderów wczytywane w tle.
+        if self.order.is_empty() && platform::CAN_PICK_FOLDER {
+            for dir in &self.settings.recent_folders {
+                if !self.recent_previews.contains_key(dir) {
+                    self.recent_previews.insert(dir.clone(), RecentPreview::Loading);
+                    self.loader.request_folder_preview(dir.clone());
+                }
+            }
+        }
+
         let mut actions = Vec::new();
         let mut list = self.settings.list;
         {
@@ -734,6 +764,7 @@ impl AsOneApp {
                 inspection: self.inspection,
                 actions: &mut actions,
                 folder_input: &mut self.folder_input,
+                recent: &self.recent_previews,
             };
             egui::CentralPanel::no_frame().show(ui, |ui| {
                 DockArea::new(dock)

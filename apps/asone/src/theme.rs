@@ -484,6 +484,16 @@ impl Palette {
         }
     }
 
+    /// Linia pod płaskim paskiem: wyraźnie ciemniejsza od paska (1 piksel ekranu).
+    pub fn paint_bar_line(&self, painter: &egui::Painter, rect: egui::Rect) {
+        let c = self.chrome;
+        let k = if self.is_dark() { 0.6 } else { 0.82 };
+        let line = Color32::from_rgb((c.r() as f32 * k) as u8, (c.g() as f32 * k) as u8, (c.b() as f32 * k) as u8);
+        let px = 1.0 / painter.ctx().pixels_per_point();
+        let y = rect.bottom() - px * 0.5;
+        painter.line_segment([egui::pos2(rect.left(), y), egui::pos2(rect.right(), y)], egui::Stroke::new(px, line));
+    }
+
     /// Połysk paska: jasna linia i błysk w górnej połowie, wyraźne przejście w połowie,
     /// ku dołowi ciemniej (jak lakierowany pasek). Rysowany na tle paska, pod jego treścią.
     pub fn paint_gloss(&self, painter: &egui::Painter, rect: egui::Rect) {

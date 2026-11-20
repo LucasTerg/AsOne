@@ -49,6 +49,30 @@ pub enum TabTitle {
     NumberOnly,
 }
 
+/// Wygląd paska menu (tytułowego).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BarStyle {
+    /// Płaski pasek oddzielony od reszty cienką ciemną linią – delikatny.
+    #[default]
+    Flat,
+    /// Połysk: błysk w górnej połowie, ku dołowi ciemniej.
+    Gloss,
+    /// Bez efektu (jednolity, bez linii).
+    Plain,
+}
+
+impl BarStyle {
+    pub const ALL: [BarStyle; 3] = [BarStyle::Flat, BarStyle::Gloss, BarStyle::Plain];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            BarStyle::Flat => "Płaski z linią (delikatny)",
+            BarStyle::Gloss => "Połysk",
+            BarStyle::Plain => "Bez efektu",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CanvasColor {
     /// Z motywu.
@@ -156,8 +180,10 @@ pub struct Settings {
     /// Skala całego interfejsu w %.
     pub ui_scale: u32,
     pub show_tooltips: bool,
-    /// Połysk paska menu (błysk u góry, ciemniej u dołu).
-    pub glossy_bar: bool,
+    /// Wygląd paska menu.
+    pub bar_style: BarStyle,
+    /// Ostatnio otwierane foldery (ekran startowy), najnowsze pierwsze.
+    pub recent_folders: Vec<String>,
     pub animations: bool,
     /// Systemowy pasek tytułu zamiast własnego (Linux/Windows).
     pub system_title_bar: bool,
@@ -214,7 +240,8 @@ impl Default for Settings {
             canvas_custom: [0x28, 0x28, 0x28],
             ui_scale: 100,
             show_tooltips: true,
-            glossy_bar: true,
+            bar_style: BarStyle::Flat,
+            recent_folders: Vec::new(),
             animations: true,
             system_title_bar: false,
             photo_tabs_bottom: false,
@@ -269,6 +296,18 @@ impl HideItem {
 }
 
 impl Settings {
+    /// Ile folderów pamięta ekran startowy.
+    pub const MAX_RECENT: usize = 12;
+
+    /// Dopisuje foldery na początek „Ostatnich” (bez powtórzeń, najwyżej [`Self::MAX_RECENT`]).
+    pub fn remember_folders(&mut self, dirs: &[String]) {
+        for dir in dirs.iter().rev() {
+            self.recent_folders.retain(|d| d != dir);
+            self.recent_folders.insert(0, dir.clone());
+        }
+        self.recent_folders.truncate(Self::MAX_RECENT);
+    }
+
     pub fn hidden_mut(&mut self, item: HideItem) -> &mut bool {
         match item {
             HideItem::Gimp => &mut self.hide_gimp,
@@ -382,7 +421,7 @@ impl Settings {
                 self.canvas_custom = d.canvas_custom;
                 self.ui_scale = d.ui_scale;
                 self.show_tooltips = d.show_tooltips;
-                self.glossy_bar = d.glossy_bar;
+                self.bar_style = d.bar_style;
                 self.animations = d.animations;
                 self.system_title_bar = d.system_title_bar;
                 self.photo_tabs_bottom = d.photo_tabs_bottom;
@@ -445,6 +484,18 @@ mod tests {
         // Niższej wartości z ustawień nie da się wymusić.
         let low = Settings { min_side: 100, ..Settings::default() };
         assert_eq!(low.limits().min_side, Some(500));
+    }
+
+    #[test]
+    fn ostatnie_foldery() {
+        let mut s = Settings::default();
+        s.remember_folders(&["/a".into(), "/b".into()]);
+        s.remember_folders(&["/c".into(), "/a".into()]);
+        assert_eq!(s.recent_folders, ["/c", "/a", "/b"]);
+        let many: Vec<String> = (0..20).map(|i| format!("/d{i}")).collect();
+        s.remember_folders(&many);
+        assert_eq!(s.recent_folders.len(), Settings::MAX_RECENT);
+        assert_eq!(s.recent_folders[0], "/d0");
     }
 
     #[test]

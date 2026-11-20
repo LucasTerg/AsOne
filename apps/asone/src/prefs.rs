@@ -2,7 +2,7 @@
 
 use egui::{RichText, Ui, vec2};
 
-use crate::settings::{AiModel, CanvasColor, HideItem, PrefsSection, Settings, TabTitle, UI_SCALES};
+use crate::settings::{AiModel, BarStyle, CanvasColor, HideItem, PrefsSection, Settings, TabTitle, UI_SCALES};
 use crate::theme::{self, ThemeKind};
 
 #[derive(Default)]
@@ -190,8 +190,12 @@ fn interface_page(ui: &mut Ui, s: &mut Settings) {
         row(ui, "", |ui| {
             ui.checkbox(&mut s.animations, "Animacje (menu, przewijanie)");
         });
-        row(ui, "", |ui| {
-            ui.checkbox(&mut s.glossy_bar, "Połysk paska menu").on_hover_text("Błysk u góry paska, ku dołowi ciemniej.");
+        row(ui, "Pasek menu", |ui| {
+            ui.vertical(|ui| {
+                for style in BarStyle::ALL {
+                    ui.radio_value(&mut s.bar_style, style, style.label());
+                }
+            });
         });
         if cfg!(not(any(target_os = "macos", target_os = "android", target_arch = "wasm32"))) {
             row(ui, "", |ui| {

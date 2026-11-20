@@ -36,6 +36,13 @@ pub enum LoadResult {
         thumbnail: bool,
         error: String,
     },
+    /// Ekran startowy: folder z „Ostatnich” – czy istnieje, ile ma zdjęć, miniatura pierwszego.
+    FolderPreview {
+        dir: String,
+        exists: bool,
+        count: usize,
+        image: Option<egui::ColorImage>,
+    },
 }
 
 pub struct Loader {
@@ -61,6 +68,19 @@ impl Loader {
                 Err(error) => LoadResult::Failed { id, thumbnail: true, error },
             };
             let _ = tx.send(result);
+            ctx.request_repaint();
+        });
+    }
+
+    /// Podgląd folderu z „Ostatnich” (liczba zdjęć i miniatura pierwszego).
+    pub fn request_folder_preview(&self, dir: String) {
+        let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
+        self.tasks.spawn(move || {
+            let path = std::path::PathBuf::from(&dir);
+            let exists = path.is_dir();
+            let files = if exists { asone_core::imageio::expand_paths([path]) } else { Vec::new() };
+            let image = files.first().and_then(|f| asone_core::imageio::decode_path(f).ok()).and_then(|img| thumbnail(&img).ok());
+            let _ = tx.send(LoadResult::FolderPreview { dir, exists, count: files.len(), image });
             ctx.request_repaint();
         });
     }

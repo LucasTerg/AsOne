@@ -13,7 +13,7 @@ use super::{AsOneApp, ExportJob, OpsMsg};
 use crate::document::{DocId, Document, LoadState, ThumbState};
 use crate::export::{ExportItem, ExportSettings};
 use crate::platform::{self, ImageSource, SaveKind};
-use crate::tabs::{Action, AppTab, move_in_order, photo_tab_order, reorder_photo_tabs};
+use crate::tabs::{Action, AppTab, RecentPreview, move_in_order, photo_tab_order, reorder_photo_tabs};
 
 impl AsOneApp {
     pub(super) fn add_sources(&mut self, sources: Vec<ImageSource>, skipped: usize) {
@@ -30,6 +30,21 @@ impl AsOneApp {
             self.docs.insert(id, Document::new(id, source));
             self.order.push(id);
             added += 1;
+        }
+        // Foldery dodanych plików trafiają do „Ostatnich” na ekranie startowym.
+        let mut dirs: Vec<String> = Vec::new();
+        for id in &self.order[self.order.len() - added..] {
+            if let Some(dir) = self.docs.get(id).and_then(|d| d.source.path()?.parent().map(|p| p.display().to_string()))
+                && !dirs.contains(&dir)
+            {
+                dirs.push(dir);
+            }
+        }
+        if !dirs.is_empty() {
+            self.settings.remember_folders(&dirs);
+            for dir in &dirs {
+                self.recent_previews.remove(dir);
+            }
         }
         let mut msg = format!("Dodano zdjęć: {added}");
         if dupes > 0 {
@@ -90,11 +105,8 @@ impl AsOneApp {
                 self.dock.set_focused_node_and_surface(node);
             } else {
                 // Pierwsze zdjęcie: lista plików zostaje po lewej, zdjęcia obok.
-                let list = self
-                    .dock
-                    .find_tab(&AppTab::FileList)
-                    .map(|p| NodePath { surface: p.surface, node: p.node })
-                    .unwrap_or(NodePath { surface: SurfaceIndex::main(), node: NodeIndex::root() });
+                // Cały dotychczasowy układ (Opcje listy + Lista plików) zostaje po lewej.
+                let list = NodePath { surface: SurfaceIndex::main(), node: NodeIndex::root() };
                 let [_, new] = self.dock.split(list, Split::Right, 0.28, Node::leaf(tab));
                 self.dock.set_focused_node_and_surface(NodePath { surface: list.surface, node: new });
             }
@@ -221,6 +233,24 @@ impl AsOneApp {
                     }
                 }
                 Action::Canvas(id, action) => self.canvas_action(id, action),
+                Action::AddFolder => self.pickers.pick_image_folder(),
+                Action::OpenRecent(dir) => {
+                    let path = PathBuf::from(&dir);
+                    if path.is_dir() {
+                        let files = asone_core::imageio::expand_paths([path]);
+                        if files.is_empty() {
+                            self.toast(format!("W folderze nie ma zdjęć: {dir}"), true);
+                        }
+                        self.add_sources(files.into_iter().map(ImageSource::Path).collect(), 0);
+                    } else {
+                        self.toast(format!("Folder nie istnieje: {dir}"), true);
+                        self.recent_previews.insert(dir, RecentPreview::Missing);
+                    }
+                }
+                Action::ForgetRecent(dir) => {
+                    self.settings.recent_folders.retain(|d| *d != dir);
+                    self.recent_previews.remove(&dir);
+                }
             }
         }
     }

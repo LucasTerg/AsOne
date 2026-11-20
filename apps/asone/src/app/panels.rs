@@ -59,7 +59,7 @@ impl AsOneApp {
                 ui.label("Wklej nazwę:");
                 let field = ui.add(
                     egui::TextEdit::singleline(&mut self.base_name)
-                        .hint_text("np. 123-marka model")
+                        .hint_text("np.: Nazwa-MARKA-Model")
                         .desired_width(210.0),
                 );
                 // Android: klawiatura systemowa w oknie edycji (GameActivity nie podaje tekstu do egui).

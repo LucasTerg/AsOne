@@ -17,8 +17,11 @@ use crate::theme;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AppTab {
-    /// Stała, niezamykalna lista wszystkich wrzuconych zdjęć.
+    /// Stała, niezamykalna lista wszystkich wrzuconych zdjęć (pusta – ekran startowy).
     FileList,
+    /// Przyciski i widok listy plików (Dodaj zdjęcia, Otwórz wszystkie, Widok…) – osobna zakładka,
+    /// którą można przeciągnąć w inne miejsce.
+    ListTools,
     /// Zakładka robocza jednego zdjęcia.
     Photo(DocId),
 }
@@ -147,6 +150,29 @@ pub enum Action {
     SetVersion(Vec<DocId>, Option<u8>),
     /// Polecenie z menu kontekstowego zdjęcia (płótna).
     Canvas(DocId, crate::canvas::CanvasAction),
+    /// „Dodaj folder…”.
+    AddFolder,
+    /// Ekran startowy: wczytaj folder z „Ostatnich”.
+    OpenRecent(String),
+    /// Ekran startowy: usuń folder z „Ostatnich”.
+    ForgetRecent(String),
+}
+
+/// Podgląd folderu z „Ostatnich” na ekranie startowym.
+pub enum RecentPreview {
+    Loading,
+    Ready { count: usize, thumb: Option<egui::TextureHandle> },
+    Missing,
+}
+
+/// „1 zdjęcie”, „3 zdjęcia”, „12 zdjęć”.
+pub fn photos_count(n: usize) -> String {
+    let word = match (n % 10, n % 100) {
+        _ if n == 1 => "zdjęcie",
+        (2..=4, r) if !(12..=14).contains(&r) => "zdjęcia",
+        _ => "zdjęć",
+    };
+    format!("{n} {word}")
 }
 
 /// Podmenu „Dopisz wersję”: `-ver2` (zwykle), `-ver3`, `-ver4`, `-ver5`, „Bez dopisku”.
@@ -186,6 +212,8 @@ pub struct Viewer<'a> {
     pub actions: &'a mut Vec<Action>,
     /// Android: folder do wczytania (zamiast systemowego okna wyboru).
     pub folder_input: &'a mut String,
+    /// Ekran startowy: podglądy folderów z „Ostatnich” (`settings.recent_folders`).
+    pub recent: &'a HashMap<String, RecentPreview>,
 }
 
 impl egui_dock::TabViewer for Viewer<'_> {
@@ -198,6 +226,7 @@ impl egui_dock::TabViewer for Viewer<'_> {
     fn title(&mut self, tab: &mut AppTab) -> WidgetText {
         match tab {
             AppTab::FileList => "Lista plików".into(),
+            AppTab::ListTools => "Opcje listy".into(),
             AppTab::Photo(id) => {
                 let name = self.docs.get(id).map(|d| d.file_name.as_str()).unwrap_or("?");
                 let number_only = self.settings.tab_title == crate::settings::TabTitle::NumberOnly;
@@ -214,6 +243,7 @@ impl egui_dock::TabViewer for Viewer<'_> {
     fn ui(&mut self, ui: &mut Ui, tab: &mut AppTab) {
         match *tab {
             AppTab::FileList => self.file_list(ui),
+            AppTab::ListTools => self.list_tools(ui),
             AppTab::Photo(id) => {
                 if let Some(doc) = self.docs.get_mut(&id) {
                     let out = photo_ui(ui, doc, self.gpu, self.tool, self.brush, self.inspection);
@@ -247,15 +277,15 @@ impl egui_dock::TabViewer for Viewer<'_> {
     }
 
     fn is_closeable(&self, tab: &AppTab) -> bool {
-        !matches!(tab, AppTab::FileList)
+        !matches!(tab, AppTab::FileList | AppTab::ListTools)
     }
 
     fn allowed_in_windows(&self, _tab: &mut AppTab) -> bool {
         false
     }
 
-    fn scroll_bars(&self, _tab: &AppTab) -> [bool; 2] {
-        [false, false]
+    fn scroll_bars(&self, tab: &AppTab) -> [bool; 2] {
+        [false, matches!(tab, AppTab::ListTools)]
     }
 
     /// Ustawienie „Zakładki zdjęć: na dole” – dotyczy liści ze zdjęciami (lista plików zostaje u góry).
@@ -266,13 +296,17 @@ impl egui_dock::TabViewer for Viewer<'_> {
 
 
 impl Viewer<'_> {
-    fn file_list(&mut self, ui: &mut Ui) {
+    /// Zakładka „Opcje listy”: przyciski, liczniki i widok listy plików.
+    fn list_tools(&mut self, ui: &mut Ui) {
         let pal = theme::p();
         let open_count = self.numbering.len();
         egui::Frame::new().inner_margin(egui::Margin::symmetric(8, 6)).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if crate::platform::CAN_PICK_FILES && ui.button("Dodaj zdjęcia…").clicked() {
                     self.actions.push(Action::AddFiles);
+                }
+                if crate::platform::CAN_PICK_FOLDER && ui.button("Dodaj folder…").clicked() {
+                    self.actions.push(Action::AddFolder);
                 }
                 if !crate::platform::CAN_PICK_FILES {
                     ui.label("Folder:");
@@ -308,17 +342,12 @@ impl Viewer<'_> {
             });
             self.list_options_bar(ui);
         });
-        ui.separator();
+    }
 
+    fn file_list(&mut self, ui: &mut Ui) {
+        let pal = theme::p();
         if self.order.is_empty() {
-            ui.centered_and_justified(|ui| {
-                let hint = if cfg!(target_os = "android") {
-                    "Dodaj zdjęcia z Galerii albo Plików – „Dodaj zdjęcia…”"
-                } else {
-                    "Przeciągnij tutaj zdjęcia (JPG, PNG, WebP, AVIF, TIFF, BMP)\nlub użyj „Dodaj zdjęcia…”"
-                };
-                ui.colored_label(pal.text_dim, hint);
-            });
+            self.start_screen(ui);
             return;
         }
 
@@ -370,6 +399,124 @@ impl Viewer<'_> {
         }
     }
 
+    /// Ekran startowy (pusta lista): przyciski z lewej, „Ostatnie” foldery z prawej.
+    fn start_screen(&mut self, ui: &mut Ui) {
+        let pal = theme::p();
+        let drop_hint = if cfg!(target_os = "android") {
+            "Dodaj zdjęcia z Galerii albo Plików – „Dodaj zdjęcia…”"
+        } else {
+            "Przeciągnij tutaj zdjęcia (JPG, PNG, WebP, AVIF, TIFF, BMP) albo cały folder"
+        };
+        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            ui.add_space(28.0);
+            ui.horizontal_top(|ui| {
+                ui.add_space(28.0);
+                // Lewa kolumna: najważniejsze przyciski i odnośniki.
+                ui.vertical(|ui| {
+                    ui.set_width(180.0);
+                    let primary = egui::Button::new(egui::RichText::new("Dodaj zdjęcia…").strong().color(pal.accent_text))
+                        .fill(pal.accent)
+                        .min_size(vec2(176.0, 32.0));
+                    if crate::platform::CAN_PICK_FILES && ui.add(primary).clicked() {
+                        self.actions.push(Action::AddFiles);
+                    }
+                    ui.add_space(4.0);
+                    if crate::platform::CAN_PICK_FOLDER && ui.add(egui::Button::new("Dodaj folder…").min_size(vec2(176.0, 32.0))).clicked() {
+                        self.actions.push(Action::AddFolder);
+                    }
+                    ui.add_space(24.0);
+                    ui.hyperlink_to("Witryna AsOne", "https://asone.lmk.one/");
+                    ui.hyperlink_to("Kod i wydania (GitHub)", "https://github.com/LucasTerg/AsOne");
+                });
+                ui.add_space(36.0);
+                // Prawa kolumna: nazwa programu i ostatnio otwierane foldery.
+                ui.vertical(|ui| {
+                    ui.label(egui::RichText::new("AsOne").size(24.0).strong().color(pal.text));
+                    ui.colored_label(pal.text_dim, "Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, nazwy plików.");
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(8.0);
+                    ui.label(egui::RichText::new("Ostatnie").size(17.0).strong().color(pal.text));
+                    ui.add_space(6.0);
+                    let folders = self.settings.recent_folders.clone();
+                    if folders.is_empty() || !crate::platform::CAN_PICK_FOLDER {
+                        ui.colored_label(pal.text_dim, "Tu pojawią się ostatnio otwierane foldery ze zdjęciami.");
+                    } else {
+                        ui.spacing_mut().item_spacing = vec2(12.0, 12.0);
+                        ui.horizontal_wrapped(|ui| {
+                            for dir in &folders {
+                                self.recent_card(ui, dir);
+                            }
+                        });
+                    }
+                    ui.add_space(18.0);
+                    ui.colored_label(pal.text_dim, drop_hint);
+                });
+            });
+        });
+    }
+
+    /// Kafelek folderu z „Ostatnich”: miniatura pierwszego zdjęcia, nazwa, ścieżka, liczba zdjęć.
+    fn recent_card(&mut self, ui: &mut Ui, dir: &str) {
+        let pal = theme::p();
+        let size = vec2(168.0, 204.0);
+        let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+        let preview = self.recent.get(dir);
+        let missing = matches!(preview, Some(RecentPreview::Missing));
+        let fill = if response.hovered() && !missing { pal.hover } else { pal.card };
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, CornerRadius::same(pal.radius), fill);
+        painter.rect_stroke(rect, CornerRadius::same(pal.radius), Stroke::new(1.0, pal.card_border), egui::StrokeKind::Inside);
+        let thumb_area = Rect::from_min_size(rect.min + vec2(8.0, 8.0), vec2(size.x - 16.0, 120.0));
+        match preview {
+            Some(RecentPreview::Ready { thumb: Some(tex), .. }) => {
+                let s = tex.size_vec2();
+                let k = (thumb_area.width() / s.x).min(thumb_area.height() / s.y);
+                let ir = Rect::from_center_size(thumb_area.center(), s * k);
+                painter.image(tex.id(), ir, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+            }
+            Some(RecentPreview::Loading) | None => {
+                painter.text(thumb_area.center(), egui::Align2::CENTER_CENTER, "…", egui::FontId::proportional(20.0), pal.text_faint);
+            }
+            _ => {
+                painter.text(thumb_area.center(), egui::Align2::CENTER_CENTER, "📁", egui::FontId::proportional(40.0), pal.text_faint);
+            }
+        }
+        let path = std::path::Path::new(dir);
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| dir.to_string());
+        let parent = path.parent().map(|p| p.display().to_string()).unwrap_or_default();
+        let info = match preview {
+            Some(RecentPreview::Ready { count, .. }) => photos_count(*count),
+            Some(RecentPreview::Missing) => "folder nie istnieje".to_string(),
+            _ => String::new(),
+        };
+        let width = size.x - 16.0;
+        let line = |text: String, font: egui::FontId, color: Color32, y: f32| {
+            let mut job = egui::text::LayoutJob::simple_singleline(text, font, color);
+            job.wrap = egui::text::TextWrapping::truncate_at_width(width);
+            let galley = ui.painter().layout_job(job);
+            painter.galley(pos2(rect.left() + 8.0, rect.top() + y), galley, color);
+        };
+        line(name, egui::FontId::proportional(14.0), if missing { pal.text_dim } else { pal.text }, 136.0);
+        line(parent, egui::FontId::proportional(11.5), pal.text_dim, 158.0);
+        line(info, egui::FontId::proportional(11.5), if missing { pal.danger } else { pal.text_faint }, 178.0);
+
+        let response = response.on_hover_text(format!("{dir}\nKliknij, aby wczytać zdjęcia z tego folderu"));
+        if response.clicked() {
+            self.actions.push(Action::OpenRecent(dir.to_string()));
+        }
+        response.context_menu(|ui| {
+            if ui.add_enabled(!missing, egui::Button::new("Wczytaj zdjęcia z folderu")).clicked() {
+                self.actions.push(Action::OpenRecent(dir.to_string()));
+                ui.close();
+            }
+            if ui.button("Usuń z ostatnich").clicked() {
+                self.actions.push(Action::ForgetRecent(dir.to_string()));
+                ui.close();
+            }
+        });
+    }
+
     /// Dokumenty, na których działa menu kontekstowe: zaznaczenie albo sama kliknięta miniatura.
     fn targets(&self, id: DocId) -> Vec<DocId> {
         if self.selected.contains(&id) && self.selected.len() > 1 {
@@ -419,7 +566,12 @@ impl Viewer<'_> {
                 }
             }
             if self.list.view != ListView::Details {
-                ui.separator();
+                // „Rozmiar” z suwakiem razem – do nowego wiersza, gdy się nie mieszczą (wąska kolumna).
+                if ui.available_rect_before_wrap().width() < 170.0 {
+                    ui.end_row();
+                } else {
+                    ui.separator();
+                }
                 ui.label("Rozmiar");
                 ui.add(egui::Slider::new(&mut self.list.thumb_size, THUMB_MIN..=THUMB_MAX).show_value(false))
                     .on_hover_text("Rozmiar miniatur (też Ctrl + kółko myszy nad listą)");
@@ -780,6 +932,15 @@ fn file_info(doc: &Document) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn liczebnik_zdjec() {
+        let w: Vec<String> = [1, 2, 4, 5, 12, 13, 22, 25, 101, 104].iter().map(|&n| photos_count(n)).collect();
+        assert_eq!(
+            w,
+            ["1 zdjęcie", "2 zdjęcia", "4 zdjęcia", "5 zdjęć", "12 zdjęć", "13 zdjęć", "22 zdjęcia", "25 zdjęć", "101 zdjęć", "104 zdjęcia"]
+        );
+    }
     use egui_dock::{SurfaceIndex, TabIndex, TabPath};
 
     fn ids(v: &[u64]) -> Vec<DocId> {
