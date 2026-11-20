@@ -140,6 +140,11 @@ pub fn pick_images() {
     with_activity(|env, a| env.call_method(a, "pickImages", "()V", &[]).map(drop));
 }
 
+/// Systemowe okno wyboru folderu – obrazy z niego przychodzą jak przy [`pick_images`].
+pub fn pick_folder() {
+    with_activity(|env, a| env.call_method(a, "pickFolder", "()V", &[]).map(drop));
+}
+
 /// Prośba o tekst ze schowka – wynik przychodzi jako [`Event::Clipboard`].
 pub fn request_clipboard() {
     with_activity(|env, a| env.call_method(a, "requestClipboardText", "()V", &[]).map(drop));

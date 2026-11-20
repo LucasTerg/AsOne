@@ -147,7 +147,11 @@ pub(crate) enum InspectorTab {
 }
 
 /// Układ startowy: „Opcje listy” nad „Listą plików”; zdjęcia otwierają się obok (po prawej).
+/// Telefon: wszystko jako zakładki na jednym pasku (bez wąskich kolumn).
 fn default_dock() -> DockState<AppTab> {
+    if platform::COMPACT_LAYOUT {
+        return DockState::new(vec![AppTab::FileList, AppTab::ListTools]).with_translations(polish_translations());
+    }
     let mut dock = DockState::new(vec![AppTab::FileList]).with_translations(polish_translations());
     // Ułamek dotyczy górnej części (tu: Opcje listy).
     dock.main_surface_mut().split_above(egui_dock::NodeIndex::root(), 0.2, vec![AppTab::ListTools]);

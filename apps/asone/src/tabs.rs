@@ -311,7 +311,7 @@ impl Viewer<'_> {
                 if crate::platform::CAN_PICK_FILES && ui.button("Dodaj zdjęcia…").clicked() {
                     self.actions.push(Action::AddFiles);
                 }
-                if crate::platform::CAN_PICK_FOLDER && ui.button("Dodaj folder…").clicked() {
+                if crate::platform::CAN_ADD_FOLDER && ui.button("Dodaj folder…").clicked() {
                     self.actions.push(Action::AddFolder);
                 }
                 if !crate::platform::CAN_PICK_FILES {
@@ -405,8 +405,56 @@ impl Viewer<'_> {
         }
     }
 
+    /// Telefon: ekran startowy z dwoma dużymi przyciskami – Dodaj zdjęcia, Dodaj folder.
+    fn start_screen_compact(&mut self, ui: &mut Ui) {
+        let pal = theme::p();
+        let avail = ui.available_size();
+        let gap = 16.0;
+        let side = ((avail.x - 3.0 * gap) / 2.0).clamp(96.0, 220.0);
+        let row = Rect::from_center_size(ui.max_rect().center(), vec2(2.0 * side + gap, side));
+        let tiles = [
+            (Rect::from_min_size(row.min, vec2(side, side)), "Dodaj\nzdjęcia", Action::AddFiles, true),
+            (
+                Rect::from_min_size(row.min + vec2(side + gap, 0.0), vec2(side, side)),
+                "Dodaj\nfolder",
+                Action::AddFolder,
+                false,
+            ),
+        ];
+        for (rect, label, action, primary) in tiles {
+            let response = ui.interact(rect, ui.id().with(label), Sense::click());
+            let fill = match (primary, response.hovered() || response.is_pointer_button_down_on()) {
+                (true, false) => pal.accent,
+                (true, true) => pal.accent.gamma_multiply(0.85),
+                (false, false) => pal.card,
+                (false, true) => pal.hover,
+            };
+            let text = if primary { pal.accent_text } else { pal.text };
+            let painter = ui.painter();
+            painter.rect_filled(rect, CornerRadius::same(16), fill);
+            if !primary {
+                painter.rect_stroke(rect, CornerRadius::same(16), Stroke::new(1.0, pal.card_border), egui::StrokeKind::Inside);
+            }
+            painter.text(rect.center() - vec2(0.0, side * 0.14), egui::Align2::CENTER_CENTER, "+", egui::FontId::proportional(side * 0.32), text);
+            painter.text(
+                rect.center() + vec2(0.0, side * 0.2),
+                egui::Align2::CENTER_CENTER,
+                label,
+                egui::FontId::proportional((side * 0.11).clamp(14.0, 20.0)),
+                text,
+            );
+            if response.clicked() {
+                self.actions.push(action);
+            }
+        }
+    }
+
     /// Ekran startowy (pusta lista): przyciski z lewej, „Ostatnie” foldery z prawej.
     fn start_screen(&mut self, ui: &mut Ui) {
+        if crate::platform::COMPACT_LAYOUT {
+            self.start_screen_compact(ui);
+            return;
+        }
         let pal = theme::p();
         let drop_hint = if cfg!(target_os = "android") {
             "Dodaj zdjęcia z Galerii albo Plików – „Dodaj zdjęcia…”"
@@ -427,7 +475,7 @@ impl Viewer<'_> {
                         self.actions.push(Action::AddFiles);
                     }
                     ui.add_space(4.0);
-                    if crate::platform::CAN_PICK_FOLDER && ui.add(egui::Button::new("Dodaj folder…").min_size(vec2(176.0, 32.0))).clicked() {
+                    if crate::platform::CAN_ADD_FOLDER && ui.add(egui::Button::new("Dodaj folder…").min_size(vec2(176.0, 32.0))).clicked() {
                         self.actions.push(Action::AddFolder);
                     }
                     ui.add_space(24.0);

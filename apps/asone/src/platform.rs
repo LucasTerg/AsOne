@@ -186,6 +186,11 @@ pub fn spawn_detached(name: &str, job: impl FnOnce() + Send + 'static) {
 /// Czy platforma ma systemowe okno wyboru plików / folderów (Android: przez powłokę Kotlin).
 pub const CAN_PICK_FILES: bool = true;
 pub const CAN_PICK_FOLDER: bool = !cfg!(any(target_os = "android", target_arch = "wasm32"));
+/// „Dodaj folder…” (wczytanie obrazów z folderu) – desktop i Android (systemowe okno folderu).
+pub const CAN_ADD_FOLDER: bool = !cfg!(target_arch = "wasm32");
+/// Telefon: lista, opcje i zdjęcia jako zakładki na jednym pasku (bez wąskich kolumn),
+/// ekran startowy z samymi przyciskami.
+pub const COMPACT_LAYOUT: bool = cfg!(target_os = "android");
 /// Eksport trafia do folderu (desktop/Android) czy do pobranych plików (przeglądarka).
 pub const EXPORT_TO_FOLDER: bool = !cfg!(target_arch = "wasm32");
 
@@ -308,6 +313,8 @@ impl Pickers {
 
     /// Okno wyboru folderu z obrazami (Plik › Dodaj folder…).
     pub fn pick_image_folder(&self) {
+        #[cfg(target_os = "android")]
+        crate::android::pick_folder();
         #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
         {
             let (tx, ctx) = (self.tx.clone(), self.ctx.clone());

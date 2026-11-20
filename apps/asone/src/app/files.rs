@@ -103,9 +103,18 @@ impl AsOneApp {
                     leaf.append_tab(tab);
                 }
                 self.dock.set_focused_node_and_surface(node);
+            } else if platform::COMPACT_LAYOUT
+                && let Some(list) = self.dock.find_tab(&AppTab::FileList)
+            {
+                // Telefon: zdjęcie jako kolejna zakładka obok listy – na całą szerokość ekranu.
+                let node = NodePath { surface: list.surface, node: list.node };
+                if let Ok(leaf) = self.dock.leaf_mut(node) {
+                    leaf.append_tab(tab);
+                }
+                self.dock.set_focused_node_and_surface(node);
             } else {
-                // Pierwsze zdjęcie: lista plików zostaje po lewej, zdjęcia obok.
-                // Cały dotychczasowy układ (Opcje listy + Lista plików) zostaje po lewej.
+                // Pierwsze zdjęcie: cały dotychczasowy układ (Opcje listy + Lista plików) zostaje
+                // po lewej, zdjęcia obok.
                 let list = NodePath { surface: SurfaceIndex::main(), node: NodeIndex::root() };
                 let [_, new] = self.dock.split(list, Split::Right, 0.28, Node::leaf(tab));
                 self.dock.set_focused_node_and_surface(NodePath { surface: list.surface, node: new });

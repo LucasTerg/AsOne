@@ -91,7 +91,9 @@ całość; „Przywróć oryginał” wczytuje plik od nowa.
 otwieranych folderów (miniatura pierwszego zdjęcia, ścieżka, liczba zdjęć); kliknięcie wczytuje
 folder, prawy przycisk – „Usuń z ostatnich”. Przyciski i widok listy plików (Miniatury / Lista /
 Szczegóły, rozmiar, nazwy) są w osobnej zakładce **Opcje listy** – nad listą, do przeciągnięcia
-w inne miejsce.
+w inne miejsce. Na telefonie (Android) ekran startowy to tylko dwa duże przyciski – Dodaj zdjęcia
+i Dodaj folder (systemowe okno folderu) – a lista, opcje i zdjęcia są zakładkami na jednym pasku,
+na całą szerokość ekranu.
 
 **Edycja AI (Replicate)** – panel „Edycja AI” albo prawy przycisk na zdjęciu: polecenie (własne
 albo gotowe: białe tło z cieniem, usuń napisy / znaki wodne, popraw światło, usuń kurz, produkt we

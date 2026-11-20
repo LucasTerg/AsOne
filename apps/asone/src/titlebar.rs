@@ -185,7 +185,7 @@ fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, state: MenuStat
             if crate::platform::CAN_PICK_FILES && item(ui, "Dodaj zdjęcia…", "Ctrl+O") {
                 out.push(MenuAction::AddFiles);
             }
-            if crate::platform::CAN_PICK_FOLDER && item(ui, "Dodaj folder…", "") {
+            if crate::platform::CAN_ADD_FOLDER && item(ui, "Dodaj folder…", "") {
                 out.push(MenuAction::AddFolder);
             }
             ui.separator();

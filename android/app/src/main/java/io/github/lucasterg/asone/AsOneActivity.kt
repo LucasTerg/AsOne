@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.text.InputType
@@ -40,6 +41,12 @@ class AsOneActivity : GameActivity() {
         registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
             // Odczyt poza wątkiem UI – zdjęcia mogą mieć po kilkanaście MB.
             Thread { readPicked(uris) }.start()
+        }
+
+    private val openFolder =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+            // Odczyt poza wątkiem UI – w folderze może być wiele dużych zdjęć.
+            if (tree != null) Thread { readFolder(tree) }.start()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -116,6 +123,11 @@ class AsOneActivity : GameActivity() {
     /** Systemowe okno wyboru zdjęć (Galeria, Pliki, Dysk…), kilka naraz. */
     fun pickImages() {
         runOnUiThread { openImages.launch(arrayOf("image/*")) }
+    }
+
+    /** Systemowe okno wyboru folderu – wczytuje z niego wszystkie obrazy (bez podfolderów). */
+    fun pickFolder() {
+        runOnUiThread { openFolder.launch(null) }
     }
 
     /** Tekst ze schowka – odpowiedź przez [nativeOnClipboardText]. */
@@ -224,6 +236,41 @@ class AsOneActivity : GameActivity() {
         for (uri in uris) {
             try {
                 val name = displayName(uri) ?: uri.lastPathSegment ?: "zdjecie.jpg"
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("brak danych")
+                nativeOnImagePicked(name, bytes)
+                ok++
+            } catch (e: Exception) {
+                failed++
+            }
+        }
+        nativeOnPickFinished(ok, failed)
+    }
+
+    private fun readFolder(tree: Uri) {
+        var ok = 0
+        var failed = 0
+        val items = mutableListOf<Pair<String, Uri>>()
+        try {
+            val parent = DocumentsContract.getTreeDocumentId(tree)
+            val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parent)
+            val columns = arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE,
+            )
+            contentResolver.query(children, columns, null, null, null)?.use { c ->
+                while (c.moveToNext()) {
+                    val mime = c.getString(2) ?: continue
+                    if (!mime.startsWith("image/")) continue
+                    items += (c.getString(1) ?: "zdjecie.jpg") to DocumentsContract.buildDocumentUriUsingTree(tree, c.getString(0))
+                }
+            }
+        } catch (e: Exception) {
+            failed++
+        }
+        items.sortBy { it.first.lowercase() }
+        for ((name, uri) in items) {
+            try {
                 val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("brak danych")
                 nativeOnImagePicked(name, bytes)
                 ok++
