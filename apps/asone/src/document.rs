@@ -94,6 +94,8 @@ pub struct Document {
     pub overlay_image: Option<Arc<image::RgbaImage>>,
     /// Podgląd warstwy na płótnie (pomniejszony do [`OVERLAY_PREVIEW`] px).
     pub overlay_texture: Option<egui::TextureHandle>,
+    /// Zawartość po „Spłaszcz” – zastępuje plik źródłowy (Wczytaj ponownie wraca do pliku).
+    pub content: Option<Arc<image::RgbaImage>>,
 }
 
 /// Dłuższy bok tekstury podglądu warstwy.
@@ -139,6 +141,7 @@ impl Document {
             version: None,
             overlay_image: None,
             overlay_texture: None,
+            content: None,
         }
     }
 
@@ -215,6 +218,14 @@ impl Document {
     pub fn remove_overlay(&mut self) {
         if self.edits.overlay.take().is_some() {
             self.edits.margins[LEFT] = self.edits.margins[LEFT].saturating_sub(PHONE_STRIP);
+        }
+    }
+
+    /// Piksele zdjęcia: po „Spłaszcz” – spłaszczony obraz, w przeciwnym razie plik źródłowy.
+    pub fn pixel_source(&self) -> ImageSource {
+        match &self.content {
+            Some(image) => ImageSource::Pixels { name: self.file_name.clone(), image: image.clone() },
+            None => self.source.clone(),
         }
     }
 

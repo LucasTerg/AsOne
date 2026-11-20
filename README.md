@@ -83,7 +83,9 @@ kadr, marginesy, tło, gumka, wycinanie prostokątem, usunięcie tła AI. Jeden 
 **Wklej smartfon** (Szybkie operacje albo prawy przycisk na zdjęciu): z lewej dochodzi 500 px
 białego tła, a w nim zdjęcie smartfona ze schowka (obraz albo skopiowany plik) lub z pliku –
 warstwa do przesunięcia i skalowania myszką (narzędzie Przesuwanie, rogi = rozmiar) albo polami
-w sekcji „Smartfon (warstwa)”; trafia do zapisanego JPG.
+w sekcji „Smartfon (warstwa)”; trafia do zapisanego JPG. **Spłaszcz zdjęcie** (sekcja Smartfon albo
+prawy przycisk) scala zdjęcie, marginesy, smartfon i usunięte tło w jeden obraz – potem kadr obejmuje
+całość; „Przywróć oryginał” wczytuje plik od nowa.
 
 **Ekran startowy** (pusta lista): Dodaj zdjęcia / Dodaj folder i **Ostatnie** – kafelki ostatnio
 otwieranych folderów (miniatura pierwszego zdjęcia, ścieżka, liczba zdjęć); kliknięcie wczytuje

@@ -370,6 +370,35 @@ impl AsOneApp {
                         doc.dims = Some(dims);
                     }
                 }
+                LoadResult::Flattened { id, gpu, mask, ai_proxy, content, thumb } => {
+                    if let Some(doc) = self.docs.get_mut(&id) {
+                        doc.dims = Some([content.width(), content.height()]);
+                        doc.gpu = Some(gpu);
+                        doc.mask_cpu = mask;
+                        doc.mask_dirty = None;
+                        doc.downscaled_from = None;
+                        doc.ai_proxy = Some(ai_proxy);
+                        doc.edits = crate::document::EditParams { bg_color: doc.edits.bg_color, ..Default::default() };
+                        doc.margins_linked = false;
+                        doc.mask_touched = false;
+                        doc.selection = None;
+                        doc.overlay_image = None;
+                        doc.overlay_texture = None;
+                        doc.content = Some(content);
+                        doc.thumb = ThumbState::Ready(ctx.load_texture(format!("thumb-{}", id.0), thumb, egui::TextureOptions::LINEAR));
+                        doc.ai = AiState::Idle;
+                        doc.load = LoadState::Ready;
+                        doc.camera.needs_fit = true;
+                        doc.reset_history();
+                        self.toast("Zdjęcie spłaszczone – kadr obejmuje teraz całość (oryginał: „Przywróć oryginał”)", false);
+                    }
+                }
+                LoadResult::FlattenFailed { id, error } => {
+                    if let Some(doc) = self.docs.get_mut(&id) {
+                        doc.load = LoadState::Ready;
+                    }
+                    self.toast(format!("Spłaszczanie: {error}"), true);
+                }
                 LoadResult::Full { id, gpu, mask, has_alpha, downscaled_from, ai_proxy } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
                         doc.dims.get_or_insert(downscaled_from.unwrap_or(gpu.size));

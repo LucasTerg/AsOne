@@ -132,6 +132,10 @@ pub enum CanvasAction {
     PickPhone,
     FitPhone,
     RemovePhone,
+    /// Scala kadr, marginesy, tło i warstwę w nowe zdjęcie zakładki.
+    Flatten,
+    /// Po „Spłaszcz”: powrót do pliku źródłowego.
+    RestoreOriginal,
     RemoveBackground,
     AutoCrop,
     FitSquare,
@@ -143,7 +147,7 @@ pub enum CanvasAction {
 }
 
 /// Menu pod prawym przyciskiem na zdjęciu.
-fn canvas_menu(ui: &mut egui::Ui, has_overlay: bool, can_undo: bool, can_redo: bool, actions: &mut Vec<CanvasAction>) {
+fn canvas_menu(ui: &mut egui::Ui, has_overlay: bool, flattened: bool, can_undo: bool, can_redo: bool, actions: &mut Vec<CanvasAction>) {
     use crate::platform::{CAN_PASTE_IMAGE, CAN_PICK_OVERLAY};
     ui.set_min_width(240.0);
     let mut item = |ui: &mut egui::Ui, enabled: bool, label: &str, action: CanvasAction| {
@@ -158,6 +162,10 @@ fn canvas_menu(ui: &mut egui::Ui, has_overlay: bool, can_undo: bool, can_redo: b
     if has_overlay {
         item(ui, true, "Dopasuj smartfon do pasa", CanvasAction::FitPhone);
         item(ui, true, "Usuń smartfon", CanvasAction::RemovePhone);
+    }
+    item(ui, true, "Spłaszcz zdjęcie", CanvasAction::Flatten);
+    if flattened {
+        item(ui, true, "Przywróć oryginał (z pliku)", CanvasAction::RestoreOriginal);
     }
     ui.separator();
     item(ui, crate::ai::AVAILABLE, "Usuń tło", CanvasAction::RemoveBackground);
@@ -639,8 +647,9 @@ pub fn photo_ui(
     // --- Menu kontekstowe (PPM; gumka używa PPM do przywracania) ---------------------------
     if tool != Tool::Eraser {
         let has_overlay = doc.overlay_image.is_some() && doc.edits.overlay.is_some();
+        let flattened = doc.content.is_some();
         let (can_undo, can_redo) = (doc.history.can_undo(), doc.history.can_redo());
-        response.context_menu(|ui| canvas_menu(ui, has_overlay, can_undo, can_redo, &mut out.actions));
+        response.context_menu(|ui| canvas_menu(ui, has_overlay, flattened, can_undo, can_redo, &mut out.actions));
     }
 
     // --- Pasek stanu ----------------------------------------------------------------------

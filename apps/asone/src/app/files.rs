@@ -151,10 +151,16 @@ impl AsOneApp {
         self.order.retain(|d| !ids.contains(d));
     }
 
-    fn reload(&mut self, ids: &[DocId]) {
+    pub(super) fn reload(&mut self, ids: &[DocId]) {
         for id in ids {
             self.forget_metadata(*id);
             let Some(doc) = self.docs.get_mut(id) else { continue };
+            // Po „Spłaszcz”: powrót do pliku – kadr i marginesy odnosiły się do spłaszczonego obrazu.
+            if doc.content.take().is_some() {
+                doc.edits = asone_core::edits::EditParams { bg_color: doc.edits.bg_color, ..Default::default() };
+                doc.overlay_image = None;
+                doc.overlay_texture = None;
+            }
             doc.thumb = ThumbState::Loading;
             doc.file_size = doc.source.size_hint();
             self.loader.request_thumbnail(*id, doc.source.clone());
@@ -335,7 +341,7 @@ impl AsOneApp {
     pub(super) fn auto_crop(&mut self, id: DocId) {
         let Some(doc) = self.docs.get(&id) else { return };
         let max_dim = self.gpu.as_ref().map_or(8192, |g| g.max_texture_dim);
-        let source = doc.source.clone();
+        let source = doc.pixel_source();
         let mask = (doc.edits.use_bg_removal && doc.mask_cpu.iter().any(|&v| v < 255)).then(|| doc.mask_cpu.clone());
         let tx = self.ops_tx.clone();
         self.ops.spawn(move || {
@@ -459,7 +465,7 @@ impl AsOneApp {
                         mip_count: g.mip_count,
                     },
                     #[cfg(target_arch = "wasm32")]
-                    source: doc.source.clone(),
+                    source: doc.pixel_source(),
                     #[cfg(target_arch = "wasm32")]
                     mask: doc.mask_cpu.clone(),
                     #[cfg(target_arch = "wasm32")]

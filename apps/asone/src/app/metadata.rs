@@ -47,6 +47,7 @@ fn read_view(source: &ImageSource) -> Result<MetaView, String> {
             (bytes, Some(p.display().to_string()), platform::download_origin(p))
         }
         ImageSource::Bytes { bytes, .. } => (bytes.to_vec(), None, Vec::new()),
+        ImageSource::Pixels { .. } => (Vec::new(), None, Vec::new()),
     };
     Ok(MetaView { report: read_metadata(&bytes), origin, path, bytes: bytes.len() as u64 })
 }

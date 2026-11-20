@@ -36,6 +36,19 @@ pub enum LoadResult {
         thumbnail: bool,
         error: String,
     },
+    /// „Spłaszcz”: obraz wynikowy (kadr, marginesy, tło, warstwa) jako nowa zawartość zakładki.
+    Flattened {
+        id: DocId,
+        gpu: DocGpu,
+        mask: Vec<u8>,
+        ai_proxy: Arc<RgbaImage>,
+        content: Arc<RgbaImage>,
+        thumb: egui::ColorImage,
+    },
+    FlattenFailed {
+        id: DocId,
+        error: String,
+    },
     /// Ekran startowy: folder z „Ostatnich” – czy istnieje, ile ma zdjęć, miniatura pierwszego.
     FolderPreview {
         dir: String,
@@ -68,6 +81,41 @@ impl Loader {
                 Err(error) => LoadResult::Failed { id, thumbnail: true, error },
             };
             let _ = tx.send(result);
+            ctx.request_repaint();
+        });
+    }
+
+    /// „Spłaszcz”: składa obraz wynikowy na CPU (ta sama semantyka co eksport) i wgrywa go
+    /// jako nową teksturę zakładki – potem kadr, marginesy i gumka działają na całości.
+    pub fn request_flatten(
+        &self,
+        id: DocId,
+        source: ImageSource,
+        mask: Vec<u8>,
+        edits: asone_core::edits::EditParams,
+        overlay: Option<Arc<RgbaImage>>,
+    ) {
+        let (tx, ctx, gpu) = (self.tx.clone(), self.ctx.clone(), self.gpu.clone());
+        self.tasks.spawn(move || {
+            let result = (|| -> Result<LoadResult, String> {
+                let gpu = gpu.ok_or("Brak GPU (wgpu)")?;
+                let (img, _) = decode_for_gpu(&source, gpu.max_texture_dim)?;
+                let (size, mut rgb) = asone_core::compose::compose_rgb(&img, Some(&mask), &edits);
+                drop(img);
+                if let (Some(layer), Some(rect)) = (&overlay, edits.overlay) {
+                    asone_core::compose::draw_overlay(size, &mut rgb, layer, rect)?;
+                }
+                let rgba: Vec<u8> = rgb.as_chunks::<3>().0.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect();
+                let image = RgbaImage::from_raw(size[0], size[1], rgba).ok_or("Błąd bufora")?;
+                // Marginesy mogły wyjść poza limit tekstury GPU – wtedy zmniejszamy.
+                let limited = fit_within(size, gpu.max_texture_dim);
+                let image = if limited == size { image } else { resize_rgba(&image, limited, lanczos3())? };
+                let thumb = thumbnail(&image)?;
+                let content = Arc::new(image);
+                let full = full_from_image(&gpu, (*content).clone(), None)?;
+                Ok(LoadResult::Flattened { id, gpu: full.gpu, mask: full.mask, ai_proxy: full.ai_proxy, content, thumb })
+            })();
+            let _ = tx.send(result.unwrap_or_else(|error| LoadResult::FlattenFailed { id, error }));
             ctx.request_repaint();
         });
     }
@@ -142,6 +190,11 @@ struct FullLoad {
 
 fn load_full(gpu: &GpuShared, source: &ImageSource) -> Result<FullLoad, String> {
     let (img, downscaled_from) = decode_for_gpu(source, gpu.max_texture_dim)?;
+    full_from_image(gpu, img, downscaled_from)
+}
+
+/// Tekstura z mipmapami, maska (z kanału alfa) i kopia dla AI z gotowego obrazu.
+fn full_from_image(gpu: &GpuShared, img: RgbaImage, downscaled_from: Option<[u32; 2]>) -> Result<FullLoad, String> {
     let size = [img.width(), img.height()];
 
     // Maska: z kanału alfa pliku (jeśli jest przezroczystość), w przeciwnym razie 255.

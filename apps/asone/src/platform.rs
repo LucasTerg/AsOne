@@ -21,6 +21,8 @@ pub enum ImageSource {
     Path(PathBuf),
     /// Bajty pliku (przeglądarka: Drag & Drop / wybór pliku).
     Bytes { name: String, bytes: Arc<[u8]> },
+    /// Gotowe piksele (np. zdjęcie po „Spłaszcz”) – zamiast ponownego dekodowania pliku.
+    Pixels { name: String, image: Arc<RgbaImage> },
 }
 
 impl ImageSource {
@@ -30,14 +32,14 @@ impl ImageSource {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| p.to_string_lossy().into_owned()),
-            ImageSource::Bytes { name, .. } => name.clone(),
+            ImageSource::Bytes { name, .. } | ImageSource::Pixels { name, .. } => name.clone(),
         }
     }
 
     pub fn path(&self) -> Option<&Path> {
         match self {
             ImageSource::Path(p) => Some(p),
-            ImageSource::Bytes { .. } => None,
+            ImageSource::Bytes { .. } | ImageSource::Pixels { .. } => None,
         }
     }
 
@@ -45,6 +47,7 @@ impl ImageSource {
         match self {
             ImageSource::Path(p) => std::fs::metadata(p).map(|m| m.len()).unwrap_or(0),
             ImageSource::Bytes { bytes, .. } => bytes.len() as u64,
+            ImageSource::Pixels { image, .. } => image.as_raw().len() as u64,
         }
     }
 
@@ -53,6 +56,7 @@ impl ImageSource {
         match self {
             ImageSource::Path(p) => p.canonicalize().unwrap_or_else(|_| p.clone()).to_string_lossy().into_owned(),
             ImageSource::Bytes { name, bytes } => format!("{name}:{}", bytes.len()),
+            ImageSource::Pixels { name, image } => format!("{name}:{:p}", Arc::as_ptr(image)),
         }
     }
 
@@ -60,6 +64,7 @@ impl ImageSource {
         match self {
             ImageSource::Path(p) => asone_core::imageio::decode_path(p),
             ImageSource::Bytes { bytes, .. } => asone_core::imageio::decode_bytes(bytes),
+            ImageSource::Pixels { image, .. } => Ok((**image).clone()),
         }
     }
 }

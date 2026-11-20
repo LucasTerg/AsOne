@@ -12,6 +12,10 @@ use crate::canvas::Tool;
 use crate::document::{AiState, BOTTOM, DocId, LEFT, LoadState, PxRect, RIGHT, TOP, WHITE, fill_rect, union_opt};
 use crate::theme;
 
+/// Podpowiedź przycisku „Spłaszcz zdjęcie”.
+const FLATTEN_HINT: &str = "Scala zdjęcie, marginesy, smartfon i usunięte tło (na tle) w jeden obraz – \
+     potem kadr, marginesy i gumka działają na całości. Bez cofania: „Przywróć oryginał” wczytuje plik od nowa.";
+
 const MARGIN_STEP: u32 = 10;
 
 impl AsOneApp {
@@ -177,6 +181,23 @@ impl AsOneApp {
             section(ui, "Kadrowanie");
             let c = doc.edits.crop_px(src);
             ui.label(format!("Kadr: {} × {} px (od {}, {})", c.width(), c.height(), c.x0, c.y0));
+            if doc.edits.overlay.is_some() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.colored_label(pal.text_dim, "Kadr obejmuje samo zdjęcie –");
+                    if ui.small_button("Spłaszcz").on_hover_text(FLATTEN_HINT).clicked() {
+                        phone = Some(CanvasAction::Flatten);
+                    }
+                    ui.colored_label(pal.text_dim, "aby kadrować razem ze smartfonem.");
+                });
+            }
+            if doc.content.is_some() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.colored_label(pal.text_dim, "Zdjęcie spłaszczone.");
+                    if ui.small_button("Przywróć oryginał").on_hover_text("Wczytuje plik od nowa (bez spłaszczenia i zmian)").clicked() {
+                        phone = Some(CanvasAction::RestoreOriginal);
+                    }
+                });
+            }
             ui.horizontal(|ui| {
                 if ui.add_enabled(tool != Tool::Crop, egui::Button::new("Kadruj (C)")).clicked() {
                     switch_tool = Some(Tool::Crop);
@@ -334,6 +355,13 @@ impl AsOneApp {
                         doc.remove_overlay();
                     }
                 });
+                if ui
+                    .button("Spłaszcz zdjęcie")
+                    .on_hover_text(FLATTEN_HINT)
+                    .clicked()
+                {
+                    phone = Some(CanvasAction::Flatten);
+                }
                 ui.colored_label(pal.text_dim, "Na zdjęciu (Przesuwanie): przeciągnij, aby przesunąć; rogi – rozmiar.");
                 ui.separator();
             }
@@ -428,13 +456,27 @@ impl AsOneApp {
             return;
         }
         doc.ai = AiState::Running;
-        let job = AiJob { id, image, full_size, model, path, source: doc.source.clone(), fal_key };
+        let job = AiJob { id, image, full_size, model, path, source: doc.pixel_source(), fal_key };
         self.ai.submit(job);
+    }
+
+    /// „Spłaszcz zdjęcie”: obraz wynikowy (z warstwą) staje się nowym zdjęciem zakładki.
+    pub(super) fn flatten(&mut self, id: DocId) {
+        let Some(doc) = self.docs.get_mut(&id) else { return };
+        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() {
+            return;
+        }
+        doc.commit_history();
+        let overlay = doc.overlay_image.clone().filter(|_| doc.edits.overlay.is_some());
+        self.loader.request_flatten(id, doc.pixel_source(), doc.mask_cpu.clone(), doc.edits.clone(), overlay);
+        doc.load = LoadState::Loading;
     }
 
     /// Polecenia z menu kontekstowego zdjęcia i przycisków „Smartfon”.
     pub(super) fn canvas_action(&mut self, id: DocId, action: CanvasAction) {
         match action {
+            CanvasAction::Flatten => self.flatten(id),
+            CanvasAction::RestoreOriginal => self.reload(&[id]),
             CanvasAction::PastePhone => self.pickers.paste_image(id),
             CanvasAction::PickPhone => self.pickers.pick_overlay_image(id),
             CanvasAction::RemoveBackground => self.start_remove_background(id),
