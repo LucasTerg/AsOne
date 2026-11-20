@@ -97,7 +97,7 @@ impl PrefsDialog {
                 egui::Panel::bottom("prefs_buttons").resizable(false).frame(egui::Frame::NONE).show(ui, |ui| {
                     ui.add_space(6.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let ok = egui::Button::new(RichText::new("OK").color(pal.accent_text)).fill(pal.accent).min_size(vec2(84.0, 26.0));
+                        let ok = egui::Button::new(RichText::new("OK").color(pal.on_accent)).fill(pal.accent).min_size(vec2(84.0, 26.0));
                         if ui.add(ok).clicked() {
                             result.apply = Some(self.draft.clone());
                             close = true;

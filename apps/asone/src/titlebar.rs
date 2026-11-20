@@ -44,7 +44,7 @@ fn brand_mark(ui: &mut Ui) {
     let pal = theme::p();
     let (rect, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
     ui.painter().rect_filled(rect, CornerRadius::same(4), pal.accent);
-    ui.painter().text(rect.center(), Align2::CENTER_CENTER, "A1", FontId::proportional(9.5), pal.accent_text);
+    ui.painter().text(rect.center(), Align2::CENTER_CENTER, "A1", FontId::proportional(9.5), pal.on_accent);
 }
 
 // --- Menu jak w PhotoCrafcie ----------------------------------------------------------------

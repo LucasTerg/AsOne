@@ -131,7 +131,7 @@ impl AsOneApp {
                     } else {
                         let blocker = self.export_blocker(open);
                         let button = egui::Button::new(
-                            RichText::new(format!("Zapisz z zakładek ({})", open.len())).strong().color(pal.accent_text),
+                            RichText::new(format!("Zapisz z zakładek ({})", open.len())).strong().color(pal.on_accent),
                         )
                         .fill(pal.accent)
                         .min_size(vec2(170.0, 26.0));
@@ -235,7 +235,7 @@ impl AsOneApp {
                     let selected = self.tool == tool;
                     let image = egui::Image::new(icon)
                         .fit_to_exact_size(vec2(20.0, 20.0))
-                        .tint(if selected { pal.accent_text } else { pal.icon });
+                        .tint(if selected { pal.on_accent } else { pal.icon });
                     let button = egui::Button::image(image)
                         .selected(selected)
                         .min_size(vec2(34.0, 34.0))
@@ -426,7 +426,7 @@ impl AsOneApp {
                     });
                     ui.add_space(6.0);
                     ui.horizontal(|ui| {
-                        let ok = egui::Button::new(RichText::new(format!("Zmień nazwy ({changes})")).color(pal.accent_text)).fill(pal.accent);
+                        let ok = egui::Button::new(RichText::new(format!("Zmień nazwy ({changes})")).color(pal.on_accent)).fill(pal.accent);
                         if ui.add_enabled(changes > 0, ok).clicked() {
                             confirm = true;
                         }

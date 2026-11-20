@@ -5,6 +5,22 @@ produktu do publikacji w sieci. Kadr, marginesy, białe tło, kwadrat 1:1, usuwa
 model AI, gumka, prostokąt), nazwy przyjazne dla URL i eksport do Progressive JPEG bez metadanych
 z limitami pilnowanymi przy każdym zapisie.
 
+![AsOne: lista zdjęć, otwarte zdjęcie po usunięciu tła i kadrowaniu, panel narzędzi](docs/screenshots/edytor.png)
+
+## Przykład
+
+Z lewej zdjęcie źródłowe, z prawej plik zapisany przez AsOne: usunięte tło (lokalny model RMBG),
+kadr do obiektu, kwadrat 1:1, ramka 5 px, białe tło i nazwa z wklejonej nazwy produktu
+(`Kubek-ASONE-Classic-1.jpg`, `-2.jpg`, …).
+
+![Przed i po: zdjęcia kubka i lampki na szarym tle oraz te same produkty wykadrowane na białym tle](docs/screenshots/przed-po.png)
+
+| Eksport z zakładek | Ekran startowy (jasny motyw) |
+|---|---|
+| ![Okno „Eksport zakończony” z listą zapisanych plików, ich rozmiarem i jakością](docs/screenshots/eksport.png) | ![Ekran startowy z przyciskami Dodaj zdjęcia i Dodaj folder oraz ostatnio otwieranym folderem](docs/screenshots/start-jasny.png) |
+
+Przykładowe zdjęcia: `apps/asone/assets/sample/`.
+
 ## Pobieranie
 
 **Najnowsza wersja:** <https://github.com/LucasTerg/AsOne/releases/latest> – albo przyciski pobierania

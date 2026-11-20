@@ -1026,7 +1026,9 @@ impl AsOneApp {
                 folder_input: &mut self.folder_input,
                 recent: &self.recent_previews,
             };
-            egui::CentralPanel::no_frame().show(ui, |ui| {
+            // Tło pod dokiem w kolorze doku: zaokrąglone rogi pasków zakładek nie odsłaniają
+            // czarnego tła okna (widoczne w jasnych motywach).
+            egui::CentralPanel::no_frame().frame(egui::Frame::new().fill(theme::p().dock)).show(ui, |ui| {
                 DockArea::new(dock)
                     .style(style)
                     .show_close_buttons(true)

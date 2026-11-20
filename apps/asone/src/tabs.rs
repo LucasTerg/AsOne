@@ -430,7 +430,7 @@ impl Viewer<'_> {
                 (false, false) => pal.card,
                 (false, true) => pal.hover,
             };
-            let text = if primary { pal.accent_text } else { pal.text };
+            let text = if primary { pal.on_accent } else { pal.text };
             let painter = ui.painter();
             painter.rect_filled(rect, CornerRadius::same(16), fill);
             if !primary {
@@ -469,7 +469,7 @@ impl Viewer<'_> {
                 // Lewa kolumna: najważniejsze przyciski i odnośniki.
                 ui.vertical(|ui| {
                     ui.set_width(180.0);
-                    let primary = egui::Button::new(egui::RichText::new("Dodaj zdjęcia…").strong().color(pal.accent_text))
+                    let primary = egui::Button::new(egui::RichText::new("Dodaj zdjęcia…").strong().color(pal.on_accent))
                         .fill(pal.accent)
                         .min_size(vec2(176.0, 32.0));
                     if crate::platform::CAN_PICK_FILES && ui.add(primary).clicked() {
@@ -689,7 +689,7 @@ impl Viewer<'_> {
             let w = 12.0 + 7.0 * text.len() as f32;
             let badge = Rect::from_min_size(pos2(x, at.y), vec2(w, 18.0));
             ui.painter().rect_filled(badge, CornerRadius::same(3), pal.accent);
-            ui.painter().text(badge.center(), egui::Align2::CENTER_CENTER, text, egui::FontId::proportional(12.0), pal.accent_text);
+            ui.painter().text(badge.center(), egui::Align2::CENTER_CENTER, text, egui::FontId::proportional(12.0), pal.on_accent);
             x += w + 4.0;
         }
         if let Some(v) = doc.version {
