@@ -76,6 +76,8 @@ APK lokalnie (Podman, Android SDK/NDK, Java 17+; ustawienia w nagłówku skryptu
 3. Wklej nazwę (przycisk „Wklej”), np. `123-marka model` → `123-marka-model-1.jpg`, `-2.jpg`, …
    („Start nr” zmienia pierwszy numer). Menu kontekstowe zdjęcia › **Dopisz wersję**: `-ver2`
    (zwykle), `-ver3`, `-ver4`, `-ver5` → `123-marka-2-ver2.jpg`.
+
+   ![Menu kontekstowe miniatury › Dopisz wersję z zaznaczonym -ver2; miniatura z plakietką ver2, zakładka i panel z nazwą Kubek-ASONE-Classic-2-ver2.jpg](docs/screenshots/ver2.png)
 4. Przeciągnij miniatury na liście albo zakładki, żeby zmienić kolejność – numeracja przelicza się od razu.
 5. Kadruj (C), dodaj marginesy, białe tło, „Dopasuj do kwadratu 1:1”, usuń tło gumką (E) lub prostokątem (M).
 6. **Zapisz z zakładek (N)** albo `Ctrl+S` – eksport tylko otwartych zakładek, w ich kolejności.
