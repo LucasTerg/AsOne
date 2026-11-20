@@ -5,6 +5,13 @@ produktu do publikacji w sieci. Kadr, marginesy, białe tło, kwadrat 1:1, usuwa
 model AI, gumka, prostokąt), nazwy przyjazne dla URL i eksport do Progressive JPEG bez metadanych
 z limitami pilnowanymi przy każdym zapisie.
 
+## Pobieranie
+
+Gotowe pliki są w [Releases](https://github.com/LucasTerg/AsOne/releases): Linux (AppImage,
+Flatpak, tar.gz; x86_64 i aarch64), Windows (x86_64, ARM64), macOS (Apple Silicon, Intel),
+FreeBSD, Android (APK) i wersja web. Buduje je GitHub Actions (`.github/workflows/release.yml`)
+po wypchnięciu tagu: `git tag v0.1.1 && git push origin v0.1.1`.
+
 ## Struktura (workspace jak w programach Craft)
 
 | Ścieżka | Co to jest |

@@ -84,6 +84,7 @@ pub fn free_memory_bytes() -> Option<u64> {
 }
 
 /// Przed przebiegiem: czy starczy pamięci (z zapasem 1 GB), żeby system nie zabił programu.
+#[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
 fn check_memory(model: AiModel, loaded: bool) -> Result<(), AiError> {
     let (weights, run) = memory_need_gb(model);
     let need_gb = run + if loaded { 0.0 } else { weights };

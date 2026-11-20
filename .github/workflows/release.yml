@@ -1,0 +1,299 @@
+# Wydanie AsOne na wszystkie platformy → GitHub Release.
+#
+# Uruchamia się po wypchnięciu tagu `v*` (np. `git tag v0.1.1 && git push origin v0.1.1`)
+# albo ręcznie (Actions › Release › Run workflow) dla podanego tagu.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag wydania (np. v0.1.0)"
+        required: true
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  linux:
+    name: Linux ${{ matrix.arch }} (AppImage, Flatpak, tar.gz)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, os: ubuntu-24.04, features: "--features asone/nasm,asone-cli/nasm" }
+          - { arch: aarch64, os: ubuntu-24.04-arm, features: "" }
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # build.rs liczy statystyki z git log
+      - name: Pakiety systemowe i runtime Flatpak
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nasm pkg-config flatpak
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//26.08 org.freedesktop.Sdk//26.08
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-${{ matrix.arch }}
+      - name: Budowanie, AppImage i Flatpak
+        env:
+          FEATURES: ${{ matrix.features }}
+        run: |
+          packaging/linux/package.sh all
+          V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          tar czf "dist/AsOne-$V-linux-${{ matrix.arch }}.tar.gz" -C target/release asone asone-cli
+      - uses: actions/upload-artifact@v5
+        with:
+          name: linux-${{ matrix.arch }}
+          path: |
+            dist/*.AppImage
+            dist/*.flatpak
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: Windows ${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-pc-windows-msvc, arch: x86_64 }
+          - { target: aarch64-pc-windows-msvc, arch: arm64 }
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Budowanie
+        shell: bash
+        run: cargo build --release --target ${{ matrix.target }} -p asone -p asone-cli
+      - name: Paczka ZIP
+        shell: bash
+        run: |
+          V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          OUT="AsOne-$V-windows-${{ matrix.arch }}"
+          R="target/${{ matrix.target }}/release"
+          mkdir -p "dist/$OUT"
+          cp "$R/asone.exe" "$R/asone-cli.exe" README.md "dist/$OUT/"
+          cp "$R"/*.dll "dist/$OUT/" 2>/dev/null || true
+          ls -la "dist/$OUT"
+          (cd dist && 7z a -tzip "$OUT.zip" "$OUT" > /dev/null)
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows-${{ matrix.arch }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  macos:
+    name: macOS ${{ matrix.arch }}
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: aarch64-apple-darwin, arch: arm64 }
+          - { target: x86_64-apple-darwin, arch: x86_64 }
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      # Intel: gotowych binarek ONNX Runtime dla x86_64 macOS nie ma w `ort`; ostatnie oficjalne
+      # (Microsoft, 1.23.2) są w kole Pythona na PyPI – stąd libonnxruntime.dylib, linkowana
+      # dynamicznie i dołączana do AsOne.app.
+      - name: ONNX Runtime 1.23.2 dla Intel (PyPI)
+        if: matrix.arch == 'x86_64'
+        run: |
+          ORT="$RUNNER_TEMP/ort"
+          mkdir -p "$ORT"
+          URL=$(curl -fsSL https://pypi.org/pypi/onnxruntime/1.23.2/json | python3 -c '
+          import json, sys
+          files = json.load(sys.stdin)["urls"]
+          print(next(f["url"] for f in files if "cp312" in f["filename"] and "macosx" in f["filename"] and "x86_64" in f["filename"]))')
+          curl -fsSL -o "$RUNNER_TEMP/ort.whl" "$URL"
+          unzip -j "$RUNNER_TEMP/ort.whl" "onnxruntime/capi/libonnxruntime.1.23.2.dylib" -d "$ORT"
+          ln -sf libonnxruntime.1.23.2.dylib "$ORT/libonnxruntime.dylib"
+          otool -D "$ORT/libonnxruntime.1.23.2.dylib"
+          {
+            echo "ORT_LIB_LOCATION=$ORT"
+            echo "ORT_PREFER_DYNAMIC_LINK=1"
+            echo "RUSTFLAGS=-C link-arg=-Wl,-rpath,@executable_path"
+            echo "EXTRA_DYLIBS=$ORT/libonnxruntime.1.23.2.dylib"
+            echo "MIN_MACOS=13.0"
+          } >> "$GITHUB_ENV"
+      - name: Budowanie
+        run: |
+          cargo build --release --target ${{ matrix.target }} -p asone -p asone-cli
+          otool -L target/${{ matrix.target }}/release/asone
+      - name: AsOne.app (ZIP)
+        run: packaging/macos/bundle.sh ${{ matrix.target }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  freebsd:
+    name: FreeBSD x86_64
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Budowanie w maszynie FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          mem: 12288
+          prepare: pkg install -y curl git pkgconf
+          run: |
+            set -e
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            . "$HOME/.cargo/env"
+            cargo build --release -p asone -p asone-cli
+            V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+            mkdir -p dist
+            tar czf "dist/AsOne-$V-freebsd-x86_64.tar.gz" -C target/release asone asone-cli
+      - uses: actions/upload-artifact@v5
+        with:
+          name: freebsd-x86_64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  android:
+    name: Android arm64 (APK)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android
+      - name: cargo-apk
+        run: cargo install cargo-apk --locked
+      - name: APK
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          export ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME"
+          KS="$RUNNER_TEMP/release.keystore"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$KS"
+            PASS="$KEYSTORE_PASSWORD"
+          else
+            # Bez sekretu: klucz tylko dla tego wydania (aktualizacja wymaga odinstalowania poprzedniej wersji).
+            PASS=android
+            keytool -genkeypair -keystore "$KS" -storepass "$PASS" -keypass "$PASS" -alias asone \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=AsOne"
+          fi
+          export CARGO_APK_RELEASE_KEYSTORE="$KS"
+          export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="$PASS"
+          cargo apk build --release -p asone --lib
+          V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          mkdir -p dist
+          cp target/release/apk/AsOne.apk "dist/AsOne-$V-android-arm64.apk"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: android-arm64
+          path: dist/*.apk
+          if-no-files-found: error
+
+  web:
+    name: Web (wasm)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: web
+      - name: trunk
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://github.com/trunk-rs/trunk/releases/download/v0.22.2/trunk-x86_64-unknown-linux-gnu.tar.gz \
+            | tar -xz -C "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Budowanie
+        run: |
+          (cd apps/asone && trunk build --release)
+          V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          (cd dist/web && zip -qr "../AsOne-$V-web.zip" .)
+      - uses: actions/upload-artifact@v5
+        with:
+          name: web
+          path: dist/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Wydanie na GitHubie
+    needs: [linux, windows, macos, freebsd, android, web]
+    # Publikuj to, co się zbudowało, nawet gdy któraś platforma zawiodła.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Sumy kontrolne
+        run: |
+          cd dist
+          ls -la
+          sha256sum * > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: AsOne ${{ inputs.tag || github.ref_name }}
+          fail_on_unmatched_files: true
+          files: dist/*
+          body: |
+            Edytor zdjęć produktowych: kadr, marginesy, białe tło, usuwanie tła AI, nazwy Nazwa-MARKA-Model-1.jpg, Progressive JPEG bez metadanych.
+
+            | System | Plik |
+            |---|---|
+            | Linux x86_64 / aarch64 | `.AppImage` (uruchom), `.flatpak` (`flatpak install --user AsOne-….flatpak`), `.tar.gz` (same binarki `asone` + `asone-cli`) |
+            | Windows x86_64 / ARM64 | `.zip` – rozpakuj i uruchom `asone.exe` |
+            | macOS Apple Silicon / Intel | `.zip` z `AsOne.app` |
+            | FreeBSD x86_64 | `.tar.gz` (bez usuwania tła AI) |
+            | Android arm64 | `.apk` (wersja próbna) |
+            | Przeglądarka | `-web.zip` – pliki do wrzucenia na serwer (WebGPU / WebGL2) |
+
+            Programy nie są podpisane certyfikatami Microsoft ani Apple:
+            * Windows (SmartScreen): „Więcej informacji” › „Uruchom mimo to”.
+            * macOS: po pierwszej próbie Ustawienia systemowe › Prywatność i ochrona › „Otwórz mimo to” (albo `xattr -dr com.apple.quarantine AsOne.app`). Wersja Intel wymaga macOS 13 lub nowszego.
+
+            Modele usuwania tła (BRIA RMBG) pobiera się w programie: Ustawienia › Preferencje › Usuwanie tła (AI).
+            `SHA256SUMS.txt` – sumy kontrolne plików.
