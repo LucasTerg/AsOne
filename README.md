@@ -23,8 +23,21 @@ Przykładowe zdjęcia: `apps/asone/assets/sample/`.
 
 ## Pobieranie
 
-**Najnowsza wersja:** <https://github.com/LucasTerg/AsOne/releases/latest> – albo przyciski pobierania
-na <https://asone.lmk.one/>. AppImage aktualizuje się sam: sprawdza nową wersję przy starcie (wyłączenie:
+Najnowsza wersja – wybierz swój system:
+
+| System | Pobierz |
+|---|---|
+| **Windows** | [x86_64 (64-bit)](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-windows-x86_64.zip) · [ARM64](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-windows-arm64.zip) – rozpakuj i uruchom `asone.exe` |
+| **macOS** | [Apple Silicon (M1 i nowsze)](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-macos-arm64.zip) · [Intel](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-macos-x86_64.zip) |
+| **Linux** | [AppImage x86_64](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-x86_64.AppImage) · [AppImage ARM64](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-aarch64.AppImage) · [Flatpak x86_64](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-x86_64.flatpak) · [Flatpak ARM64](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-aarch64.flatpak) |
+| **Android** | [APK](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-android.apk) · [repozytorium F-Droid](https://asone.lmk.one/) |
+| **FreeBSD** | [x86_64 (tar.gz)](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-freebsd-x86_64.tar.gz) |
+| **Przeglądarka** | [asone.lmk.one/app](https://asone.lmk.one/app/) – bez instalacji |
+
+Wszystkie pliki i wcześniejsze wersje: [Releases](https://github.com/LucasTerg/AsOne/releases).
+Strona <https://asone.lmk.one/> sama rozpoznaje system i podsuwa właściwy plik.
+
+AppImage aktualizuje się sam: sprawdza nową wersję przy starcie (wyłączenie:
 Preferencje › Interfejs) i w menu Pomoc › Sprawdź aktualizacje; pobrany plik jest sprawdzany sumą SHA-256
 i zastępuje stary pod tą samą nazwą – skróty w menu, na pulpicie i w Steam dalej działają (bieżąca wersja:
 Pomoc › O programie).

@@ -65,17 +65,26 @@ Progressive JPEG bez metadanych.</p>
 <p><a class="button big" href="app/">Otwórz w przeglądarce</a>
 <small>WebGPU albo WebGL2</small></p>
 <h2>Pobierz – wersja @VERSION@</h2>
-<div class="downloads">
-  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-x86_64.AppImage">Linux · AppImage (x86_64)</a>
-  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-aarch64.AppImage">Linux · AppImage (ARM64)</a>
-  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-windows-x86_64.zip">Windows (x86_64)</a>
-  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-macos-arm64.zip">macOS (Apple Silicon)</a>
-  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-macos-x86_64.zip">macOS (Intel)</a>
-  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-android.apk">Android (APK)</a>
+<div id="mine" hidden>
+  <p><a class="button big" id="mine-link" href="#"></a></p>
+  <p><small id="mine-note"></small></p>
 </div>
-<p><small>AppImage aktualizuje się sam (Pomoc › Sprawdź aktualizacje). Pozostałe pliki (Flatpak, Windows ARM64,
-FreeBSD, tar.gz) i wcześniejsze wersje: <a href="https://github.com/LucasTerg/AsOne/releases/latest">najnowsze wydanie
-na GitHubie</a> · <a href="https://github.com/LucasTerg/AsOne">kod źródłowy</a>.</small></p>
+<p id="all-title"><small>Wszystkie systemy:</small></p>
+<div class="downloads">
+  <a class="button" data-os="windows-x86_64" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-windows-x86_64.zip">Windows (x86_64)</a>
+  <a class="button" data-os="windows-arm64" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-windows-arm64.zip">Windows (ARM64)</a>
+  <a class="button" data-os="macos-arm64" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-macos-arm64.zip">macOS (Apple Silicon)</a>
+  <a class="button" data-os="macos-x86_64" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-macos-x86_64.zip">macOS (Intel)</a>
+  <a class="button" data-os="linux-x86_64" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-x86_64.AppImage">Linux · AppImage (x86_64)</a>
+  <a class="button" data-os="linux-aarch64" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-aarch64.AppImage">Linux · AppImage (ARM64)</a>
+  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-x86_64.flatpak">Linux · Flatpak (x86_64)</a>
+  <a class="button" data-os="android" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-android.apk">Android (APK)</a>
+  <a class="button" data-os="freebsd" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-freebsd-x86_64.tar.gz">FreeBSD (x86_64)</a>
+  <a class="button" data-os="web" href="app/">Przeglądarka (bez instalacji)</a>
+</div>
+<p><small>AppImage aktualizuje się sam (Pomoc › Sprawdź aktualizacje). Flatpak ARM64, tar.gz i wcześniejsze
+wersje: <a href="https://github.com/LucasTerg/AsOne/releases/latest">najnowsze wydanie na GitHubie</a> ·
+<a href="https://github.com/LucasTerg/AsOne">kod źródłowy</a>.</small></p>
 
 <h2>Android – repozytorium F-Droid</h2>
 <p>Własne repozytorium z wersją AsOne na Androida, budowaną przez GitHub Actions.</p>
@@ -91,6 +100,48 @@ na GitHubie</a> · <a href="https://github.com/LucasTerg/AsOne">kod źródłowy<
 <p><code>@REPO_URL@?fingerprint=@FINGERPRINT@</code></p>
 <p><small>Odcisk klucza repozytorium (SHA-256): <code>@FINGERPRINT@</code></small></p>
 <script>
+  // „Pobierz dla …”: system odwiedzającego z nagłówka przeglądarki (Chromium podaje też architekturę).
+  // Pewności nie ma – lista wszystkich systemów zostaje pod spodem.
+  function asonePick(ua, platform, arch, touch) {
+    ua = ua || ""; platform = (platform || "").toLowerCase(); arch = (arch || "").toLowerCase();
+    var arm = arch.indexOf("arm") === 0 || /aarch64|arm64/i.test(ua);
+    if (/android/i.test(ua)) return "android";
+    if (/iphone|ipad|ipod|cros/i.test(ua)) return "web";
+    if (/windows/i.test(ua) || platform.indexOf("win") === 0) return arm ? "windows-arm64" : "windows-x86_64";
+    if (/macintosh|mac os x/i.test(ua) || platform.indexOf("mac") === 0) {
+      if (touch > 1) return "web"; // iPad z iPadOS przedstawia się jak Mac
+      return arch === "x86" ? "macos-x86_64" : "macos-arm64";
+    }
+    if (/freebsd/i.test(ua)) return "freebsd";
+    if (/linux/i.test(ua) || platform.indexOf("linux") === 0) return arm ? "linux-aarch64" : "linux-x86_64";
+    return null;
+  }
+  (function () {
+    var nav = window.navigator || {};
+    var notes = {
+      "macos-arm64": "Mac z procesorem Intel? Wybierz „macOS (Intel)” niżej.",
+      "android": "Aktualizacje także przez F-Droid – instrukcja niżej.",
+      "web": "Na tym urządzeniu AsOne działa w przeglądarce, bez instalacji."
+    };
+    function show(os) {
+      var src = os && document.querySelector('.downloads a[data-os="' + os + '"]');
+      if (!src) return;
+      var link = document.getElementById("mine-link");
+      link.href = src.href;
+      link.textContent = os === "web" ? "Otwórz AsOne w przeglądarce" : "Pobierz dla: " + src.textContent;
+      document.getElementById("mine-note").textContent = notes[os] || "Inny system? Wybierz z listy niżej.";
+      document.getElementById("mine").hidden = false;
+      document.getElementById("all-title").firstChild.textContent = "Inne systemy:";
+    }
+    var ua = nav.userAgent, platform = nav.platform, touch = nav.maxTouchPoints || 0;
+    show(asonePick(ua, platform, "", touch));
+    var data = nav.userAgentData;
+    if (data && data.getHighEntropyValues) {
+      data.getHighEntropyValues(["architecture", "platform"]).then(function (v) {
+        show(asonePick(ua, v.platform || platform, v.architecture, touch));
+      }, function () {});
+    }
+  })();
   (function () {
     var root = document.documentElement;
     var btn = document.getElementById("theme");

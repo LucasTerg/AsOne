@@ -378,9 +378,24 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: Sumy kontrolne
+      - name: Pliki bez numeru wersji i sumy kontrolne
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           cd dist
+          # Kopie głównych plików bez numeru wersji – stałe linki z README i strony:
+          # …/releases/latest/download/AsOne-windows-x86_64.zip. Pliki z numerem wersji zostają
+          # (z nich korzysta samoaktualizacja AppImage i AppImageUpdate).
+          V="${TAG#v}"
+          n=0
+          for f in "AsOne-$V-"*; do
+            case "$f" in
+              *.AppImage | *.flatpak | *-windows-*.zip | *-macos-*.zip | *-android.apk | *-freebsd-*.tar.gz)
+                cp "$f" "AsOne-${f#AsOne-"$V"-}"
+                n=$((n + 1)) ;;
+            esac
+          done
+          [ "$n" -gt 0 ] || echo "::warning title=Stałe linki::brak plików AsOne-$V-* – README i strona nie dostaną najnowszych plików"
           ls -la
           sha256sum * > SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
@@ -407,6 +422,7 @@ jobs:
 
             Modele usuwania tła (BRIA RMBG) pobiera się w programie: Ustawienia › Preferencje › Usuwanie tła (AI).
             `SHA256SUMS.txt` – sumy kontrolne plików. Na GitHubie zostają 3 najnowsze wydania; kod każdej wersji – w tagach.
+            Pliki bez numeru wersji (np. `AsOne-windows-x86_64.zip`) to te same programy – pod stałymi linkami `…/releases/latest/download/…` z README i strony https://asone.lmk.one/.
       # Porządek: zostają 3 najnowsze wydania (z plikami); starsze są usuwane, tagi i kod zostają.
       # Tylko gdy to wydanie jest wśród 3 najnowszych (ponowne wydanie starszej wersji niczego nie usuwa).
       - name: Starsze wydania (zostają 3 najnowsze)
