@@ -15,6 +15,7 @@ pub mod fal;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod replicate;
 pub mod history;
+pub mod lama;
 pub mod loader;
 pub mod platform;
 pub mod prefs;

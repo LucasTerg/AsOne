@@ -50,6 +50,15 @@ pub enum LoadResult {
         id: DocId,
         error: String,
     },
+    /// Retusz LaMa: nowe piksele zdjęcia (ten sam rozmiar – kadr, marginesy i maska zostają).
+    Repainted {
+        id: DocId,
+        gpu: DocGpu,
+        ai_proxy: Arc<RgbaImage>,
+        content: Arc<RgbaImage>,
+        thumb: egui::ColorImage,
+        seconds: f32,
+    },
     /// Ekran startowy: folder z „Ostatnich” – czy istnieje, ile ma zdjęć, miniatura pierwszego.
     FolderPreview {
         dir: String,
@@ -140,6 +149,27 @@ impl Loader {
         });
     }
 
+    /// Retusz LaMa: zaznaczony prostokąt dorysowany z otoczenia; maska zakładki zostaje.
+    pub fn request_inpaint(&self, id: DocId, source: ImageSource, mask: Vec<u8>, rect: asone_core::edits::PxRect, model: std::path::PathBuf) {
+        let (tx, ctx, gpu) = (self.tx.clone(), self.ctx.clone(), self.gpu.clone());
+        self.tasks.spawn(move || {
+            let started = crate::platform::Instant::now();
+            let result = (|| -> Result<LoadResult, String> {
+                let gpu = gpu.ok_or("Brak GPU (wgpu)")?;
+                let (img, _) = decode_for_gpu(&source, gpu.max_texture_dim)?;
+                let out = crate::lama::inpaint(&model, &img, rect)?;
+                drop(img);
+                let thumb = thumbnail(&out)?;
+                let content = Arc::new(out);
+                let full = full_from_image(&gpu, (*content).clone(), None, Some(mask))?;
+                let seconds = started.elapsed().as_secs_f32();
+                Ok(LoadResult::Repainted { id, gpu: full.gpu, ai_proxy: full.ai_proxy, content, thumb, seconds })
+            })();
+            let _ = tx.send(result.unwrap_or_else(|e| LoadResult::FlattenFailed { id, error: format!("Retusz LaMa: {e}") }));
+            ctx.request_repaint();
+        });
+    }
+
     /// Podgląd folderu z „Ostatnich” (liczba zdjęć i miniatura pierwszego).
     pub fn request_folder_preview(&self, dir: String) {
         let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
@@ -210,7 +240,7 @@ struct FullLoad {
 
 fn load_full(gpu: &GpuShared, source: &ImageSource) -> Result<FullLoad, String> {
     let (img, downscaled_from) = decode_for_gpu(source, gpu.max_texture_dim)?;
-    full_from_image(gpu, img, downscaled_from)
+    full_from_image(gpu, img, downscaled_from, None)
 }
 
 /// Obraz wynikowy (kadr, marginesy, maska na tle, warstwa) jako RGBA – na CPU, jak eksport.
@@ -238,18 +268,28 @@ fn new_content(gpu: &GpuShared, id: DocId, image: RgbaImage, ai: bool) -> Result
     let image = if limited == size { image } else { resize_rgba(&image, limited, lanczos3())? };
     let thumb = thumbnail(&image)?;
     let content = Arc::new(image);
-    let full = full_from_image(gpu, (*content).clone(), None)?;
+    let full = full_from_image(gpu, (*content).clone(), None, None)?;
     Ok(LoadResult::Flattened { id, gpu: full.gpu, mask: full.mask, ai_proxy: full.ai_proxy, content, thumb, ai })
 }
 
 /// Tekstura z mipmapami, maska (z kanału alfa) i kopia dla AI z gotowego obrazu.
-fn full_from_image(gpu: &GpuShared, img: RgbaImage, downscaled_from: Option<[u32; 2]>) -> Result<FullLoad, String> {
+fn full_from_image(
+    gpu: &GpuShared,
+    img: RgbaImage,
+    downscaled_from: Option<[u32; 2]>,
+    mask: Option<Vec<u8>>,
+) -> Result<FullLoad, String> {
     let size = [img.width(), img.height()];
 
-    // Maska: z kanału alfa pliku (jeśli jest przezroczystość), w przeciwnym razie 255.
-    let alpha = alpha_mask(&img);
-    let has_alpha = alpha.is_some();
-    let mask = alpha.unwrap_or_else(|| vec![255; size[0] as usize * size[1] as usize]);
+    // Maska: podana (retusz – bez zmian), z kanału alfa pliku (przezroczystość) albo 255.
+    let (mask, has_alpha) = match mask.filter(|m| m.len() == size[0] as usize * size[1] as usize) {
+        Some(m) => (m, false),
+        None => {
+            let alpha = alpha_mask(&img);
+            let has_alpha = alpha.is_some();
+            (alpha.unwrap_or_else(|| vec![255; size[0] as usize * size[1] as usize]), has_alpha)
+        }
+    };
 
     let ai_proxy = Arc::new(resize_rgba(
         &img,

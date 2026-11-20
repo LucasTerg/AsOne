@@ -95,6 +95,15 @@ w inne miejsce. Na telefonie (Android) ekran startowy to tylko dwa duże przycis
 i Dodaj folder (systemowe okno folderu) – a lista, opcje i zdjęcia są zakładkami na jednym pasku,
 na całą szerokość ekranu.
 
+**Narzędzia AI** (panel narzędzi, zakładki – każde narzędzie można wyłączyć w Preferencjach, wtedy
+znika z panelu i z menu zdjęcia):
+
+- **LaMa** – retusz lokalnie, bez opłat: zaznacz kurz, rysę, napis albo metkę narzędziem M i kliknij
+  „Usuń obiekt (LaMa)” (też pod prawym przyciskiem). Model Big-LaMa w ONNX (Apache-2.0, ok. 208 MB,
+  [Carve/LaMa-ONNX](https://huggingface.co/Carve/LaMa-ONNX)) – Ustawienia › Preferencje › **Retusz
+  (LaMa)**: opis, plik modelu, „Pobierz model”, „Używam retuszu LaMa”. Działa na Linux, Windows, macOS.
+- **Replicate** – edycja poleceniem (niżej).
+
 **Edycja AI (Replicate)** – panel „Edycja AI” albo prawy przycisk na zdjęciu: polecenie (własne
 albo gotowe: białe tło z cieniem, usuń napisy / znaki wodne, popraw światło, usuń kurz, produkt we
 wnętrzu) i FLUX.1 Kontext Pro (0,04 $ za obraz) lub Max (0,08 $). Wysyłany jest obraz z zakładki

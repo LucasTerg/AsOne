@@ -136,6 +136,8 @@ pub enum CanvasAction {
     Flatten,
     /// Po „Spłaszcz”: powrót do pliku źródłowego.
     RestoreOriginal,
+    /// Retusz LaMa: usuń obiekt z zaznaczenia (narzędzie M), lokalnie.
+    Inpaint,
     /// Edycja AI (Replicate) poleceniem z panelu.
     AiEdit,
     /// Edycja AI gotowym poleceniem (`settings::AI_PRESETS`).
@@ -151,8 +153,11 @@ pub enum CanvasAction {
 }
 
 /// Menu pod prawym przyciskiem na zdjęciu.
+#[allow(clippy::too_many_arguments)]
 fn canvas_menu(
     ui: &mut egui::Ui,
+    has_selection: bool,
+    lama: bool,
     has_overlay: bool,
     flattened: bool,
     replicate: bool,
@@ -180,6 +185,10 @@ fn canvas_menu(
         item(ui, true, "Przywróć oryginał (z pliku)", CanvasAction::RestoreOriginal);
     }
     ui.separator();
+    if lama {
+        let label = if has_selection { "Usuń obiekt z zaznaczenia (LaMa)" } else { "Usuń obiekt (LaMa) – zaznacz narzędziem M" };
+        item(ui, has_selection, label, CanvasAction::Inpaint);
+    }
     if replicate {
         ui.menu_button("Edycja AI (Replicate)", |ui| {
             ui.set_min_width(220.0);
@@ -328,6 +337,7 @@ fn drag_crop(drag: &CropDrag, cur: [f32; 2], src: [u32; 2]) -> PxRect {
 }
 
 /// Zawartość zakładki `AppTab::Photo`.
+#[allow(clippy::too_many_arguments)]
 pub fn photo_ui(
     ui: &mut egui::Ui,
     doc: &mut Document,
@@ -336,6 +346,7 @@ pub fn photo_ui(
     brush: &BrushSettings,
     inspection: bool,
     replicate: bool,
+    lama: bool,
 ) -> CanvasOutput {
     let mut out = CanvasOutput::default();
     let full = ui.available_rect_before_wrap();
@@ -679,7 +690,10 @@ pub fn photo_ui(
         let has_overlay = doc.overlay_image.is_some() && doc.edits.overlay.is_some();
         let flattened = doc.content.is_some();
         let (can_undo, can_redo) = (doc.history.can_undo(), doc.history.can_redo());
-        response.context_menu(|ui| canvas_menu(ui, has_overlay, flattened, replicate, can_undo, can_redo, &mut out.actions));
+        let has_selection = doc.selection.is_some();
+        response.context_menu(|ui| {
+            canvas_menu(ui, has_selection, lama, has_overlay, flattened, replicate, can_undo, can_redo, &mut out.actions)
+        });
     }
 
     // --- Pasek stanu ----------------------------------------------------------------------

@@ -659,7 +659,17 @@ impl AsOneApp {
                     .interactable(false)
                     .show(ctx, |ui| {
                         egui::Frame::popup(ui.style()).fill(pal.card).show(ui, |ui| {
-                            ui.colored_label(color, text.as_str());
+                            // W jednej linii, dopóki mieści się w oknie; dłuższe – zawijane do szerokości okna.
+                            let max_w = (ctx.content_rect().width() - 64.0).max(200.0);
+                            let font = egui::TextStyle::Body.resolve(ui.style());
+                            let one_line = ui.painter().layout_no_wrap(text.clone(), font, color).size().x;
+                            let wrap = if one_line <= max_w {
+                                egui::TextWrapMode::Extend
+                            } else {
+                                ui.set_width(max_w);
+                                egui::TextWrapMode::Wrap
+                            };
+                            ui.add(egui::Label::new(RichText::new(text.as_str()).color(color)).wrap_mode(wrap));
                         });
                     });
                 ctx.request_repaint_after(Duration::from_millis(250));

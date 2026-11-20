@@ -16,7 +16,7 @@ use crossbeam_channel::{Receiver, Sender};
 use egui::{Key, Ui};
 use egui_dock::{DockArea, DockState};
 
-use crate::ai::{AiModel, AiWorker, DownloadMsg, OnnxBackgroundRemover};
+use crate::ai::{AiWorker, DownloadMsg, OnnxBackgroundRemover};
 use crate::canvas::{BrushSettings, Tool, zoom_at};
 use crate::document::{AiState, DocId, Document, LoadState, PxRect, ThumbState, fill_rect, union_opt};
 use crate::export::ExportMsg;
@@ -56,7 +56,7 @@ pub(crate) enum OpsMsg {
 /// Pobieranie modelu AI w toku.
 pub(crate) struct AiDownload {
     rx: Receiver<DownloadMsg>,
-    model: AiModel,
+    model: crate::settings::ModelFile,
     done: u64,
     total: Option<u64>,
 }
@@ -108,6 +108,8 @@ pub struct AsOneApp {
     recent_previews: HashMap<String, RecentPreview>,
     /// Polecenie dla edycji AI (Replicate) z panelu.
     ai_prompt: String,
+    /// Wybrana zakładka w sekcji „Narzędzia AI”.
+    ai_tool: AiTool,
     /// Android: dokąd trafi tekst z systemowego okna edycji.
     #[cfg(target_os = "android")]
     text_target: platform::TextTarget,
@@ -144,6 +146,16 @@ pub(crate) enum InspectorTab {
     #[default]
     Tools,
     Metadata,
+}
+
+/// Zakładki sekcji „Narzędzia AI” w panelu (kolejne narzędzia dochodzą jako kolejne zakładki).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum AiTool {
+    /// Retusz LaMa (lokalnie).
+    #[default]
+    Lama,
+    /// Edycja poleceniem przez Replicate (online, płatna).
+    Replicate,
 }
 
 /// Układ startowy: „Opcje listy” nad „Listą plików”; zdjęcia otwierają się obok (po prawej).
@@ -252,6 +264,7 @@ impl AsOneApp {
             meta: HashMap::new(),
             recent_previews: HashMap::new(),
             ai_prompt: String::new(),
+            ai_tool: AiTool::default(),
             #[cfg(target_os = "android")]
             text_target: platform::TextTarget::Name,
             meta_channel: metadata::MetaChannel::default(),
@@ -416,6 +429,18 @@ impl AsOneApp {
                             false,
                         );
                     }
+                }
+                LoadResult::Repainted { id, gpu, ai_proxy, content, thumb, seconds } => {
+                    if let Some(doc) = self.docs.get_mut(&id) {
+                        doc.gpu = Some(gpu);
+                        doc.mask_dirty = None;
+                        doc.ai_proxy = Some(ai_proxy);
+                        doc.content = Some(content);
+                        doc.thumb = ThumbState::Ready(ctx.load_texture(format!("thumb-{}", id.0), thumb, egui::TextureOptions::LINEAR));
+                        doc.selection = None;
+                        doc.load = LoadState::Ready;
+                    }
+                    self.toast(format!("Retusz LaMa gotowy ({seconds:.1} s) – oryginał: „Przywróć oryginał”"), false);
                 }
                 LoadResult::FlattenFailed { id, error } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
@@ -740,7 +765,7 @@ impl AsOneApp {
         }
     }
 
-    fn start_model_download(&mut self, ctx: &egui::Context, model: AiModel, path: PathBuf, token: String) {
+    fn start_model_download(&mut self, ctx: &egui::Context, model: crate::settings::ModelFile, path: PathBuf, token: String) {
         if self.ai_download.is_some() {
             return;
         }
@@ -850,9 +875,12 @@ impl AsOneApp {
             self.settings = new;
             self.apply_view_settings(&ctx);
         }
-        if prefs.pick_model {
-            let start = self.settings.ai_model_path().parent().map(|p| p.to_path_buf());
-            self.pickers.pick_model_file(start);
+        if let Some(target) = prefs.pick_model {
+            let current = match target {
+                crate::settings::ModelFile::Lama => self.settings.lama_model_path(),
+                crate::settings::ModelFile::Rmbg(_) => self.settings.ai_model_path(),
+            };
+            self.pickers.pick_model_file(current.parent().map(|p| p.to_path_buf()));
         }
         if let Some((model, path, token)) = prefs.download {
             self.start_model_download(&ctx, model, path, token);

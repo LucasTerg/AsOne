@@ -391,7 +391,7 @@ pub enum DownloadMsg {
 
 /// Pobiera model do `dest` (przez plik `.part`), z tokenem Hugging Face, jeśli podany.
 #[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
-pub fn download_model(model: AiModel, dest: PathBuf, token: String, ctx: egui::Context) -> Receiver<DownloadMsg> {
+pub fn download_model(model: crate::settings::ModelFile, dest: PathBuf, token: String, ctx: egui::Context) -> Receiver<DownloadMsg> {
     let (tx, rx) = crossbeam_channel::unbounded();
     crate::platform::spawn_detached("download", move || {
         let send = |m| {

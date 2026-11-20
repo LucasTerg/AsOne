@@ -2,7 +2,7 @@
 
 use egui::{RichText, Ui, vec2};
 
-use crate::settings::{AiModel, BarStyle, CanvasColor, EditModel, HideItem, PrefsSection, Settings, TabTitle, UI_SCALES};
+use crate::settings::{AiModel, BarStyle, CanvasColor, EditModel, HideItem, ModelFile, PrefsSection, Settings, TabTitle, UI_SCALES};
 use crate::theme::{self, ThemeKind};
 
 #[derive(Default)]
@@ -10,6 +10,8 @@ pub struct PrefsDialog {
     pub open: bool,
     pub section: PrefsSection,
     draft: Settings,
+    /// Dla którego modelu jest otwarte okno „Wybierz…” pliku.
+    pick_target: Option<ModelFile>,
 }
 
 /// Co okno Preferencji zleca aplikacji.
@@ -18,9 +20,9 @@ pub struct PrefsResult {
     /// Zastosuj (okno zostaje) lub OK (okno się zamyka).
     pub apply: Option<Settings>,
     /// „Pobierz model”: model, plik docelowy, token Hugging Face.
-    pub download: Option<(AiModel, std::path::PathBuf, String)>,
+    pub download: Option<(ModelFile, std::path::PathBuf, String)>,
     /// „Wybierz…” plik modelu (okno systemowe).
-    pub pick_model: bool,
+    pub pick_model: Option<ModelFile>,
     /// Android: pole tekstowe do edycji w systemowym oknie (cel, bieżąca wartość).
     pub edit_text: Option<(crate::platform::TextTarget, String)>,
 }
@@ -35,7 +37,7 @@ fn native_text(ui: &Ui, field: &egui::Response, target: crate::platform::TextTar
 
 /// Stan pobierania modelu pokazywany w Preferencjach.
 pub struct DownloadView {
-    pub model: AiModel,
+    pub model: ModelFile,
     pub done: u64,
     pub total: Option<u64>,
 }
@@ -59,10 +61,13 @@ impl PrefsDialog {
     /// Plik wybrany w oknie „Wybierz…” trafia do szkicu ustawień.
     pub fn set_model_path(&mut self, path: std::path::PathBuf) {
         let p = path.display().to_string();
-        match self.draft.ai_model {
-            AiModel::Rmbg14 => self.draft.ai_path_14 = p,
-            AiModel::Rmbg20 => self.draft.ai_path_20 = p,
-            AiModel::Rmbg30Fal => {}
+        match self.pick_target.take() {
+            Some(ModelFile::Lama) => self.draft.lama_path = p,
+            _ => match self.draft.ai_model {
+                AiModel::Rmbg14 => self.draft.ai_path_14 = p,
+                AiModel::Rmbg20 => self.draft.ai_path_20 = p,
+                AiModel::Rmbg30Fal => {}
+            },
         }
     }
 
@@ -112,6 +117,7 @@ impl PrefsDialog {
                         (PrefsSection::Interface, "Interfejs"),
                         (PrefsSection::Export, "Eksport i limity"),
                         (PrefsSection::Ai, "Usuwanie tła (AI)"),
+                        (PrefsSection::Retouch, "Retusz (LaMa)"),
                         (PrefsSection::Replicate, "Replicate (AI online)"),
                     ] {
                         if ui.add_sized(vec2(164.0, 26.0), egui::Button::selectable(self.section == section, label)).clicked() {
@@ -133,6 +139,7 @@ impl PrefsDialog {
                                 PrefsSection::Interface => interface_page(ui, &mut self.draft),
                                 PrefsSection::Export => export_page(ui, &mut self.draft),
                                 PrefsSection::Ai => ai_page(ui, &mut self.draft, download, &mut result),
+                                PrefsSection::Retouch => retouch_page(ui, &mut self.draft, download, &mut result),
                                 PrefsSection::Replicate => replicate_page(ui, &mut self.draft, &mut result),
                             }
                         });
@@ -141,6 +148,9 @@ impl PrefsDialog {
             });
         if !open || close {
             self.open = false;
+        }
+        if let Some(target) = result.pick_model {
+            self.pick_target = Some(target);
         }
         result
     }
@@ -304,6 +314,83 @@ fn export_page(ui: &mut Ui, s: &mut Settings) {
     ui.add_space(10.0);
     if ui.button("Przywróć domyślne (3000 × 3600, 3 MB)").clicked() {
         s.reset_section(PrefsSection::Export);
+    }
+}
+
+/// Retusz LaMa: opis, plik modelu, pobieranie.
+fn retouch_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, result: &mut PrefsResult) {
+    let pal = theme::p();
+    ui.heading("Retusz (LaMa)");
+    ui.colored_label(
+        pal.text_dim,
+        "Usuwa kurz, rysy, napisy, metki i drobne przedmioty: zaznacz je prostokątem (narzędzie M) i wybierz \
+         „Usuń obiekt (LaMa)” w panelu albo pod prawym przyciskiem na zdjęciu. Model dorysowuje tło z otoczenia – \
+         lokalnie, bez wysyłania zdjęcia i bez opłat.",
+    );
+    ui.add_space(4.0);
+    ui.colored_label(
+        pal.text_dim,
+        "Najlepiej działa na małych obszarach na jednolitym albo powtarzalnym tle. Duże obszary i fragmenty samego \
+         produktu mogą wyjść rozmyte – wtedy Cofnij nie pomoże, ale „Przywróć oryginał” wczyta plik od nowa.",
+    );
+    if !crate::ai::AVAILABLE {
+        ui.colored_label(pal.warning, "Retusz LaMa działa lokalnie na Linux, Windows i macOS – w tej wersji jest niedostępny.");
+    }
+    ui.add_space(8.0);
+    ui.checkbox(&mut s.lama_enabled, egui::RichText::new("Używam retuszu LaMa").strong())
+        .on_hover_text("Odznacz („nie używam”): znikają wszystkie opcje LaMa – zakładka w „Narzędziach AI”, przycisk przy zaznaczeniu i pozycja w menu zdjęcia.");
+    ui.add_space(6.0);
+    egui::Grid::new("prefs_lama").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
+        row(ui, "Model", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Big-LaMa (Apache-2.0), wejście 512 × 512, kilka sekund na procesorze");
+                ui.hyperlink_to("strona modelu", crate::settings::LAMA_PAGE);
+            });
+        });
+        row(ui, "Plik modelu", |ui| {
+            ui.horizontal(|ui| {
+                let default = crate::settings::default_models_dir().join(crate::settings::LAMA_FILE);
+                ui.add(egui::TextEdit::singleline(&mut s.lama_path).hint_text(default.display().to_string()).desired_width(300.0));
+                if crate::platform::CAN_PICK_FOLDER && ui.button("Wybierz…").clicked() {
+                    result.pick_model = Some(ModelFile::Lama);
+                }
+            });
+        });
+        row(ui, "", |ui| {
+            match std::fs::metadata(s.lama_model_path()) {
+                Ok(m) if m.is_file() => {
+                    ui.colored_label(pal.ok(), format!("✔ Plik jest ({:.0} MB)", m.len() as f64 / 1_048_576.0))
+                }
+                _ => ui.colored_label(pal.warning, "Brak pliku – pobierz model poniżej (ok. 208 MB) albo wskaż plik .onnx"),
+            };
+        });
+        row(ui, "Pobieranie", |ui| {
+            ui.vertical(|ui| {
+                match download {
+                    Some(d) if d.model == ModelFile::Lama => {
+                        let frac = d.total.map_or(0.0, |t| d.done as f32 / t.max(1) as f32);
+                        let text = match d.total {
+                            Some(t) => format!("{:.0} / {:.0} MB", d.done as f64 / 1_048_576.0, t as f64 / 1_048_576.0),
+                            None => format!("{:.0} MB", d.done as f64 / 1_048_576.0),
+                        };
+                        ui.add(egui::ProgressBar::new(frac).desired_width(300.0).text(format!("LaMa · {text}")));
+                    }
+                    _ => {
+                        if ui.add_enabled(crate::ai::AVAILABLE && download.is_none(), egui::Button::new("Pobierz model")).clicked() {
+                            result.download = Some((ModelFile::Lama, s.lama_model_path(), String::new()));
+                        }
+                    }
+                }
+                ui.horizontal(|ui| {
+                    ui.small("lub pobierz ręcznie:");
+                    ui.hyperlink_to(egui::RichText::new(crate::settings::LAMA_URL).small(), crate::settings::LAMA_URL);
+                });
+            });
+        });
+    });
+    ui.add_space(10.0);
+    if ui.button("Przywróć domyślne").clicked() {
+        s.reset_section(PrefsSection::Retouch);
     }
 }
 
@@ -499,7 +586,7 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                         .desired_width(300.0),
                 );
                 if crate::platform::CAN_PICK_FOLDER && ui.button("Wybierz…").clicked() {
-                    result.pick_model = true;
+                    result.pick_model = Some(ModelFile::Rmbg(s.ai_model));
                 }
             });
         });
@@ -515,7 +602,7 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
         row(ui, "Pobieranie", |ui| {
             ui.vertical(|ui| {
                 match download {
-                    Some(d) => {
+                    Some(d) if matches!(d.model, ModelFile::Rmbg(_)) => {
                         let frac = d.total.map_or(0.0, |t| d.done as f32 / t.max(1) as f32);
                         let text = match d.total {
                             Some(t) => format!("{:.0} / {:.0} MB", d.done as f64 / 1_048_576.0, t as f64 / 1_048_576.0),
@@ -523,7 +610,7 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                         };
                         ui.add(egui::ProgressBar::new(frac).desired_width(300.0).text(format!("{} · {text}", d.model.label())));
                     }
-                    None => {
+                    _ => {
                         let needs_token = s.ai_model.needs_token() && s.hf_token.trim().is_empty();
                         let button = ui.add_enabled(crate::ai::AVAILABLE && !needs_token, egui::Button::new("Pobierz model"));
                         let button = if needs_token {
@@ -532,7 +619,7 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                             button
                         };
                         if button.clicked() {
-                            result.download = Some((s.ai_model, s.ai_model_path(), s.hf_token.clone()));
+                            result.download = Some((ModelFile::Rmbg(s.ai_model), s.ai_model_path(), s.hf_token.clone()));
                         }
                     }
                 }

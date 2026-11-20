@@ -49,6 +49,41 @@ pub enum TabTitle {
     NumberOnly,
 }
 
+/// Retusz LaMa (Big-LaMa w ONNX, Apache-2.0): plik modelu.
+pub const LAMA_URL: &str = "https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx";
+pub const LAMA_PAGE: &str = "https://huggingface.co/Carve/LaMa-ONNX";
+pub const LAMA_FILE: &str = "lama-fp32.onnx";
+
+/// Plik modelu do pobrania w Preferencjach: usuwanie tła (RMBG) albo retusz (LaMa).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModelFile {
+    Rmbg(AiModel),
+    Lama,
+}
+
+impl ModelFile {
+    pub fn label(self) -> &'static str {
+        match self {
+            ModelFile::Rmbg(m) => m.label(),
+            ModelFile::Lama => "LaMa (Big-LaMa, ~208 MB)",
+        }
+    }
+
+    pub fn download_url(self) -> &'static str {
+        match self {
+            ModelFile::Rmbg(m) => m.download_url(),
+            ModelFile::Lama => LAMA_URL,
+        }
+    }
+
+    pub fn page_url(self) -> &'static str {
+        match self {
+            ModelFile::Rmbg(m) => m.page_url(),
+            ModelFile::Lama => LAMA_PAGE,
+        }
+    }
+}
+
 /// Model edycji zdjęcia poleceniem na Replicate.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EditModel {
@@ -261,6 +296,12 @@ pub struct Settings {
     /// albo plik `~/.config/asone/replicate-token`.
     pub replicate_key: String,
     pub replicate_model: EditModel,
+
+    // --- Retusz LaMa (lokalnie) ---
+    /// Retusz LaMa włączony (wyłączony – „nie używam”: wszystkie opcje LaMa znikają).
+    pub lama_enabled: bool,
+    /// Ścieżka pliku modelu LaMa (pusta = domyślna w katalogu danych AsOne).
+    pub lama_path: String,
     pub animations: bool,
     /// Systemowy pasek tytułu zamiast własnego (Linux/Windows).
     pub system_title_bar: bool,
@@ -322,6 +363,8 @@ impl Default for Settings {
             replicate_enabled: true,
             replicate_key: String::new(),
             replicate_model: EditModel::KontextPro,
+            lama_enabled: true,
+            lama_path: String::new(),
             animations: true,
             system_title_bar: false,
             photo_tabs_bottom: false,
@@ -410,6 +453,20 @@ impl Settings {
     pub fn out_subfolder_name(&self) -> String {
         let name = self.out_subfolder.trim().trim_matches(['/', '\\']).trim();
         if name.is_empty() { "web".into() } else { name.to_string() }
+    }
+
+    /// Retusz LaMa widoczny: włączony i ta wersja uruchamia modele lokalnie.
+    pub fn lama_active(&self) -> bool {
+        self.lama_enabled && crate::ai::AVAILABLE
+    }
+
+    /// Plik modelu LaMa: wpisany w Ustawieniach (jeśli istnieje) albo domyślny w katalogu danych.
+    pub fn lama_model_path(&self) -> std::path::PathBuf {
+        let custom = std::path::PathBuf::from(self.lama_path.trim());
+        if !self.lama_path.trim().is_empty() && custom.is_file() {
+            return custom;
+        }
+        default_models_dir().join(LAMA_FILE)
     }
 
     /// Klucz Replicate: wpisany w Ustawieniach, zmienna `REPLICATE_API_TOKEN` albo plik
@@ -551,6 +608,10 @@ impl Settings {
                 self.ai_path_14 = d.ai_path_14;
                 self.ai_path_20 = d.ai_path_20;
             }
+            PrefsSection::Retouch => {
+                self.lama_enabled = d.lama_enabled;
+                self.lama_path = d.lama_path;
+            }
             PrefsSection::Replicate => {
                 // Klucz zostaje – „Przywróć domyślne” nie kasuje danych logowania.
                 self.replicate_enabled = d.replicate_enabled;
@@ -577,6 +638,7 @@ pub enum PrefsSection {
     Interface,
     Export,
     Ai,
+    Retouch,
     Replicate,
 }
 

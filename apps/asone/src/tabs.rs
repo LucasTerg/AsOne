@@ -248,8 +248,8 @@ impl egui_dock::TabViewer for Viewer<'_> {
             AppTab::ListTools => self.list_tools(ui),
             AppTab::Photo(id) => {
                 if let Some(doc) = self.docs.get_mut(&id) {
-                    let replicate = self.settings.replicate_active();
-                    let out = photo_ui(ui, doc, self.gpu, self.tool, self.brush, self.inspection, replicate);
+                    let (replicate, lama) = (self.settings.replicate_active(), self.settings.lama_active());
+                    let out = photo_ui(ui, doc, self.gpu, self.tool, self.brush, self.inspection, replicate, lama);
                     if let Some(t) = out.switch_tool {
                         self.actions.push(Action::SwitchTool(t));
                     }

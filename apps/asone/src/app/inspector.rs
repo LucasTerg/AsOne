@@ -62,6 +62,19 @@ impl AsOneApp {
         let ai_path = self.settings.ai_model_path();
         let hide_mask = self.settings.hide_mask_toggle;
         let replicate = self.settings.replicate_active();
+        let lama = self.settings.lama_active();
+        let lama_ready = lama && self.settings.lama_model_path().is_file();
+        // Zakładki „Narzędzi AI”: tylko włączone narzędzia; wybrana musi być jedną z nich.
+        let ai_tools: Vec<super::AiTool> = [(super::AiTool::Lama, lama), (super::AiTool::Replicate, replicate)]
+            .into_iter()
+            .filter_map(|(t, on)| on.then_some(t))
+            .collect();
+        if !ai_tools.contains(&self.ai_tool)
+            && let Some(first) = ai_tools.first()
+        {
+            self.ai_tool = *first;
+        }
+        let mut open_retouch_prefs = false;
         let edit_model = self.settings.replicate_model;
         let hide_inspection = self.settings.hide_inspection;
         let mut open_ai_prefs = false;
@@ -194,7 +207,7 @@ impl AsOneApp {
             }
             if doc.content.is_some() {
                 ui.horizontal_wrapped(|ui| {
-                    ui.colored_label(pal.text_dim, "Zdjęcie spłaszczone.");
+                    ui.colored_label(pal.text_dim, "Zdjęcie zmienione (spłaszczenie, retusz albo AI).");
                     if ui.small_button("Przywróć oryginał").on_hover_text("Wczytuje plik od nowa (bez spłaszczenia i zmian)").clicked() {
                         phone = Some(CanvasAction::RestoreOriginal);
                     }
@@ -368,8 +381,55 @@ impl AsOneApp {
                 ui.separator();
             }
 
-            if replicate {
-                section(ui, "Edycja AI (Replicate)");
+            if !ai_tools.is_empty() {
+                section(ui, "Narzędzia AI");
+                ui.horizontal(|ui| {
+                    for tool in &ai_tools {
+                        let label = match tool {
+                            super::AiTool::Lama => "LaMa",
+                            super::AiTool::Replicate => "Replicate",
+                        };
+                        ui.selectable_value(&mut self.ai_tool, *tool, label);
+                    }
+                });
+                ui.add_space(2.0);
+            }
+            if lama && self.ai_tool == super::AiTool::Lama {
+                ui.colored_label(pal.text_dim, "Usuwa kurz, rysy, napisy i metki – lokalnie, bez opłat.");
+                if !lama_ready {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.colored_label(pal.warning, "Brak modelu (ok. 208 MB) –");
+                        if ui.small_button("Pobierz…").clicked() {
+                            open_retouch_prefs = true;
+                        }
+                    });
+                }
+                let busy = matches!(doc.load, LoadState::Loading);
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .add_enabled(tool != Tool::RectCut, egui::Button::new("Zaznacz (M)"))
+                        .on_hover_text("Narzędzie prostokąta: przeciągnij po kurzu, napisie albo metce")
+                        .clicked()
+                    {
+                        switch_tool = Some(Tool::RectCut);
+                    }
+                    let can = lama_ready && doc.selection.is_some() && !busy;
+                    let run = ui.add_enabled(can, egui::Button::new("Usuń obiekt (LaMa)"));
+                    let run = if doc.selection.is_none() {
+                        run.on_disabled_hover_text("Najpierw zaznacz obszar narzędziem M")
+                    } else {
+                        run.on_hover_text("Dorysowuje zaznaczony fragment z otoczenia. Cofnięcie: „Przywróć oryginał”.")
+                    };
+                    if run.clicked() {
+                        phone = Some(CanvasAction::Inpaint);
+                    }
+                    if busy {
+                        ui.spinner();
+                    }
+                });
+                ui.separator();
+            }
+            if replicate && self.ai_tool == super::AiTool::Replicate {
                 let field = ui.add(
                     egui::TextEdit::multiline(&mut self.ai_prompt)
                         .hint_text("Co zrobić ze zdjęciem – najlepiej po angielsku, np. „place the product on a white background”")
@@ -438,6 +498,19 @@ impl AsOneApp {
                                     }
                                 }
                             });
+                            if lama {
+                                let busy = matches!(doc.load, LoadState::Loading);
+                                if ui
+                                    .add_enabled(!busy, egui::Button::new("Usuń obiekt (LaMa)"))
+                                    .on_hover_text(
+                                        "Dorysowuje zaznaczony fragment z otoczenia: kurz, rysy, napisy, metki. \
+                                         Lokalnie, bez opłat. Cofnięcie: „Przywróć oryginał”.",
+                                    )
+                                    .clicked()
+                                {
+                                    phone = Some(CanvasAction::Inpaint);
+                                }
+                            }
                             if ui.button("Odznacz (Esc)").clicked() {
                                 doc.selection = None;
                             }
@@ -467,6 +540,9 @@ impl AsOneApp {
         }
         if let Some(action) = phone {
             self.canvas_action(id, action);
+        }
+        if open_retouch_prefs {
+            self.prefs.open(crate::settings::PrefsSection::Retouch, &self.settings);
         }
         if open_ai_prefs {
             self.prefs.open(crate::settings::PrefsSection::Ai, &self.settings);
@@ -521,6 +597,28 @@ impl AsOneApp {
         doc.load = LoadState::Loading;
     }
 
+    /// Retusz LaMa: zaznaczony prostokąt (narzędzie M) dorysowany z otoczenia, lokalnie.
+    pub(super) fn start_inpaint(&mut self, id: DocId) {
+        let model = self.settings.lama_model_path();
+        if !model.is_file() {
+            self.toast("Brak modelu LaMa – pobierz go w Ustawienia › Preferencje › Retusz (LaMa)", true);
+            self.prefs.open(crate::settings::PrefsSection::Retouch, &self.settings);
+            return;
+        }
+        let Some(doc) = self.docs.get_mut(&id) else { return };
+        let Some(rect) = doc.selection else {
+            self.toast("Zaznacz obszar do usunięcia narzędziem M (prostokąt)", true);
+            return;
+        };
+        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() {
+            return;
+        }
+        doc.commit_history();
+        self.loader.request_inpaint(id, doc.pixel_source(), doc.mask_cpu.clone(), rect, model);
+        doc.load = LoadState::Loading;
+        self.toast("Retusz LaMa – kilka sekund…", false);
+    }
+
     /// Edycja AI (Replicate): obraz z zakładki + polecenie; wynik zastąpi zdjęcie.
     pub(super) fn start_ai_edit(&mut self, id: DocId, prompt: String) {
         if !self.settings.replicate_active() {
@@ -546,6 +644,7 @@ impl AsOneApp {
     /// Polecenia z menu kontekstowego zdjęcia i przycisków „Smartfon”.
     pub(super) fn canvas_action(&mut self, id: DocId, action: CanvasAction) {
         match action {
+            CanvasAction::Inpaint => self.start_inpaint(id),
             CanvasAction::AiEdit => self.start_ai_edit(id, self.ai_prompt.clone()),
             CanvasAction::AiPreset(i) => {
                 if let Some((_, prompt)) = crate::settings::AI_PRESETS.get(i as usize) {

@@ -617,6 +617,8 @@ pub fn apply(ctx: &egui::Context, a: &Appearance) {
         style.spacing.item_spacing = egui::vec2(6.0, 5.0);
         style.spacing.button_padding = egui::vec2(8.0, 3.0);
         style.spacing.interact_size.y = 22.0;
+        // Podpowiedzi szersze – opisy mieszczą się w 1–2 liniach zamiast wąskiej kolumny.
+        style.spacing.tooltip_width = 720.0;
         style.animation_time = if animations { 1.0 / 12.0 } else { 0.0 };
         style.interaction.tooltip_delay = if tooltips { 0.4 } else { 1.0e9 };
     });
