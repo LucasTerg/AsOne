@@ -10,7 +10,7 @@
 #   WEB_DIR    zbudowana wersja web (trunk build) → app/; bez niej app/ zostaje bez zmian
 #   REPO_URL   (domyślnie https://<domena z packaging/pages/CNAME>/fdroid/repo)
 #   NO_PUSH=1  (bez publikacji – do testów; wynik zostaje w $SITE)
-#   FORCE_CNAME=1  CNAME bez sprawdzania DNS (gdy lokalny resolver pamięta jeszcze brak nowej domeny)
+#   FORCE_CNAME=1  nowa domena bez sprawdzania DNS (gdy lokalny resolver pamięta jeszcze jej brak)
 # Bez plików APK tylko odświeża indeks i stronę.
 # Potrzebne: fdroidserver ≥ 2.4 (pip; starszy androguard nie czyta APK z AGP 9), JDK 21 (keytool, jarsigner – na Ubuntu 24.04 `openjdk-21-jdk-headless`,
 # bo fdroid używa /usr/lib/jvm/default-java), git, qrencode (kod QR na stronie).
@@ -23,19 +23,6 @@ if [ -n "${WEB_DIR:-}" ] && [ ! -f "$WEB_DIR/index.html" ]; then
   echo "WEB_DIR=$WEB_DIR: brak index.html" >&2
   exit 2
 fi
-
-# Własna domena (packaging/pages/CNAME). Plik CNAME na gh-pages przekierowuje lucasterg.github.io/AsOne
-# na tę domenę, więc trafia tam dopiero, gdy domena istnieje w DNS – inaczej strona i repozytorium
-# F-Droid przestałyby działać.
-DOMAIN="$(tr -d '[:space:]' < "$ROOT/packaging/pages/CNAME" 2>/dev/null || true)"
-if [ -n "$DOMAIN" ] && { [ "${FORCE_CNAME:-0}" = 1 ] || getent hosts "$DOMAIN" >/dev/null 2>&1; }; then
-  PAGES_URL="https://$DOMAIN"
-else
-  [ -z "$DOMAIN" ] || echo "uwaga: $DOMAIN nie istnieje jeszcze w DNS – strona zostaje pod lucasterg.github.io/AsOne" >&2
-  DOMAIN=""
-  PAGES_URL="https://lucasterg.github.io/AsOne"
-fi
-REPO_URL="${REPO_URL:-$PAGES_URL/fdroid/repo}"
 
 WORK="$(mktemp -d)"
 SITE="${SITE:-$(mktemp -d)/site}"
@@ -50,6 +37,20 @@ else
   git worktree add -q --detach "$SITE"
   (cd "$SITE" && git checkout -q --orphan gh-pages && git rm -rqf . && git clean -fdq)
 fi
+
+# Własna domena (packaging/pages/CNAME). Plik CNAME na gh-pages przekierowuje lucasterg.github.io/AsOne
+# na tę domenę, więc nowa domena trafia tam dopiero, gdy istnieje w DNS – inaczej strona i repozytorium
+# F-Droid przestałyby działać. Domena, która już jest na gh-pages, zostaje (bez względu na lokalny DNS).
+DOMAIN="$(tr -d '[:space:]' < "$ROOT/packaging/pages/CNAME" 2>/dev/null || true)"
+LIVE="$(tr -d '[:space:]' < "$SITE/CNAME" 2>/dev/null || true)"
+if [ -n "$DOMAIN" ] && { [ "$DOMAIN" = "$LIVE" ] || [ "${FORCE_CNAME:-0}" = 1 ] || getent hosts "$DOMAIN" >/dev/null 2>&1; }; then
+  PAGES_URL="https://$DOMAIN"
+else
+  [ -z "$DOMAIN" ] || echo "uwaga: $DOMAIN nie istnieje jeszcze w DNS – strona zostaje pod lucasterg.github.io/AsOne" >&2
+  DOMAIN=""
+  PAGES_URL="https://lucasterg.github.io/AsOne"
+fi
+REPO_URL="${REPO_URL:-$PAGES_URL/fdroid/repo}"
 
 # 2. Katalog roboczy fdroid (z hasłem – poza gh-pages).
 mkdir -p "$WORK/repo/icons" "$WORK/metadata"

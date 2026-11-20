@@ -1,22 +1,63 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="pl" class="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1e1e1e">
 <title>AsOne – zdjęcia produktowe do internetu</title>
 <link rel="icon" type="image/svg+xml" href="app/asone.svg">
+<script>
+  // Motyw przed pierwszym malowaniem (bez białego błysku): wybór z tej strony, potem motyw
+  // aplikacji (app/ zapisuje ustawienia pod tym samym adresem), domyślnie ciemny.
+  (function () {
+    var t = null;
+    try {
+      t = localStorage.getItem("asone-site-theme");
+      if (!t) {
+        var m = (localStorage.getItem("asone-settings") || "").match(/theme\s*:\s*(\w+)/);
+        if (m && /^(ProLightGray|ProLight|StudioLight|Classic|Adwaita|BreezeLight|SoftLight|Sepia)$/.test(m[1])) t = "light";
+      }
+    } catch (e) {}
+    if (t === "light") {
+      document.documentElement.className = "light";
+      document.querySelector('meta[name="theme-color"]').content = "#ffffff";
+    }
+  })();
+</script>
 <style>
-  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #1d1d1f; }
-  code { background: #f2f2f4; padding: .1rem .3rem; border-radius: 4px; word-break: break-all; }
+  :root {
+    color-scheme: dark;
+    --bg: #1e1e1e; --fg: #e4e4e7; --dim: #a1a1aa; --code: #2c2c30; --border: #3a3a40; --link: #6aa8ff;
+  }
+  :root.light {
+    color-scheme: light;
+    --bg: #ffffff; --fg: #1d1d1f; --dim: #666666; --code: #f2f2f4; --border: #dddddd; --link: #0b57d0;
+  }
+  html { background: var(--bg); }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); }
+  code { background: var(--code); padding: .1rem .3rem; border-radius: 4px; word-break: break-all; }
   a.button { display: inline-block; background: #2f7cf6; color: #fff; padding: .6rem 1rem; border-radius: 8px; text-decoration: none; }
   a.button.big { font-size: 1.1rem; padding: .8rem 1.4rem; }
-  small { color: #666; }
+  small { color: var(--dim); }
+  header { display: flex; align-items: center; gap: .8rem; }
+  header img { width: 48px; height: 48px; }
+  header h1 { margin: 0; flex: 1; }
+  #theme {
+    font: inherit; font-size: .9rem; color: var(--fg); background: var(--code); cursor: pointer;
+    border: 1px solid var(--border); border-radius: 8px; padding: .35rem .7rem;
+  }
   .qr { display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap; margin: 1.2rem 0; }
-  .qr img { width: 220px; height: 220px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+  /* Kod QR zawsze ciemny na białym – tak czytają go skanery. */
+  .qr img { width: 220px; height: 220px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
 </style>
 </head>
 <body>
-<h1>AsOne</h1>
+<header>
+  <img src="app/asone.svg" alt="">
+  <h1>AsOne</h1>
+  <button id="theme" type="button" title="Przełącz jasny / ciemny motyw strony"></button>
+</header>
 <p>Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, nazwy plików,
 Progressive JPEG bez metadanych.</p>
 <p><a class="button big" href="app/">Otwórz w przeglądarce</a>
@@ -38,5 +79,22 @@ Progressive JPEG bez metadanych.</p>
 <p>Albo ręcznie w aplikacji F-Droid: <em>Ustawienia › Repozytoria › +</em> i adres:</p>
 <p><code>@REPO_URL@?fingerprint=@FINGERPRINT@</code></p>
 <p><small>Odcisk klucza repozytorium (SHA-256): <code>@FINGERPRINT@</code></small></p>
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById("theme");
+    function label() {
+      btn.textContent = root.className === "light" ? "☾ Ciemny" : "☀ Jasny";
+    }
+    btn.addEventListener("click", function () {
+      var light = root.className !== "light";
+      root.className = light ? "light" : "dark";
+      document.querySelector('meta[name="theme-color"]').content = light ? "#ffffff" : "#1e1e1e";
+      try { localStorage.setItem("asone-site-theme", light ? "light" : "dark"); } catch (e) {}
+      label();
+    });
+    label();
+  })();
+</script>
 </body>
 </html>
