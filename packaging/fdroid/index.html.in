@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AsOne – repozytorium F-Droid</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #1d1d1f; }
+  code { background: #f2f2f4; padding: .1rem .3rem; border-radius: 4px; word-break: break-all; }
+  a.button { display: inline-block; background: #2f7cf6; color: #fff; padding: .6rem 1rem; border-radius: 8px; text-decoration: none; }
+  small { color: #666; }
+</style>
+</head>
+<body>
+<h1>AsOne – repozytorium F-Droid</h1>
+<p>Własne repozytorium z wersją AsOne na Androida (arm64), budowaną przez GitHub Actions z
+<a href="https://github.com/LucasTerg/AsOne">kodu źródłowego</a>.</p>
+<p><a class="button" href="fdroidrepos://@HOST_PATH@?fingerprint=@FINGERPRINT@">Dodaj do F-Droid</a></p>
+<p>Albo ręcznie w aplikacji F-Droid: <em>Ustawienia › Repozytoria › +</em> i adres:</p>
+<p><code>@REPO_URL@?fingerprint=@FINGERPRINT@</code></p>
+<p><small>Odcisk klucza repozytorium (SHA-256): <code>@FINGERPRINT@</code><br>
+Wersje dla Linuksa, Windows, macOS i FreeBSD:
+<a href="https://github.com/LucasTerg/AsOne/releases">GitHub Releases</a>.</small></p>
+</body>
+</html>

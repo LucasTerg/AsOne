@@ -1,0 +1,20 @@
+Categories:
+  - Graphics
+License: MIT
+AuthorName: LucasTerg
+WebSite: https://github.com/LucasTerg/AsOne
+SourceCode: https://github.com/LucasTerg/AsOne
+IssueTracker: https://github.com/LucasTerg/AsOne/issues
+Changelog: https://github.com/LucasTerg/AsOne/releases
+
+AutoName: AsOne
+Name: AsOne
+Summary: Zdjęcia produktowe do internetu – kadr, tło, nazwy, JPEG
+Description: |-
+    AsOne przygotowuje paczkę zdjęć produktu do publikacji w sieci: kadrowanie,
+    marginesy, białe tło, kwadrat 1:1, usuwanie tła gumką i prostokątem, nazwy
+    plików według wzoru Nazwa-MARKA-Model-1.jpg oraz zapis do Progressive JPEG
+    bez metadanych, z limitami wymiarów i rozmiaru pliku.
+
+    Wersja na Androida jest próbna – pełna wersja działa na Linuksie, Windows,
+    macOS i FreeBSD.

@@ -12,6 +12,13 @@ Flatpak, tar.gz; x86_64 i aarch64), Windows (x86_64, ARM64), macOS (Apple Silico
 FreeBSD, Android (APK) i wersja web. Buduje je GitHub Actions (`.github/workflows/release.yml`)
 po wypchnięciu tagu: `git tag v0.1.1 && git push origin v0.1.1`.
 
+Android: własne repozytorium F-Droid na GitHub Pages – <https://lucasterg.github.io/AsOne/>
+(w aplikacji F-Droid: Ustawienia › Repozytoria › +). Workflow dokłada do niego APK przy każdym
+wydaniu (`packaging/fdroid/update-repo.sh`, gałąź `gh-pages`), jeśli są ustawione sekrety
+`ANDROID_KEYSTORE_BASE64` i `ANDROID_KEYSTORE_PASSWORD` (stały klucz podpisu – inaczej aktualizacje
+się nie zainstalują). Bez F-Droid: [Obtainium](https://github.com/ImranR98/Obtainium) z adresem
+tego repozytorium pobiera APK prosto z Releases.
+
 ## Struktura (workspace jak w programach Craft)
 
 | Ścieżka | Co to jest |
