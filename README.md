@@ -271,6 +271,15 @@ Test na prawdziwym modelu: `cargo test -p asone rmbg14 -- --ignored`; pomiar pam
   takich zdjęć mogą się lekko przesunąć.
 - Każde otwarte zdjęcie trzyma teksturę z mipmapami i maskę w VRAM/RAM (~130 MB dla 24 Mpx).
 
+## Licencja
+
+Kod AsOne: **MIT albo Apache-2.0**, do wyboru – [LICENSE-MIT](LICENSE-MIT),
+[LICENSE-APACHE](LICENSE-APACHE).
+
+Modele AI pobierane w programie mają własne licencje: BRIA RMBG-1.4 i 2.0 – bez umowy z BRIA tylko
+do użytku niekomercyjnego; RMBG-3.0 (fal.ai) i FLUX.1 Kontext (Replicate) – według warunków tych
+usług; LaMa – Apache-2.0; waifu2x – projekt nunif (MIT).
+
 ## Wesprzyj projekt
 
 Jeśli AsOne Ci się przydaje, możesz wesprzeć jego rozwój w Monero (XMR):
