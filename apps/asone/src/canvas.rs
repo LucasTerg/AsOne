@@ -138,6 +138,8 @@ pub enum CanvasAction {
     RestoreOriginal,
     /// Retusz LaMa: usuń obiekt z zaznaczenia (narzędzie M), lokalnie.
     Inpaint,
+    /// waifu2x: powiększ zdjęcie (ustawienia z panelu), lokalnie.
+    Upscale,
     /// Edycja AI (Replicate) poleceniem z panelu.
     AiEdit,
     /// Edycja AI gotowym poleceniem (`settings::AI_PRESETS`).
@@ -158,6 +160,7 @@ fn canvas_menu(
     ui: &mut egui::Ui,
     has_selection: bool,
     lama: bool,
+    waifu2x: bool,
     has_overlay: bool,
     flattened: bool,
     replicate: bool,
@@ -188,6 +191,9 @@ fn canvas_menu(
     if lama {
         let label = if has_selection { "Usuń obiekt z zaznaczenia (LaMa)" } else { "Usuń obiekt (LaMa) – zaznacz narzędziem M" };
         item(ui, has_selection, label, CanvasAction::Inpaint);
+    }
+    if waifu2x {
+        item(ui, true, "Powiększ (waifu2x)", CanvasAction::Upscale);
     }
     if replicate {
         ui.menu_button("Edycja AI (Replicate)", |ui| {
@@ -347,6 +353,7 @@ pub fn photo_ui(
     inspection: bool,
     replicate: bool,
     lama: bool,
+    waifu2x: bool,
 ) -> CanvasOutput {
     let mut out = CanvasOutput::default();
     let full = ui.available_rect_before_wrap();
@@ -692,7 +699,7 @@ pub fn photo_ui(
         let (can_undo, can_redo) = (doc.history.can_undo(), doc.history.can_redo());
         let has_selection = doc.selection.is_some();
         response.context_menu(|ui| {
-            canvas_menu(ui, has_selection, lama, has_overlay, flattened, replicate, can_undo, can_redo, &mut out.actions)
+            canvas_menu(ui, has_selection, lama, waifu2x, has_overlay, flattened, replicate, can_undo, can_redo, &mut out.actions)
         });
     }
 

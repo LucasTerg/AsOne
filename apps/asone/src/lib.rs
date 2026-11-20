@@ -24,6 +24,7 @@ pub mod settings;
 pub mod tabs;
 pub mod theme;
 pub mod titlebar;
+pub mod waifu2x;
 #[cfg(target_arch = "wasm32")]
 pub mod web;
 

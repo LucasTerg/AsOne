@@ -118,6 +118,7 @@ impl PrefsDialog {
                         (PrefsSection::Export, "Eksport i limity"),
                         (PrefsSection::Ai, "Usuwanie tła (AI)"),
                         (PrefsSection::Retouch, "Retusz (LaMa)"),
+                        (PrefsSection::Upscale, "Powiększanie (waifu2x)"),
                         (PrefsSection::Replicate, "Replicate (AI online)"),
                     ] {
                         if ui.add_sized(vec2(164.0, 26.0), egui::Button::selectable(self.section == section, label)).clicked() {
@@ -140,6 +141,7 @@ impl PrefsDialog {
                                 PrefsSection::Export => export_page(ui, &mut self.draft),
                                 PrefsSection::Ai => ai_page(ui, &mut self.draft, download, &mut result),
                                 PrefsSection::Retouch => retouch_page(ui, &mut self.draft, download, &mut result),
+                                PrefsSection::Upscale => upscale_page(ui, &mut self.draft),
                                 PrefsSection::Replicate => replicate_page(ui, &mut self.draft, &mut result),
                             }
                         });
@@ -391,6 +393,75 @@ fn retouch_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, 
     ui.add_space(10.0);
     if ui.button("Przywróć domyślne").clicked() {
         s.reset_section(PrefsSection::Retouch);
+    }
+}
+
+/// waifu2x: opis, „Używam”, domyślne ustawienia, katalog modeli.
+fn upscale_page(ui: &mut Ui, s: &mut Settings) {
+    use crate::waifu2x::{MAX_INPUT_SIDE, NOISE_LEVELS, Style, models_dir, noise_label};
+    let pal = theme::p();
+    ui.heading("Powiększanie (waifu2x)");
+    ui.colored_label(
+        pal.text_dim,
+        "waifu2x to sieć neuronowa autora nagadomi (model swin_unet z projektu nunif): powiększa 2× albo 4× z ostrymi \
+         krawędziami, bez jasnych obwódek, i usuwa artefakty JPEG. Najlepiej na małych zdjęciach i czystych tłach – \
+         np. zamiast dopełniać białym tłem do 500 px. Lokalnie, bez opłat.",
+    );
+    ui.add_space(4.0);
+    ui.colored_label(
+        pal.text_dim,
+        format!(
+            "Modele (ok. 20 MB na wariant) pobierają się same przy pierwszym użyciu z unlimited.waifu2x.net. \
+             Dłuższy bok zdjęcia najwyżej {MAX_INPUT_SIDE} px; czas: kilka–kilkadziesiąt sekund."
+        ),
+    );
+    if !crate::ai::AVAILABLE {
+        ui.colored_label(pal.warning, "waifu2x działa lokalnie na Linux, Windows i macOS – w tej wersji jest niedostępny.");
+    }
+    ui.add_space(8.0);
+    ui.checkbox(&mut s.waifu2x_enabled, egui::RichText::new("Używam waifu2x").strong())
+        .on_hover_text("Odznacz („nie używam”): znikają wszystkie opcje waifu2x – zakładka w „Narzędziach AI” i pozycja w menu zdjęcia.");
+    ui.add_space(6.0);
+    ui.add_enabled_ui(s.waifu2x_enabled, |ui| {
+        egui::Grid::new("prefs_w2x").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
+            row(ui, "Rodzaj", |ui| {
+                ui.horizontal(|ui| {
+                    for style in Style::ALL {
+                        ui.radio_value(&mut s.waifu2x_style, style, style.label());
+                    }
+                });
+            });
+            row(ui, "Skala", |ui| {
+                ui.horizontal(|ui| {
+                    for scale in [2u32, 4] {
+                        ui.radio_value(&mut s.waifu2x_scale, scale, format!("{scale}×"));
+                    }
+                });
+            });
+            row(ui, "Odszumianie", |ui| {
+                egui::ComboBox::from_id_salt("prefs_w2x_noise").selected_text(noise_label(s.waifu2x_noise)).show_ui(ui, |ui| {
+                    for n in NOISE_LEVELS {
+                        ui.selectable_value(&mut s.waifu2x_noise, n, noise_label(n));
+                    }
+                });
+            });
+            row(ui, "Modele", |ui| {
+                ui.vertical(|ui| {
+                    let dir = models_dir();
+                    let count = std::fs::read_dir(&dir).map(|d| d.flatten().filter(|e| e.path().extension().is_some_and(|x| x == "onnx")).count()).unwrap_or(0);
+                    ui.small(format!("{} (pobrane warianty: {count})", dir.display()));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.hyperlink_to(egui::RichText::new("unlimited.waifu2x.net").small(), "https://unlimited.waifu2x.net/");
+                        ui.small("·");
+                        ui.hyperlink_to(egui::RichText::new("projekt nunif (MIT)").small(), "https://github.com/nagadomi/nunif");
+                    });
+                });
+            });
+        });
+    });
+    ui.add_space(10.0);
+    if ui.button("Przywróć domyślne").clicked() {
+        s.reset_section(PrefsSection::Upscale);
     }
 }
 

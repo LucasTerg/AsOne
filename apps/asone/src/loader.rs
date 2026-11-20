@@ -59,6 +59,17 @@ pub enum LoadResult {
         thumb: egui::ColorImage,
         seconds: f32,
     },
+    /// waifu2x: powiększone zdjęcie i maska (rozmiar × `scale`).
+    Upscaled {
+        id: DocId,
+        gpu: DocGpu,
+        ai_proxy: Arc<RgbaImage>,
+        content: Arc<RgbaImage>,
+        thumb: egui::ColorImage,
+        mask: Vec<u8>,
+        scale: u32,
+        seconds: f32,
+    },
     /// Ekran startowy: folder z „Ostatnich” – czy istnieje, ile ma zdjęć, miniatura pierwszego.
     FolderPreview {
         dir: String,
@@ -166,6 +177,37 @@ impl Loader {
                 Ok(LoadResult::Repainted { id, gpu: full.gpu, ai_proxy: full.ai_proxy, content, thumb, seconds })
             })();
             let _ = tx.send(result.unwrap_or_else(|e| LoadResult::FlattenFailed { id, error: format!("Retusz LaMa: {e}") }));
+            ctx.request_repaint();
+        });
+    }
+
+    /// waifu2x: zdjęcie i maska powiększone (model pobierany przy pierwszym użyciu wariantu).
+    pub fn request_upscale(&self, id: DocId, source: ImageSource, mask: Vec<u8>, variant: crate::waifu2x::Variant) {
+        let (tx, ctx, gpu) = (self.tx.clone(), self.ctx.clone(), self.gpu.clone());
+        self.tasks.spawn(move || {
+            let started = crate::platform::Instant::now();
+            let result = (|| -> Result<LoadResult, String> {
+                let gpu = gpu.ok_or("Brak GPU (wgpu)")?;
+                let (img, _) = decode_for_gpu(&source, gpu.max_texture_dim)?;
+                let size = [img.width(), img.height()];
+                let new = [size[0] * variant.scale, size[1] * variant.scale];
+                if new[0].max(new[1]) > gpu.max_texture_dim {
+                    return Err(format!("wynik {}×{} px przekracza limit karty graficznej ({} px)", new[0], new[1], gpu.max_texture_dim));
+                }
+                let out = crate::waifu2x::upscale(&img, variant)?;
+                drop(img);
+                let mask = if mask.len() == size[0] as usize * size[1] as usize {
+                    asone_core::imageio::resize_gray(&mask, size, new)?
+                } else {
+                    vec![255; new[0] as usize * new[1] as usize]
+                };
+                let thumb = thumbnail(&out)?;
+                let content = Arc::new(out);
+                let full = full_from_image(&gpu, (*content).clone(), None, Some(mask.clone()))?;
+                let seconds = started.elapsed().as_secs_f32();
+                Ok(LoadResult::Upscaled { id, gpu: full.gpu, ai_proxy: full.ai_proxy, content, thumb, mask, scale: variant.scale, seconds })
+            })();
+            let _ = tx.send(result.unwrap_or_else(|e| LoadResult::FlattenFailed { id, error: format!("waifu2x: {e}") }));
             ctx.request_repaint();
         });
     }

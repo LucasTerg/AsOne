@@ -102,6 +102,11 @@ znika z panelu i z menu zdjęcia):
   „Usuń obiekt (LaMa)” (też pod prawym przyciskiem). Model Big-LaMa w ONNX (Apache-2.0, ok. 208 MB,
   [Carve/LaMa-ONNX](https://huggingface.co/Carve/LaMa-ONNX)) – Ustawienia › Preferencje › **Retusz
   (LaMa)**: opis, plik modelu, „Pobierz model”, „Używam retuszu LaMa”. Działa na Linux, Windows, macOS.
+- **waifu2x** – powiększanie 2× / 4× lokalnie, bez opłat: ostre krawędzie bez jasnych obwódek,
+  usuwanie artefaktów JPEG; rodzaj (zdjęcie / grafika) i odszumianie w zakładce. Model swin_unet z
+  projektu [nunif](https://github.com/nagadomi/nunif) autora waifu2x – wariant (ok. 20 MB) pobiera się
+  sam przy pierwszym użyciu. Kadr, marginesy i maska skalują się razem ze zdjęciem. Dłuższy bok do
+  2000 px. Ustawienia › Preferencje › **Powiększanie (waifu2x)**.
 - **Replicate** – edycja poleceniem (niżej).
 
 **Edycja AI (Replicate)** – panel „Edycja AI” albo prawy przycisk na zdjęciu: polecenie (własne

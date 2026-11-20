@@ -64,8 +64,10 @@ impl AsOneApp {
         let replicate = self.settings.replicate_active();
         let lama = self.settings.lama_active();
         let lama_ready = lama && self.settings.lama_model_path().is_file();
+        let w2x = self.settings.waifu2x_active();
         // Zakładki „Narzędzi AI”: tylko włączone narzędzia; wybrana musi być jedną z nich.
-        let ai_tools: Vec<super::AiTool> = [(super::AiTool::Lama, lama), (super::AiTool::Replicate, replicate)]
+        let ai_tools: Vec<super::AiTool> =
+            [(super::AiTool::Lama, lama), (super::AiTool::Waifu2x, w2x), (super::AiTool::Replicate, replicate)]
             .into_iter()
             .filter_map(|(t, on)| on.then_some(t))
             .collect();
@@ -387,6 +389,7 @@ impl AsOneApp {
                     for tool in &ai_tools {
                         let label = match tool {
                             super::AiTool::Lama => "LaMa",
+                            super::AiTool::Waifu2x => "waifu2x",
                             super::AiTool::Replicate => "Replicate",
                         };
                         ui.selectable_value(&mut self.ai_tool, *tool, label);
@@ -427,6 +430,60 @@ impl AsOneApp {
                         ui.spinner();
                     }
                 });
+                ui.separator();
+            }
+            if w2x && self.ai_tool == super::AiTool::Waifu2x {
+                use crate::waifu2x::{MAX_INPUT_SIDE, NOISE_LEVELS, Style, noise_label};
+                ui.colored_label(pal.text_dim, "Powiększa z ostrymi krawędziami i usuwa artefakty JPEG – lokalnie, bez opłat.");
+                egui::Grid::new("w2x").num_columns(2).spacing(vec2(8.0, 4.0)).show(ui, |ui| {
+                    ui.label("Rodzaj");
+                    ui.horizontal(|ui| {
+                        for style in Style::ALL {
+                            ui.selectable_value(&mut self.settings.waifu2x_style, style, style.label());
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Skala");
+                    ui.horizontal(|ui| {
+                        for scale in [2u32, 4] {
+                            ui.selectable_value(&mut self.settings.waifu2x_scale, scale, format!("{scale}×"));
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Odszumianie");
+                    egui::ComboBox::from_id_salt("w2x_noise")
+                        .selected_text(noise_label(self.settings.waifu2x_noise))
+                        .show_ui(ui, |ui| {
+                            for n in NOISE_LEVELS {
+                                ui.selectable_value(&mut self.settings.waifu2x_noise, n, noise_label(n));
+                            }
+                        });
+                    ui.end_row();
+                });
+                let variant = self.settings.waifu2x_variant();
+                let new = [src[0] * variant.scale, src[1] * variant.scale];
+                let too_big = src[0].max(src[1]) > MAX_INPUT_SIDE;
+                if src[0].min(src[1]) < asone_core::finish::MIN_SIDE && !too_big {
+                    ui.colored_label(pal.accent, "Zdjęcie ma mniej niż 500 px – powiększ zamiast dopełniać białym tłem.");
+                }
+                let busy = matches!(doc.load, LoadState::Loading);
+                ui.horizontal_wrapped(|ui| {
+                    let run = ui.add_enabled(!busy && !too_big, egui::Button::new(format!("Powiększ → {} × {} px", new[0], new[1])));
+                    let run = if too_big {
+                        run.on_disabled_hover_text(format!("waifu2x jest dla mniejszych zdjęć – dłuższy bok najwyżej {MAX_INPUT_SIDE} px"))
+                    } else {
+                        run.on_hover_text("Zastępuje zdjęcie powiększonym; kadr, marginesy i maska skalują się razem z nim.")
+                    };
+                    if run.clicked() {
+                        phone = Some(CanvasAction::Upscale);
+                    }
+                    if busy {
+                        ui.spinner();
+                    }
+                });
+                if !crate::waifu2x::models_dir().join(variant.file_name()).is_file() {
+                    ui.colored_label(pal.text_dim, egui::RichText::new("Pierwsze użycie tego wariantu: pobranie modelu (ok. 20 MB).").small());
+                }
                 ui.separator();
             }
             if replicate && self.ai_tool == super::AiTool::Replicate {
@@ -597,6 +654,23 @@ impl AsOneApp {
         doc.load = LoadState::Loading;
     }
 
+    /// waifu2x: powiększenie zdjęcia (wariant z panelu), lokalnie.
+    pub(super) fn start_upscale(&mut self, id: DocId) {
+        let variant = self.settings.waifu2x_variant();
+        let Some(doc) = self.docs.get_mut(&id) else { return };
+        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() {
+            return;
+        }
+        doc.commit_history();
+        self.loader.request_upscale(id, doc.pixel_source(), doc.mask_cpu.clone(), variant);
+        doc.load = LoadState::Loading;
+        let first = !crate::waifu2x::models_dir().join(variant.file_name()).is_file();
+        self.toast(
+            if first { "waifu2x – pobieram model (ok. 20 MB) i powiększam…" } else { "waifu2x – powiększanie…" },
+            false,
+        );
+    }
+
     /// Retusz LaMa: zaznaczony prostokąt (narzędzie M) dorysowany z otoczenia, lokalnie.
     pub(super) fn start_inpaint(&mut self, id: DocId) {
         let model = self.settings.lama_model_path();
@@ -645,6 +719,7 @@ impl AsOneApp {
     pub(super) fn canvas_action(&mut self, id: DocId, action: CanvasAction) {
         match action {
             CanvasAction::Inpaint => self.start_inpaint(id),
+            CanvasAction::Upscale => self.start_upscale(id),
             CanvasAction::AiEdit => self.start_ai_edit(id, self.ai_prompt.clone()),
             CanvasAction::AiPreset(i) => {
                 if let Some((_, prompt)) = crate::settings::AI_PRESETS.get(i as usize) {

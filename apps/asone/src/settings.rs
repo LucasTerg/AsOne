@@ -302,6 +302,15 @@ pub struct Settings {
     pub lama_enabled: bool,
     /// Ścieżka pliku modelu LaMa (pusta = domyślna w katalogu danych AsOne).
     pub lama_path: String,
+
+    // --- Powiększanie waifu2x (lokalnie) ---
+    /// waifu2x włączony (wyłączony – „nie używam”: wszystkie opcje waifu2x znikają).
+    pub waifu2x_enabled: bool,
+    pub waifu2x_style: crate::waifu2x::Style,
+    /// Odszumianie: `None` – bez, 0–3 – coraz mocniejsze.
+    pub waifu2x_noise: Option<u8>,
+    /// Skala: 2 albo 4.
+    pub waifu2x_scale: u32,
     pub animations: bool,
     /// Systemowy pasek tytułu zamiast własnego (Linux/Windows).
     pub system_title_bar: bool,
@@ -365,6 +374,10 @@ impl Default for Settings {
             replicate_model: EditModel::KontextPro,
             lama_enabled: true,
             lama_path: String::new(),
+            waifu2x_enabled: true,
+            waifu2x_style: crate::waifu2x::Style::Photo,
+            waifu2x_noise: Some(1),
+            waifu2x_scale: 2,
             animations: true,
             system_title_bar: false,
             photo_tabs_bottom: false,
@@ -453,6 +466,20 @@ impl Settings {
     pub fn out_subfolder_name(&self) -> String {
         let name = self.out_subfolder.trim().trim_matches(['/', '\\']).trim();
         if name.is_empty() { "web".into() } else { name.to_string() }
+    }
+
+    /// waifu2x widoczny: włączony i ta wersja uruchamia modele lokalnie.
+    pub fn waifu2x_active(&self) -> bool {
+        self.waifu2x_enabled && crate::ai::AVAILABLE
+    }
+
+    /// Wybrany wariant waifu2x (skala tylko 2× albo 4×).
+    pub fn waifu2x_variant(&self) -> crate::waifu2x::Variant {
+        crate::waifu2x::Variant {
+            style: self.waifu2x_style,
+            noise: self.waifu2x_noise.map(|n| n.min(3)),
+            scale: if self.waifu2x_scale >= 4 { 4 } else { 2 },
+        }
     }
 
     /// Retusz LaMa widoczny: włączony i ta wersja uruchamia modele lokalnie.
@@ -612,6 +639,12 @@ impl Settings {
                 self.lama_enabled = d.lama_enabled;
                 self.lama_path = d.lama_path;
             }
+            PrefsSection::Upscale => {
+                self.waifu2x_enabled = d.waifu2x_enabled;
+                self.waifu2x_style = d.waifu2x_style;
+                self.waifu2x_noise = d.waifu2x_noise;
+                self.waifu2x_scale = d.waifu2x_scale;
+            }
             PrefsSection::Replicate => {
                 // Klucz zostaje – „Przywróć domyślne” nie kasuje danych logowania.
                 self.replicate_enabled = d.replicate_enabled;
@@ -639,6 +672,7 @@ pub enum PrefsSection {
     Export,
     Ai,
     Retouch,
+    Upscale,
     Replicate,
 }
 

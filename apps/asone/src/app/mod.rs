@@ -154,6 +154,8 @@ pub(crate) enum AiTool {
     /// Retusz LaMa (lokalnie).
     #[default]
     Lama,
+    /// Powiększanie waifu2x (lokalnie).
+    Waifu2x,
     /// Edycja poleceniem przez Replicate (online, płatna).
     Replicate,
 }
@@ -441,6 +443,27 @@ impl AsOneApp {
                         doc.load = LoadState::Ready;
                     }
                     self.toast(format!("Retusz LaMa gotowy ({seconds:.1} s) – oryginał: „Przywróć oryginał”"), false);
+                }
+                LoadResult::Upscaled { id, gpu, ai_proxy, content, thumb, mask, scale, seconds } => {
+                    if let Some(doc) = self.docs.get_mut(&id) {
+                        let size = [content.width(), content.height()];
+                        doc.dims = Some(size);
+                        doc.gpu = Some(gpu);
+                        doc.mask_cpu = mask;
+                        doc.mask_dirty = None;
+                        doc.downscaled_from = None;
+                        doc.ai_proxy = Some(ai_proxy);
+                        doc.content = Some(content);
+                        doc.thumb = ThumbState::Ready(ctx.load_texture(format!("thumb-{}", id.0), thumb, egui::TextureOptions::LINEAR));
+                        // Kadr jest względny (zostaje); marginesy i warstwa są w px – rosną razem ze zdjęciem.
+                        doc.edits.margins = doc.edits.margins.map(|m| m * scale);
+                        doc.edits.overlay = doc.edits.overlay.map(|r| r.map(|v| v * scale as f32));
+                        doc.selection = None;
+                        doc.load = LoadState::Ready;
+                        doc.camera.needs_fit = true;
+                        doc.reset_history();
+                        self.toast(format!("waifu2x: {}×{} px ({seconds:.1} s) – oryginał: „Przywróć oryginał”", size[0], size[1]), false);
+                    }
                 }
                 LoadResult::FlattenFailed { id, error } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
