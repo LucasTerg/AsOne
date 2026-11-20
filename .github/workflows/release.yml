@@ -175,12 +175,16 @@ jobs:
           {
             echo "ORT_LIB_LOCATION=$ORT"
             echo "ORT_PREFER_DYNAMIC_LINK=1"
-            echo "RUSTFLAGS=-C link-arg=-Wl,-rpath,@executable_path"
             echo "EXTRA_DYLIBS=$ORT/libonnxruntime.1.23.2.dylib"
           } >> "$GITHUB_ENV"
       - name: Budowanie
         run: |
           set -o pipefail
+          # -fapple-link-rtlib: ___isPlatformVersionAtLeast (@available w CoreML z ONNX Runtime) z compiler-rt.
+          export RUSTFLAGS="-C link-arg=-fapple-link-rtlib"
+          if [ "${{ matrix.arch }}" = x86_64 ]; then
+            RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,@executable_path"
+          fi
           cargo build --release --target ${{ matrix.target }} -p asone -p asone-cli 2>&1 | tee -a "$RUNNER_TEMP/build.log"
           otool -L target/${{ matrix.target }}/release/asone
       - name: Końcówka logu (przy błędzie)
