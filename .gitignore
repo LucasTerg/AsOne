@@ -17,3 +17,6 @@ specyfikacja_i_opis_projektu.md
 prompt_do_budowy_aplikacji.md
 /1.md
 /packaging/android/local.env
+
+# Pliki pomocnicze pakowania AppImage
+*.zsync

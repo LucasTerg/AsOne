@@ -83,11 +83,16 @@ build_appimage() {
   # Informacja o aktualizacji (AppImageUpdate, GearLever): najnowsze wydanie na GitHubie. Gdy jest
   # zsyncmake (pakiet zsync), powstaje też .zsync – aktualizacja pobiera tylko zmienione części.
   local update="gh-releases-zsync|LucasTerg|AsOne|latest|AsOne-*-$ARCH.AppImage.zsync"
-  APPIMAGE_EXTRACT_AND_RUN=1 ARCH="$ARCH" "$tool" --no-appstream -u "$update" --file-url "AsOne-$VERSION-$ARCH.AppImage" \
-    "$appdir" "$out.new" >/dev/null
-  mv -f "$out.new" "$out"
-  if [[ -f "$out.new.zsync" ]]; then
-    mv -f "$out.new.zsync" "$out.zsync"
+  # appimagetool zapisuje .zsync w bieżącym katalogu – budujemy w osobnym katalogu pod docelową
+  # nazwą (ta trafia do nagłówka .zsync), potem przenosimy do $DIST.
+  local name built="$WORK/appimage-out"
+  name="$(basename "$out")"
+  rm -rf "$built" && mkdir -p "$built"
+  (cd "$built" && APPIMAGE_EXTRACT_AND_RUN=1 ARCH="$ARCH" "$tool" --no-appstream -u "$update" \
+    --file-url "$name" "$appdir" "$name" >/dev/null)
+  mv -f "$built/$name" "$out.new" && mv -f "$out.new" "$out"
+  if [[ -f "$built/$name.zsync" ]]; then
+    mv -f "$built/$name.zsync" "$out.zsync"
   fi
   echo "    zapisano $out"
 }

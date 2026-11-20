@@ -990,9 +990,9 @@ impl AsOneApp {
         for action in titlebar::title_bar(ui, &title, &self.settings, state) {
             self.menu_action(&ctx, action, &open);
         }
+        self.top_bar(ui, &open);
         #[cfg(not(target_arch = "wasm32"))]
         self.update_bar(ui);
-        self.top_bar(ui, &open);
         self.tool_bar(ui);
         self.inspector(ui, &open, &numbering);
 
