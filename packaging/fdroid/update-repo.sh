@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Strona AsOne na GitHub Pages (gałąź gh-pages): repozytorium F-Droid (fdroid/repo), wersja
 # przeglądarkowa (app/) i strona główna. Dokłada podane APK, przelicza i podpisuje indeks F-Droid.
+# W repozytorium zostają tylko najnowsze wersje APK, a gh-pages to zawsze jeden commit bez historii –
+# strona i repo nie rosną z każdym wydaniem (GitHub Pages: limit 1 GB).
 #
 #   KEYSTORE_B64=… KEYSTORE_PASSWORD=… [WEB_DIR=dist/web] packaging/fdroid/update-repo.sh [plik.apk…]
 #
@@ -9,6 +11,7 @@
 # tymczasowym i nigdy nie trafia na gh-pages. Zmienne opcjonalne:
 #   WEB_DIR    zbudowana wersja web (trunk build) → app/; bez niej app/ zostaje bez zmian
 #   REPO_URL   (domyślnie https://<domena z packaging/pages/CNAME>/fdroid/repo)
+#   KEEP_APKS  ile najnowszych wersji APK zostaje w repozytorium F-Droid (domyślnie 3)
 #   NO_PUSH=1  (bez publikacji – do testów; wynik zostaje w $SITE)
 #   FORCE_CNAME=1  nowa domena bez sprawdzania DNS (gdy lokalny resolver pamięta jeszcze jej brak)
 # Bez plików APK tylko odświeża indeks i stronę.
@@ -28,7 +31,7 @@ WORK="$(mktemp -d)"
 SITE="${SITE:-$(mktemp -d)/site}"
 trap 'rm -rf "$WORK"' EXIT
 
-# 1. Dotychczasowa zawartość gh-pages (stare wersje APK zostają w repozytorium).
+# 1. Dotychczasowa zawartość gh-pages (poprzednie wersje APK – do KEEP_APKS najnowszych).
 cd "$ROOT"
 if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
   git fetch -q origin gh-pages
@@ -93,6 +96,19 @@ done
 # 3. Indeks (wersje APK, ikony, podpis).
 (cd "$WORK" && fdroid update --rename-apks --use-date-from-apk --pretty)
 
+# Tylko KEEP_APKS najnowszych wersji (po versionCode z nazw plików nadanych przez --rename-apks);
+# starsze APK i ich ikony wypadają, indeks liczony ponownie.
+KEEP_APKS="${KEEP_APKS:-3}"
+mapfile -t PRUNED < <(find "$WORK/repo" -maxdepth 1 -name '*_*.apk' -printf '%f\n' \
+  | sed -n 's/.*_\([0-9][0-9]*\)\.apk$/\1/p' | sort -un | head -n -"$KEEP_APKS")
+if [ "${#PRUNED[@]}" -gt 0 ]; then
+  for vc in "${PRUNED[@]}"; do
+    find "$WORK/repo" \( -name "*_$vc.apk*" -o -name "*.$vc.png" \) -delete
+  done
+  echo "starsze wersje APK usunięte z repozytorium (versionCode): ${PRUNED[*]}"
+  (cd "$WORK" && fdroid update --use-date-from-apk --pretty)
+fi
+
 # 4. Strona: fdroid/repo + instrukcja na stronie głównej.
 rm -rf "$SITE/fdroid/repo"
 mkdir -p "$SITE/fdroid"
@@ -131,7 +147,9 @@ if [ "${NO_PUSH:-0}" = 1 ]; then
 fi
 cd "$SITE"
 git add -A
-if git diff --cached --quiet; then
+TREE="$(git write-tree)"
+PREV="$(git rev-parse -q --verify HEAD || true)"
+if [ -n "$PREV" ] && [ "$TREE" = "$(git rev-parse "$PREV^{tree}")" ]; then
   echo "bez zmian"
 else
   VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' "$ROOT/Cargo.toml" | head -n 1)"
@@ -143,8 +161,14 @@ else
   if [ -n "${GITHUB_ACTIONS:-}" ]; then
     GIT_ID=(-c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com")
   fi
-  git "${GIT_ID[@]}" commit -q -m "$MSG"
-  git push -q origin HEAD:gh-pages
+  # Jeden commit bez rodzica zastępuje gh-pages: stare APK i wersje web nie zostają w historii.
+  # --force-with-lease: tylko gdy gh-pages to nadal pobrany wyżej commit.
+  NEW="$(git "${GIT_ID[@]}" commit-tree "$TREE" -m "$MSG")"
+  if [ -n "$PREV" ]; then
+    git push -q --force-with-lease="refs/heads/gh-pages:$PREV" origin "$NEW:refs/heads/gh-pages"
+  else
+    git push -q origin "$NEW:refs/heads/gh-pages"
+  fi
   echo "opublikowano na gh-pages"
 fi
 cd "$ROOT"
