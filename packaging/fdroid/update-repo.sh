@@ -124,6 +124,46 @@ else
   rm -f "$SITE/CNAME"
 fi
 
+# Stałe linki pobierania z README: /pobierz/<system>/ → plik bieżącego wydania na GitHubie
+# (wydanie ma tylko pliki z numerem wersji – bez kopii pod drugą nazwą).
+rm -rf "$SITE/pobierz"
+while read -r slug suffix label; do
+  url="https://github.com/LucasTerg/AsOne/releases/download/v$VERSION/AsOne-$VERSION-$suffix"
+  mkdir -p "$SITE/pobierz/$slug"
+  cat > "$SITE/pobierz/$slug/index.html" <<PAGE
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="0; url=$url">
+<title>Pobieranie AsOne $VERSION – ${label//\~/ }</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 36rem; margin: 3rem auto; padding: 0 1rem; }
+</style>
+</head>
+<body>
+<h1>Pobieranie AsOne $VERSION</h1>
+<p>${label//\~/ } – pobieranie powinno zacząć się samo.</p>
+<p>Jeśli nie ruszyło: <a href="$url">pobierz plik</a>.</p>
+<p><small><a href="../../">Inne systemy i wersja w przeglądarce</a></small></p>
+</body>
+</html>
+PAGE
+done <<'LIST'
+windows-x86_64 windows-x86_64.zip Windows~(x86_64)
+windows-arm64 windows-arm64.zip Windows~(ARM64)
+macos-arm64 macos-arm64.zip macOS~(Apple~Silicon)
+macos-x86_64 macos-x86_64.zip macOS~(Intel)
+linux-x86_64 x86_64.AppImage Linux~–~AppImage~(x86_64)
+linux-aarch64 aarch64.AppImage Linux~–~AppImage~(ARM64)
+flatpak-x86_64 x86_64.flatpak Linux~–~Flatpak~(x86_64)
+flatpak-aarch64 aarch64.flatpak Linux~–~Flatpak~(ARM64)
+android android.apk Android~(APK)
+freebsd freebsd-x86_64.tar.gz FreeBSD~(x86_64)
+LIST
+
 # Kod QR z adresem repozytorium i odciskiem klucza (skaner F-Droid albo aparat telefonu).
 if command -v qrencode >/dev/null; then
   qrencode -t SVG -l M -m 2 -o "$SITE/qr.svg" "$REPO_URL?fingerprint=$FINGERPRINT"

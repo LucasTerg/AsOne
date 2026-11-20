@@ -11,11 +11,11 @@ Najnowsza wersja – wybierz swój system:
 
 | System | Pobierz |
 |---|---|
-| **Windows** | [x86_64 (64-bit)](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-windows-x86_64.zip) · [ARM64](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-windows-arm64.zip) – rozpakuj i uruchom `asone.exe` |
-| **macOS** | [Apple Silicon (M1 i nowsze)](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-macos-arm64.zip) · [Intel](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-macos-x86_64.zip) |
-| **Linux** | [AppImage x86_64](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-x86_64.AppImage) · [AppImage ARM64](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-aarch64.AppImage) · [Flatpak x86_64](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-x86_64.flatpak) · [Flatpak ARM64](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-aarch64.flatpak) |
-| **Android** | [APK](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-android.apk) · [repozytorium F-Droid](https://asone.lmk.one/) |
-| **FreeBSD** | [x86_64 (tar.gz)](https://github.com/LucasTerg/AsOne/releases/latest/download/AsOne-freebsd-x86_64.tar.gz) |
+| **Windows** | [x86_64 (64-bit)](https://asone.lmk.one/pobierz/windows-x86_64/) · [ARM64](https://asone.lmk.one/pobierz/windows-arm64/) – rozpakuj i uruchom `asone.exe` |
+| **macOS** | [Apple Silicon (M1 i nowsze)](https://asone.lmk.one/pobierz/macos-arm64/) · [Intel](https://asone.lmk.one/pobierz/macos-x86_64/) |
+| **Linux** | [AppImage x86_64](https://asone.lmk.one/pobierz/linux-x86_64/) · [AppImage ARM64](https://asone.lmk.one/pobierz/linux-aarch64/) · [Flatpak x86_64](https://asone.lmk.one/pobierz/flatpak-x86_64/) · [Flatpak ARM64](https://asone.lmk.one/pobierz/flatpak-aarch64/) |
+| **Android** | [APK](https://asone.lmk.one/pobierz/android/) · [repozytorium F-Droid](https://asone.lmk.one/) |
+| **FreeBSD** | [x86_64 (tar.gz)](https://asone.lmk.one/pobierz/freebsd/) |
 | **Przeglądarka** | [asone.lmk.one/app](https://asone.lmk.one/app/) – bez instalacji |
 
 Wszystkie pliki i wcześniejsze wersje: [Releases](https://github.com/LucasTerg/AsOne/releases).
