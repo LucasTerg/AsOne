@@ -10,6 +10,7 @@
 #   WEB_DIR    zbudowana wersja web (trunk build) → app/; bez niej app/ zostaje bez zmian
 #   REPO_URL   (domyślnie https://<domena z packaging/pages/CNAME>/fdroid/repo)
 #   NO_PUSH=1  (bez publikacji – do testów; wynik zostaje w $SITE)
+#   FORCE_CNAME=1  CNAME bez sprawdzania DNS (gdy lokalny resolver pamięta jeszcze brak nowej domeny)
 # Bez plików APK tylko odświeża indeks i stronę.
 # Potrzebne: fdroidserver ≥ 2.4 (pip; starszy androguard nie czyta APK z AGP 9), JDK 21 (keytool, jarsigner – na Ubuntu 24.04 `openjdk-21-jdk-headless`,
 # bo fdroid używa /usr/lib/jvm/default-java), git, qrencode (kod QR na stronie).
@@ -27,7 +28,7 @@ fi
 # na tę domenę, więc trafia tam dopiero, gdy domena istnieje w DNS – inaczej strona i repozytorium
 # F-Droid przestałyby działać.
 DOMAIN="$(tr -d '[:space:]' < "$ROOT/packaging/pages/CNAME" 2>/dev/null || true)"
-if [ -n "$DOMAIN" ] && getent hosts "$DOMAIN" >/dev/null 2>&1; then
+if [ -n "$DOMAIN" ] && { [ "${FORCE_CNAME:-0}" = 1 ] || getent hosts "$DOMAIN" >/dev/null 2>&1; }; then
   PAGES_URL="https://$DOMAIN"
 else
   [ -z "$DOMAIN" ] || echo "uwaga: $DOMAIN nie istnieje jeszcze w DNS – strona zostaje pod lucasterg.github.io/AsOne" >&2
