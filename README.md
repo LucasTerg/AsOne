@@ -270,4 +270,11 @@ Test na prawdziwym modelu: `cargo test -p asone rmbg14 -- --ignored`; pomiar pam
 - Profile ICC (np. Display P3 z iPhone'a) nie są konwertowane do sRGB – są usuwane, więc kolory
   takich zdjęć mogą się lekko przesunąć.
 - Każde otwarte zdjęcie trzyma teksturę z mipmapami i maskę w VRAM/RAM (~130 MB dla 24 Mpx).
-- Brak Undo/Redo.
+
+## Wesprzyj projekt
+
+Jeśli AsOne Ci się przydaje, możesz wesprzeć jego rozwój w Monero (XMR):
+
+<img src="docs/monero-qr.png" width="180" alt="Kod QR – adres Monero do wsparcia AsOne">
+
+`85EavPWB4WqT5vyEMypkS925jkYJ3ge1x9CM52XgAPqNeEsHgtjnTrJFkU69Pa2uMbVsmTPMR8hW9HSXht6uzQk98tGeTto`

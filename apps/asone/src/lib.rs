@@ -72,6 +72,9 @@ pub static ANDROID_APP: std::sync::OnceLock<winit::platform::android::activity::
 fn android_main(android_app: winit::platform::android::activity::AndroidApp) {
     let _ = ANDROID_APP.set(android_app.clone());
     let mut options = native_options();
+    // eframe nie zna katalogu danych na Androidzie – bez tego ustawienia (motyw, klucze API…)
+    // ginęłyby po zamknięciu aplikacji. Plik w prywatnym katalogu aplikacji.
+    options.persistence_path = android_app.internal_data_path().map(|dir| dir.join("app.ron"));
     options.android_app = Some(android_app);
     if let Err(e) = run_native(options, Vec::new()) {
         eprintln!("asone: {e}");

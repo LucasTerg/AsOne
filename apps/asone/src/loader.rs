@@ -182,7 +182,14 @@ impl Loader {
     }
 
     /// waifu2x: zdjęcie i maska powiększone (model pobierany przy pierwszym użyciu wariantu).
-    pub fn request_upscale(&self, id: DocId, source: ImageSource, mask: Vec<u8>, variant: crate::waifu2x::Variant) {
+    pub fn request_upscale(
+        &self,
+        id: DocId,
+        source: ImageSource,
+        mask: Vec<u8>,
+        variant: crate::waifu2x::Variant,
+        progress: Arc<std::sync::atomic::AtomicU32>,
+    ) {
         let (tx, ctx, gpu) = (self.tx.clone(), self.ctx.clone(), self.gpu.clone());
         self.tasks.spawn(move || {
             let started = crate::platform::Instant::now();
@@ -194,7 +201,7 @@ impl Loader {
                 if new[0].max(new[1]) > gpu.max_texture_dim {
                     return Err(format!("wynik {}×{} px przekracza limit karty graficznej ({} px)", new[0], new[1], gpu.max_texture_dim));
                 }
-                let out = crate::waifu2x::upscale(&img, variant)?;
+                let out = crate::waifu2x::upscale(&img, variant, Some(&progress))?;
                 drop(img);
                 let mask = if mask.len() == size[0] as usize * size[1] as usize {
                     asone_core::imageio::resize_gray(&mask, size, new)?

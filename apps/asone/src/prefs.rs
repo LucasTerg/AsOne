@@ -500,12 +500,20 @@ fn replicate_page(ui: &mut Ui, s: &mut Settings, result: &mut PrefsResult) {
                         ui.small("·");
                         ui.hyperlink_to(egui::RichText::new("kredyt i rozliczenia").small(), "https://replicate.com/account/billing");
                     });
-                    if s.replicate_key.trim().is_empty() {
-                        if s.replicate_api_key().is_empty() {
-                            ui.colored_label(pal.warning, egui::RichText::new("brak klucza – funkcje Replicate są ukryte").small());
-                        } else {
-                            ui.small("używany klucz z REPLICATE_API_TOKEN albo ~/.config/asone/replicate-token");
-                        }
+                    let key = s.replicate_api_key();
+                    if key.is_empty() {
+                        ui.colored_label(pal.warning, egui::RichText::new("brak klucza – funkcje Replicate są ukryte").small());
+                    } else if s.replicate_key.trim().is_empty() {
+                        ui.colored_label(
+                            pal.ok(),
+                            egui::RichText::new(format!(
+                                "✔ klucz {} – z REPLICATE_API_TOKEN albo ~/.config/asone/replicate-token",
+                                crate::settings::masked_key(&key)
+                            ))
+                            .small(),
+                        );
+                    } else {
+                        ui.colored_label(pal.ok(), egui::RichText::new(format!("✔ zapisany klucz {}", crate::settings::masked_key(&key))).small());
                     }
                     ui.small("Klucz wpisany tutaj jest zapisywany tylko lokalnie, w ustawieniach AsOne.");
                 });
@@ -565,8 +573,10 @@ fn online_rows(ui: &mut Ui, s: &mut Settings, result: &mut PrefsResult) {
                 ui.hyperlink_to(egui::RichText::new("historia zapytań").small(), "https://fal.ai/dashboard/requests");
             });
             ui.small("Klucz jest zapisywany tylko lokalnie, w ustawieniach AsOne.");
-            if s.fal_key.trim().is_empty() && !s.fal_api_key().is_empty() {
-                ui.small("używany klucz ze zmiennej środowiskowej FAL_KEY");
+            let key = s.fal_api_key();
+            if !key.is_empty() {
+                let from = if s.fal_key.trim().is_empty() { " – ze zmiennej FAL_KEY" } else { "" };
+                ui.colored_label(pal.ok(), egui::RichText::new(format!("✔ zapisany klucz {}{from}", crate::settings::masked_key(&key))).small());
             }
         });
     });

@@ -407,7 +407,7 @@ impl AsOneApp {
                         }
                     });
                 }
-                let busy = matches!(doc.load, LoadState::Loading);
+                let busy = doc.busy.is_some();
                 ui.horizontal_wrapped(|ui| {
                     if ui
                         .add_enabled(tool != Tool::RectCut, egui::Button::new("Zaznacz (M)"))
@@ -466,7 +466,7 @@ impl AsOneApp {
                 if src[0].min(src[1]) < asone_core::finish::MIN_SIDE && !too_big {
                     ui.colored_label(pal.accent, "Zdjęcie ma mniej niż 500 px – powiększ zamiast dopełniać białym tłem.");
                 }
-                let busy = matches!(doc.load, LoadState::Loading);
+                let busy = doc.busy.is_some();
                 ui.horizontal_wrapped(|ui| {
                     let run = ui.add_enabled(!busy && !too_big, egui::Button::new(format!("Powiększ → {} × {} px", new[0], new[1])));
                     let run = if too_big {
@@ -502,7 +502,7 @@ impl AsOneApp {
                 }
                 #[cfg(not(target_os = "android"))]
                 let _ = field;
-                let busy = matches!(doc.load, LoadState::Loading);
+                let busy = doc.busy.is_some();
                 ui.horizontal_wrapped(|ui| {
                     ui.menu_button("Gotowe polecenia", |ui| {
                         ui.set_min_width(220.0);
@@ -556,7 +556,7 @@ impl AsOneApp {
                                 }
                             });
                             if lama {
-                                let busy = matches!(doc.load, LoadState::Loading);
+                                let busy = doc.busy.is_some();
                                 if ui
                                     .add_enabled(!busy, egui::Button::new("Usuń obiekt (LaMa)"))
                                     .on_hover_text(
@@ -645,25 +645,26 @@ impl AsOneApp {
     /// „Spłaszcz zdjęcie”: obraz wynikowy (z warstwą) staje się nowym zdjęciem zakładki.
     pub(super) fn flatten(&mut self, id: DocId) {
         let Some(doc) = self.docs.get_mut(&id) else { return };
-        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() {
+        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() || doc.busy.is_some() {
             return;
         }
         doc.commit_history();
         let overlay = doc.overlay_image.clone().filter(|_| doc.edits.overlay.is_some());
         self.loader.request_flatten(id, doc.pixel_source(), doc.mask_cpu.clone(), doc.edits.clone(), overlay);
-        doc.load = LoadState::Loading;
+        doc.busy = Some(crate::document::Busy::new("Spłaszczanie…"));
     }
 
     /// waifu2x: powiększenie zdjęcia (wariant z panelu), lokalnie.
     pub(super) fn start_upscale(&mut self, id: DocId) {
         let variant = self.settings.waifu2x_variant();
         let Some(doc) = self.docs.get_mut(&id) else { return };
-        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() {
+        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() || doc.busy.is_some() {
             return;
         }
         doc.commit_history();
-        self.loader.request_upscale(id, doc.pixel_source(), doc.mask_cpu.clone(), variant);
-        doc.load = LoadState::Loading;
+        let (busy, progress) = crate::document::Busy::with_progress("Powiększanie (waifu2x)…");
+        self.loader.request_upscale(id, doc.pixel_source(), doc.mask_cpu.clone(), variant, progress);
+        doc.busy = Some(busy);
         let first = !crate::waifu2x::models_dir().join(variant.file_name()).is_file();
         self.toast(
             if first { "waifu2x – pobieram model (ok. 20 MB) i powiększam…" } else { "waifu2x – powiększanie…" },
@@ -684,12 +685,12 @@ impl AsOneApp {
             self.toast("Zaznacz obszar do usunięcia narzędziem M (prostokąt)", true);
             return;
         };
-        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() {
+        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() || doc.busy.is_some() {
             return;
         }
         doc.commit_history();
         self.loader.request_inpaint(id, doc.pixel_source(), doc.mask_cpu.clone(), rect, model);
-        doc.load = LoadState::Loading;
+        doc.busy = Some(crate::document::Busy::new("Usuwanie obiektu (LaMa)…"));
         self.toast("Retusz LaMa – kilka sekund…", false);
     }
 
@@ -705,13 +706,13 @@ impl AsOneApp {
         }
         let (key, model) = (self.settings.replicate_api_key(), self.settings.replicate_model);
         let Some(doc) = self.docs.get_mut(&id) else { return };
-        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() {
+        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() || doc.busy.is_some() {
             return;
         }
         doc.commit_history();
         let overlay = doc.overlay_image.clone().filter(|_| doc.edits.overlay.is_some());
         self.loader.request_ai_edit(id, doc.pixel_source(), doc.mask_cpu.clone(), doc.edits.clone(), overlay, prompt, model.id(), key);
-        doc.load = LoadState::Loading;
+        doc.busy = Some(crate::document::Busy::new("Edycja AI (Replicate)…"));
         self.toast(format!("Edycja AI ({}, {}) – zwykle kilkanaście sekund…", model.label(), model.price()), false);
     }
 

@@ -125,6 +125,32 @@ fn overlay_texture(ctx: &egui::Context, img: &image::RgbaImage) -> egui::Texture
     ctx.load_texture("asone-overlay", color, egui::TextureOptions::LINEAR)
 }
 
+/// Karta „pracuję” na środku `area`: kółko, opis, pasek postępu (gdy znany) i czas.
+fn busy_card(ui: &mut egui::Ui, area: Rect, label: &str, fraction: Option<f32>, elapsed: Option<f32>) {
+    let pal = theme::p();
+    let size = vec2(300.0, if fraction.is_some() { 132.0 } else { 112.0 });
+    let rect = Rect::from_center_size(area.center(), size);
+    let painter = ui.painter_at(area);
+    painter.rect_filled(rect.translate(vec2(0.0, 3.0)), egui::CornerRadius::same(14), Color32::from_black_alpha(70));
+    painter.rect_filled(rect, egui::CornerRadius::same(14), pal.card);
+    painter.rect_stroke(rect, egui::CornerRadius::same(14), Stroke::new(1.0, pal.card_border), egui::StrokeKind::Inside);
+    ui.scope_builder(egui::UiBuilder::new().max_rect(rect.shrink2(vec2(18.0, 14.0))), |ui| {
+        ui.vertical_centered(|ui| {
+            ui.add(egui::Spinner::new().size(26.0).color(pal.accent));
+            ui.add_space(6.0);
+            ui.label(egui::RichText::new(label).size(15.0).color(pal.text));
+            if let Some(f) = fraction {
+                ui.add_space(4.0);
+                ui.add(egui::ProgressBar::new(f).desired_width(240.0).show_percentage());
+            }
+            if let Some(s) = elapsed {
+                ui.add_space(2.0);
+                ui.label(egui::RichText::new(format!("{s:.0} s")).small().color(pal.text_dim));
+            }
+        });
+    });
+}
+
 /// Polecenia z menu kontekstowego płótna (wykonuje je aplikacja).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CanvasAction {
@@ -366,18 +392,14 @@ pub fn photo_ui(
         (LoadState::Ready, _) => None,
     };
     if let Some((text, is_error)) = message {
-        ui.scope_builder(egui::UiBuilder::new().max_rect(full), |ui| {
-            ui.centered_and_justified(|ui| {
-                if is_error {
-                    ui.colored_label(theme::p().danger, text);
-                } else {
-                    ui.horizontal_centered(|ui| {
-                        ui.spinner();
-                        ui.label(text);
-                    });
-                }
+        if is_error {
+            ui.scope_builder(egui::UiBuilder::new().max_rect(full), |ui| {
+                ui.centered_and_justified(|ui| ui.colored_label(theme::p().danger, text));
             });
-        });
+        } else {
+            busy_card(ui, full, &text, None, None);
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+        }
         ui.allocate_rect(full, Sense::hover());
         return out;
     }
@@ -445,6 +467,7 @@ pub fn photo_ui(
     };
     if tool == Tool::Move
         && !space_down
+        && doc.busy.is_none()
         && let Some(r) = overlay
         && response.drag_started_by(PointerButton::Primary)
         && let Some(p) = press_origin
@@ -467,7 +490,9 @@ pub fn photo_ui(
         let v = (p - canvas_rect.min - cam.pan) / cam.zoom;
         [v.x, v.y]
     };
-    let tools_active = !space_down && !panning;
+    // Praca w tle (LaMa, waifu2x, AI…): zdjęcie widać, ale narzędzia czekają na wynik.
+    let busy = doc.busy.is_some() || matches!(doc.ai, crate::document::AiState::Running);
+    let tools_active = !space_down && !panning && !busy;
 
     // --- Narzędzia ------------------------------------------------------------------------
     let mut cursor = None;
@@ -692,8 +717,20 @@ pub fn photo_ui(
             }
         }
 
+    // --- Praca w tle: przyciemnione zdjęcie i karta na środku ------------------------------
+    let busy_label = match (&doc.busy, &doc.ai) {
+        (Some(b), _) => Some((b.label, b.fraction(), Some(b.started.elapsed().as_secs_f32()))),
+        (None, crate::document::AiState::Running) => Some(("Usuwanie tła…", None, None)),
+        _ => None,
+    };
+    if let Some((label, fraction, elapsed)) = busy_label {
+        painter.rect_filled(image_rect.intersect(canvas_rect), 0.0, Color32::from_black_alpha(110));
+        busy_card(ui, canvas_rect, label, fraction, elapsed);
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
+    }
+
     // --- Menu kontekstowe (PPM; gumka używa PPM do przywracania) ---------------------------
-    if tool != Tool::Eraser {
+    if tool != Tool::Eraser && busy_label.is_none() {
         let has_overlay = doc.overlay_image.is_some() && doc.edits.overlay.is_some();
         let flattened = doc.content.is_some();
         let (can_undo, can_redo) = (doc.history.can_undo(), doc.history.can_redo());

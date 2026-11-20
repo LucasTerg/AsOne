@@ -96,6 +96,33 @@ pub struct Document {
     pub overlay_texture: Option<egui::TextureHandle>,
     /// Zawartość po „Spłaszcz” – zastępuje plik źródłowy (Wczytaj ponownie wraca do pliku).
     pub content: Option<Arc<image::RgbaImage>>,
+    /// Praca w tle na zdjęciu (LaMa, waifu2x, edycja AI, spłaszczanie) – karta na środku płótna.
+    pub busy: Option<Busy>,
+}
+
+/// Zadanie w tle na zdjęciu: zdjęcie zostaje widoczne (przyciemnione), edycja czeka na wynik.
+pub struct Busy {
+    pub label: &'static str,
+    pub started: crate::platform::Instant,
+    /// Postęp 0–1000, gdy zadanie go zna (np. kafelki waifu2x).
+    pub progress: Option<Arc<std::sync::atomic::AtomicU32>>,
+}
+
+impl Busy {
+    pub fn new(label: &'static str) -> Self {
+        Self { label, started: crate::platform::Instant::now(), progress: None }
+    }
+
+    /// Z licznikiem postępu dla zadania (0–1000).
+    pub fn with_progress(label: &'static str) -> (Self, Arc<std::sync::atomic::AtomicU32>) {
+        let progress = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        (Self { progress: Some(progress.clone()), ..Self::new(label) }, progress)
+    }
+
+    /// Postęp 0..1, gdy znany.
+    pub fn fraction(&self) -> Option<f32> {
+        self.progress.as_ref().map(|p| p.load(std::sync::atomic::Ordering::Relaxed).min(1000) as f32 / 1000.0)
+    }
 }
 
 /// Dłuższy bok tekstury podglądu warstwy.
@@ -142,6 +169,7 @@ impl Document {
             overlay_image: None,
             overlay_texture: None,
             content: None,
+            busy: None,
         }
     }
 

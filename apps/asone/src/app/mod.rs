@@ -403,6 +403,7 @@ impl AsOneApp {
                 }
                 LoadResult::Flattened { id, gpu, mask, ai_proxy, content, thumb, ai } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
+                        doc.busy = None;
                         doc.dims = Some([content.width(), content.height()]);
                         doc.gpu = Some(gpu);
                         doc.mask_cpu = mask;
@@ -434,6 +435,7 @@ impl AsOneApp {
                 }
                 LoadResult::Repainted { id, gpu, ai_proxy, content, thumb, seconds } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
+                        doc.busy = None;
                         doc.gpu = Some(gpu);
                         doc.mask_dirty = None;
                         doc.ai_proxy = Some(ai_proxy);
@@ -446,6 +448,7 @@ impl AsOneApp {
                 }
                 LoadResult::Upscaled { id, gpu, ai_proxy, content, thumb, mask, scale, seconds } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
+                        doc.busy = None;
                         let size = [content.width(), content.height()];
                         doc.dims = Some(size);
                         doc.gpu = Some(gpu);
@@ -467,6 +470,7 @@ impl AsOneApp {
                 }
                 LoadResult::FlattenFailed { id, error } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
+                        doc.busy = None;
                         doc.load = LoadState::Ready;
                     }
                     self.toast(error, true);
@@ -965,6 +969,11 @@ impl eframe::App for AsOneApp {
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, STORAGE_KEY, &self.settings);
+    }
+
+    /// Android zamyka aplikacje bez ostrzeżenia – zapis ustawień częściej niż domyślne 30 s.
+    fn auto_save_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(if cfg!(target_os = "android") { 5 } else { 30 })
     }
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {

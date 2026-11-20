@@ -49,6 +49,18 @@ pub enum TabTitle {
     NumberOnly,
 }
 
+/// Klucz API do pokazania: początek i koniec, np. `r8_A…x9Kq` (całości nie widać).
+pub fn masked_key(key: &str) -> String {
+    let key = key.trim();
+    let chars: Vec<char> = key.chars().collect();
+    if chars.len() <= 8 {
+        return "•".repeat(chars.len());
+    }
+    let head: String = chars[..4].iter().collect();
+    let tail: String = chars[chars.len() - 4..].iter().collect();
+    format!("{head}…{tail}")
+}
+
 /// Retusz LaMa (Big-LaMa w ONNX, Apache-2.0): plik modelu.
 pub const LAMA_URL: &str = "https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx";
 pub const LAMA_PAGE: &str = "https://huggingface.co/Carve/LaMa-ONNX";
@@ -701,6 +713,12 @@ mod tests {
         // Niższej wartości z ustawień nie da się wymusić.
         let low = Settings { min_side: 100, ..Settings::default() };
         assert_eq!(low.limits().min_side, Some(500));
+    }
+
+    #[test]
+    fn klucz_zamaskowany() {
+        assert_eq!(masked_key("r8_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab"), "r8_A…89ab");
+        assert_eq!(masked_key("krotki"), "••••••");
     }
 
     #[test]

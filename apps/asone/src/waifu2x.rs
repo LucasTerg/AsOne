@@ -94,7 +94,8 @@ pub fn models_dir() -> PathBuf {
 }
 
 /// Powiększony obraz (rozmiar × skala); alfa skalowana zwykłym filtrem.
-pub fn upscale(image: &RgbaImage, variant: Variant) -> Result<RgbaImage, String> {
+/// `progress` – postęp 0–1000 (kafelki), np. dla paska w interfejsie.
+pub fn upscale(image: &RgbaImage, variant: Variant, progress: Option<&std::sync::atomic::AtomicU32>) -> Result<RgbaImage, String> {
     let (w, h) = image.dimensions();
     if w.max(h) > MAX_INPUT_SIDE {
         return Err(format!("waifu2x jest dla mniejszych zdjęć – dłuższy bok najwyżej {MAX_INPUT_SIDE} px"));
@@ -142,6 +143,10 @@ pub fn upscale(image: &RgbaImage, variant: Variant) -> Result<RgbaImage, String>
                 }
             }
             let y_out = session.run(input, TILE)?;
+            if let Some(p) = progress {
+                let done = ty * nx + tx + 1;
+                p.store(done * 1000 / (nx * ny), std::sync::atomic::Ordering::Relaxed);
+            }
             let oplane = (out_tile * out_tile) as usize;
             if y_out.len() != 3 * oplane {
                 return Err(format!("waifu2x: nieoczekiwany rozmiar wyniku ({} wartości)", y_out.len()));
@@ -313,7 +318,7 @@ mod tests {
         let img = asone_core::imageio::decode_path(&sample).unwrap();
         let small = asone_core::imageio::resize_rgba(&img, [400, 300], asone_core::imageio::lanczos3()).unwrap();
         let t = std::time::Instant::now();
-        let out = upscale(&small, Variant { style: Style::Photo, noise: Some(1), scale: 2 }).unwrap();
+        let out = upscale(&small, Variant { style: Style::Photo, noise: Some(1), scale: 2 }, None).unwrap();
         eprintln!("waifu2x: {:?}, {:?} → {:?}", t.elapsed(), small.dimensions(), out.dimensions());
         if let Ok(p) = std::env::var("ASONE_W2X_OUT") {
             out.save(p).unwrap();
