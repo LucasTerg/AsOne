@@ -94,31 +94,41 @@ pub enum AiModel {
     Rmbg14,
     /// BRIA RMBG-2.0 – dokładniejszy; repozytorium wymaga tokenu Hugging Face i akceptacji licencji.
     Rmbg20,
+    /// BRIA RMBG-3.0 online przez fal.ai (`bria/rmbg-3`) – zdjęcie jest wysyłane, płatne za zdjęcie.
+    Rmbg30Fal,
 }
 
 impl AiModel {
-    pub const ALL: [AiModel; 2] = [AiModel::Rmbg14, AiModel::Rmbg20];
+    pub const ALL: [AiModel; 3] = [AiModel::Rmbg14, AiModel::Rmbg20, AiModel::Rmbg30Fal];
 
     pub fn label(self) -> &'static str {
         match self {
             AiModel::Rmbg14 => "RMBG-1.4 (BRIA, ~176 MB)",
             AiModel::Rmbg20 => "RMBG-2.0 (BRIA, ~1 GB)",
+            AiModel::Rmbg30Fal => "RMBG-3.0 online (fal.ai)",
         }
     }
 
-    /// Strona modelu (licencja, akceptacja warunków).
+    /// Model działa na serwerze (zdjęcie wysyłane przez internet), nie lokalnie.
+    pub fn is_online(self) -> bool {
+        self == AiModel::Rmbg30Fal
+    }
+
+    /// Strona modelu (licencja, akceptacja warunków, cena).
     pub fn page_url(self) -> &'static str {
         match self {
             AiModel::Rmbg14 => "https://huggingface.co/briaai/RMBG-1.4",
             AiModel::Rmbg20 => "https://huggingface.co/briaai/RMBG-2.0",
+            AiModel::Rmbg30Fal => "https://fal.ai/models/bria/rmbg-3",
         }
     }
 
-    /// Bezpośredni link do pliku ONNX.
+    /// Bezpośredni link do pliku ONNX (pusty dla modelu online).
     pub fn download_url(self) -> &'static str {
         match self {
             AiModel::Rmbg14 => "https://huggingface.co/briaai/RMBG-1.4/resolve/main/onnx/model.onnx",
             AiModel::Rmbg20 => "https://huggingface.co/briaai/RMBG-2.0/resolve/main/onnx/model.onnx",
+            AiModel::Rmbg30Fal => "",
         }
     }
 
@@ -126,10 +136,12 @@ impl AiModel {
         self == AiModel::Rmbg20
     }
 
+    /// Nazwa pliku ONNX (pusta dla modelu online).
     pub fn file_name(self) -> &'static str {
         match self {
             AiModel::Rmbg14 => "rmbg-1.4.onnx",
             AiModel::Rmbg20 => "rmbg-2.0.onnx",
+            AiModel::Rmbg30Fal => "",
         }
     }
 }
@@ -168,6 +180,8 @@ pub struct Settings {
     pub ai_path_20: String,
     /// Token Hugging Face (tylko do pobrania RMBG-2.0; zapisywany lokalnie).
     pub hf_token: String,
+    /// Klucz API fal.ai (RMBG-3.0 online; zapisywany lokalnie). Pusty = zmienna środowiskowa `FAL_KEY`.
+    pub fal_key: String,
 
     // --- Eksport (górny pasek) ---
     pub quality: u8,
@@ -209,6 +223,7 @@ impl Default for Settings {
             ai_path_14: String::new(),
             ai_path_20: String::new(),
             hf_token: String::new(),
+            fal_key: String::new(),
             quality: 90,
             limit_long_side: false,
             max_long_side: 1200,
@@ -266,11 +281,18 @@ impl Settings {
         }
     }
 
+    /// Klucz fal.ai: wpisany w Ustawieniach albo ze zmiennej środowiskowej `FAL_KEY`.
+    pub fn fal_api_key(&self) -> String {
+        let key = self.fal_key.trim();
+        if key.is_empty() { std::env::var("FAL_KEY").unwrap_or_default().trim().to_string() } else { key.to_string() }
+    }
+
     /// Ścieżka pliku modelu: wpisana w Ustawieniach albo domyślna w katalogu danych AsOne.
     pub fn ai_model_path(&self) -> std::path::PathBuf {
         let custom = match self.ai_model {
             AiModel::Rmbg14 => self.ai_path_14.trim(),
             AiModel::Rmbg20 => self.ai_path_20.trim(),
+            AiModel::Rmbg30Fal => return std::path::PathBuf::new(),
         };
         if !custom.is_empty() {
             let p = std::path::PathBuf::from(custom);

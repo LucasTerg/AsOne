@@ -189,21 +189,28 @@ wcześniejsze pliki `.jpg` o tych samych nazwach, nigdy oryginałów.
 
 ## Usuwanie tła AI
 
-Lokalnie, przez ONNX Runtime (`ort`, wkompilowany statycznie) – zdjęcia nie są nigdzie wysyłane.
+RMBG-1.4 i 2.0 lokalnie, przez ONNX Runtime (`ort`, wkompilowany statycznie) – zdjęcia nie są
+nigdzie wysyłane. RMBG-3.0 – opcjonalnie online przez fal.ai (`apps/asone/src/fal.rs`).
 Ustawienia › Preferencje › **Usuwanie tła (AI)**: wybór modelu, ścieżka pliku („Wybierz…”),
-„Pobierz model” z paskiem postępu.
+„Pobierz model” z paskiem postępu, klucz fal.ai.
 
 | Model | Plik | Dostęp | RAM (szczyt) · czas na CPU |
 |---|---|---|---|
 | BRIA RMBG-1.4 | [model.onnx](https://huggingface.co/briaai/RMBG-1.4/resolve/main/onnx/model.onnx) (~176 MB) | publiczny | ~1 GB · ~1 s |
 | BRIA RMBG-2.0 | [model.onnx](https://huggingface.co/briaai/RMBG-2.0/resolve/main/onnx/model.onnx) (~1 GB) | token Hugging Face (darmowy po rejestracji, <https://huggingface.co/settings/tokens>) + akceptacja licencji na stronie modelu | **~7,6 GB** · 15–20 s |
+| BRIA RMBG-3.0 online | – (serwer [fal.ai `bria/rmbg-3`](https://fal.ai/models/bria/rmbg-3)) | klucz API fal.ai i kredyty: płatne za zdjęcie (0,018 USD wg cennika z 20.11.2026); **do zastosowań komercyjnych** | – · kilka–kilkanaście s |
+
+RMBG-3.0 to model dyfuzyjny 8 mld parametrów (karta graficzna ≥ 32 GB), więc działa tylko online:
+AsOne wysyła zdjęcie (JPEG, dłuższy bok do 2048 px, bez metadanych) i dostaje maskę w rozmiarze
+zdjęcia. Test (płatne zapytanie): `FAL_KEY=… cargo test -p asone fal_na_zywo -- --ignored`.
 
 RMBG-2.0 (BiRefNet) jest bardzo pamięciożerny: przed każdym przebiegiem program sprawdza wolną
 pamięć (RAM + swap) i zamiast dać się zabić systemowi (OOM) pokazuje komunikat z propozycją
 RMBG-1.4. Model jest zwalniany z pamięci po 2 minutach bezczynności.
 
-Domyślne miejsce: `~/.local/share/asone/models/`. Modele BRIA są darmowe do użytku
-niekomercyjnego. AI działa w wersjach desktopowych (Linux, Windows, macOS); w przeglądarce,
+Domyślne miejsce: `~/.local/share/asone/models/`. Lokalne modele BRIA (RMBG-1.4, 2.0) są darmowe
+do użytku niekomercyjnego; do zastosowań komercyjnych – umowa z BRIA albo RMBG-3.0 przez fal.ai
+(na stronie modelu: „Commercial use”, trenowany wyłącznie na licencjonowanych danych). AI działa w wersjach desktopowych (Linux, Windows, macOS); w przeglądarce,
 na Androidzie i FreeBSD przycisk zgłasza, że funkcja jest niedostępna.
 Test na prawdziwym modelu: `cargo test -p asone rmbg14 -- --ignored`; pomiar pamięci:
 `ASONE_RMBG_MODEL=…/rmbg-2.0.onnx ASONE_RMBG_KIND=20 cargo test -p asone --release rmbg_pamiec -- --ignored --nocapture`.

@@ -11,6 +11,8 @@ pub mod app;
 pub mod canvas;
 pub mod document;
 pub mod export;
+#[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+pub mod fal;
 pub mod history;
 pub mod loader;
 pub mod platform;

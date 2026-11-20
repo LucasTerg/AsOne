@@ -278,10 +278,11 @@ dependencies = [
 
 [[package]]
 name = "asone"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "arboard",
  "asone-core",
+ "base64 0.22.1",
  "bytemuck",
  "crossbeam-channel",
  "eframe",
@@ -298,6 +299,7 @@ dependencies = [
  "rayon",
  "rfd",
  "serde",
+ "serde_json",
  "trash",
  "ureq",
  "wasm-bindgen",
@@ -310,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "asone-cli"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "asone-core",
  "base64 0.22.1",
@@ -325,7 +327,7 @@ dependencies = [
 
 [[package]]
 name = "asone-core"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "avif-decode",
  "deunicode",

@@ -2,7 +2,8 @@
 //!
 //! * RMBG-1.4 – publiczny, plik do pobrania bez rejestracji,
 //! * RMBG-2.0 – dokładniejszy (BiRefNet); repozytorium na Hugging Face jest „gated”: do pobrania
-//!   potrzebny jest darmowy token (klucz API) i akceptacja licencji na stronie modelu.
+//!   potrzebny jest darmowy token (klucz API) i akceptacja licencji na stronie modelu,
+//! * RMBG-3.0 – online przez fal.ai ([`crate::fal`]): zdjęcie jest wysyłane, płatne za zdjęcie.
 //!
 //! Model dostaje pomniejszoną kopię zdjęcia (≤1024 px), rozciągniętą do 1024×1024, i zwraca maskę
 //! 1024×1024. Wątek roboczy skaluje ją (Lanczos3) do rozdzielczości zdjęcia, a UI wgrywa ją do
@@ -16,7 +17,7 @@ use crossbeam_channel::{Receiver, Sender};
 use image::{GrayImage, RgbaImage};
 
 use crate::document::DocId;
-use crate::platform::Tasks;
+use crate::platform::{ImageSource, Tasks};
 pub use crate::settings::AiModel;
 
 /// Czy ta kompilacja potrafi uruchomić model lokalnie.
@@ -29,6 +30,8 @@ pub enum AiError {
     Inference(String),
     /// Za mało wolnej pamięci (RAM + swap) na przebieg modelu – w GB.
     NotEnoughMemory { model: AiModel, need_gb: f32, free_gb: f32 },
+    /// Model online (fal.ai): brak klucza, połączenia, salda…
+    Online(String),
 }
 
 impl std::fmt::Display for AiError {
@@ -47,6 +50,7 @@ impl std::fmt::Display for AiError {
                  Zamknij inne programy albo wybierz RMBG-1.4 (ok. 1 GB).",
                 model.label()
             ),
+            AiError::Online(s) => f.write_str(s),
         }
     }
 }
@@ -66,6 +70,7 @@ pub fn memory_need_gb(model: AiModel) -> (f32, f32) {
     match model {
         AiModel::Rmbg14 => (0.5, 0.5),
         AiModel::Rmbg20 => (1.7, 6.0),
+        AiModel::Rmbg30Fal => (0.0, 0.0),
     }
 }
 
@@ -116,6 +121,9 @@ fn trim_heap() {
 
 pub const INPUT: u32 = 1024;
 
+/// Dłuższy bok zdjęcia wysyłanego do RMBG-3.0 online (fal.ai).
+pub const FAL_UPLOAD_SIDE: u32 = 2048;
+
 /// Wejście modelu: NCHW f32, obraz rozciągnięty do 1024×1024.
 /// RMBG-1.4: `x/255 − 0.5`; RMBG-2.0: normalizacja ImageNet.
 pub fn preprocess(image: &RgbaImage, model: AiModel) -> Result<Vec<f32>, String> {
@@ -126,7 +134,7 @@ pub fn preprocess(image: &RgbaImage, model: AiModel) -> Result<Vec<f32>, String>
     )?;
     let (mean, std) = match model {
         AiModel::Rmbg14 => ([0.5f32; 3], [1.0f32; 3]),
-        AiModel::Rmbg20 => ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        AiModel::Rmbg20 | AiModel::Rmbg30Fal => ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
     };
     let plane = (INPUT * INPUT) as usize;
     let mut data = vec![0f32; 3 * plane];
@@ -242,6 +250,10 @@ pub struct AiJob {
     pub full_size: [u32; 2],
     pub model: AiModel,
     pub path: PathBuf,
+    /// Oryginał – model online dostaje zdjęcie w wyższej rozdzielczości niż `image`.
+    pub source: ImageSource,
+    /// Klucz fal.ai (model online).
+    pub fal_key: String,
 }
 
 pub enum AiResult {
@@ -297,7 +309,9 @@ impl AiWorker {
 
     pub fn submit(&mut self, job: AiJob) {
         self.pending += 1;
-        self.loaded = true;
+        if !job.model.is_online() {
+            self.loaded = true;
+        }
         self.idle_since = None;
         let (remover, tx, ctx) = (self.remover.clone(), self.tx.clone(), self.ctx.clone());
         self.tasks.spawn(move || {
@@ -312,9 +326,28 @@ impl AiWorker {
 }
 
 fn run_job(remover: &dyn BackgroundRemover, job: &AiJob) -> Result<Vec<u8>, AiError> {
-    let small = remover.predict_mask(job.model, &job.path, &job.image)?;
+    let small = if job.model.is_online() {
+        predict_online(job)?
+    } else {
+        remover.predict_mask(job.model, &job.path, &job.image)?
+    };
     let (w, h) = small.dimensions();
     resize_gray(small.as_raw(), [w, h], job.full_size).map_err(AiError::Inference)
+}
+
+/// RMBG-3.0 przez fal.ai: oryginał (albo, gdy się nie wczyta, pomniejszona kopia).
+fn predict_online(job: &AiJob) -> Result<GrayImage, AiError> {
+    #[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+    {
+        let full = job.source.decode().ok();
+        let image = full.as_ref().unwrap_or(job.image.as_ref());
+        crate::fal::remove_background(image, &job.fal_key).map_err(AiError::Online)
+    }
+    #[cfg(not(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos"))))]
+    {
+        let _ = job;
+        Err(AiError::BackendUnavailable("działa w wersji desktopowej (Linux, Windows, macOS)".into()))
+    }
 }
 
 // --- Pobieranie modelu ---------------------------------------------------------------------

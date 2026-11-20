@@ -55,6 +55,7 @@ impl AsOneApp {
         let tool = self.tool;
         let ai_model = self.settings.ai_model;
         let ai_path = self.settings.ai_model_path();
+        let fal_key = if ai_model.is_online() { self.settings.fal_api_key() } else { String::new() };
         let hide_mask = self.settings.hide_mask_toggle;
         let hide_inspection = self.settings.hide_inspection;
         let mut open_ai_prefs = false;
@@ -118,16 +119,28 @@ impl AsOneApp {
                 AiState::Running => {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label("Usuwanie tła…");
+                        ui.label(if ai_model.is_online() { "Usuwanie tła (fal.ai)…" } else { "Usuwanie tła…" });
                     });
                 }
                 state => {
                     ui.horizontal(|ui| {
-                        let tip = format!("{} · {}", ai_model.label(), ai_path.display());
+                        let tip = if ai_model.is_online() {
+                            format!("{} – zdjęcie zostanie wysłane do fal.ai (płatne za zdjęcie)", ai_model.label())
+                        } else {
+                            format!("{} · {}", ai_model.label(), ai_path.display())
+                        };
                         if ui.button("Usuń tło").on_hover_text(tip).clicked()
                             && let Some(image) = doc.ai_proxy.clone()
                         {
-                            ai_job = Some(AiJob { id, image, full_size: src, model: ai_model, path: ai_path.clone() });
+                            ai_job = Some(AiJob {
+                                id,
+                                image,
+                                full_size: src,
+                                model: ai_model,
+                                path: ai_path.clone(),
+                                source: doc.source.clone(),
+                                fal_key: fal_key.clone(),
+                            });
                             doc.ai = AiState::Running;
                         }
                         if ui.small_button("⚙").on_hover_text("Model i plik: Ustawienia › Preferencje › Usuwanie tła (AI)").clicked() {
@@ -136,7 +149,7 @@ impl AsOneApp {
                     });
                     if let AiState::Failed(e) = state {
                         ui.colored_label(pal.danger, &e);
-                        if crate::ai::AVAILABLE && !ai_path.is_file() && ui.button("Pobierz model…").clicked() {
+                        if crate::ai::AVAILABLE && !ai_model.is_online() && !ai_path.is_file() && ui.button("Pobierz model…").clicked() {
                             open_ai_prefs = true;
                         }
                     }

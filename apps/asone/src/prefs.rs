@@ -43,6 +43,7 @@ impl PrefsDialog {
         match self.draft.ai_model {
             AiModel::Rmbg14 => self.draft.ai_path_14 = p,
             AiModel::Rmbg20 => self.draft.ai_path_20 = p,
+            AiModel::Rmbg30Fal => {}
         }
     }
 
@@ -260,10 +261,68 @@ fn export_page(ui: &mut Ui, s: &mut Settings) {
     }
 }
 
+/// RMBG-3.0 online (fal.ai): koszt, klucz API, co jest wysyłane.
+fn online_rows(ui: &mut Ui, s: &mut Settings) {
+    let pal = theme::p();
+    row(ui, "Wymagania", |ui| {
+        ui.vertical(|ui| {
+            ui.colored_label(pal.warning, "internet · konto fal.ai z doładowanymi kredytami");
+            ui.horizontal_wrapped(|ui| {
+                ui.small("0,018 USD za zdjęcie (cennik fal.ai z 20.11.2026) –");
+                ui.hyperlink_to(egui::RichText::new("aktualna cena").small(), s.ai_model.page_url());
+            });
+            ui.small("kilka–kilkanaście sekund na zdjęcie (wysyłanie + model na serwerze)");
+        });
+    });
+    row(ui, "Klucz fal.ai", |ui| {
+        ui.vertical(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut s.fal_key)
+                    .password(true)
+                    .hint_text("klucz API fal.ai (albo zmienna FAL_KEY)")
+                    .desired_width(300.0),
+            );
+            ui.horizontal_wrapped(|ui| {
+                ui.hyperlink_to(egui::RichText::new("utwórz klucz").small(), "https://fal.ai/dashboard/keys");
+                ui.small("·");
+                ui.hyperlink_to(egui::RichText::new("saldo i zużycie").small(), "https://fal.ai/dashboard/usage-billing");
+                ui.small("·");
+                ui.hyperlink_to(egui::RichText::new("historia zapytań").small(), "https://fal.ai/dashboard/requests");
+            });
+            ui.small("Klucz jest zapisywany tylko lokalnie, w ustawieniach AsOne.");
+            if s.fal_key.trim().is_empty() && !s.fal_api_key().is_empty() {
+                ui.small("używany klucz ze zmiennej środowiskowej FAL_KEY");
+            }
+        });
+    });
+    row(ui, "Licencja", |ui| {
+        ui.vertical(|ui| {
+            ui.colored_label(pal.ok(), "do zastosowań komercyjnych");
+            ui.horizontal_wrapped(|ui| {
+                ui.small("fal.ai: „Commercial use” – model trenowany wyłącznie na licencjonowanych danych –");
+                ui.hyperlink_to(egui::RichText::new("warunki na stronie modelu").small(), s.ai_model.page_url());
+            });
+        });
+    });
+    row(ui, "Wysyłane", |ui| {
+        ui.vertical(|ui| {
+            ui.small(format!(
+                "zdjęcie jako JPEG (dłuższy bok do {} px, bez metadanych) do fal.ai, model bria/rmbg-3",
+                crate::ai::FAL_UPLOAD_SIDE
+            ));
+            ui.small("wynik: maska przezroczystości w rozmiarze zdjęcia – dalej jak przy modelach lokalnych");
+        });
+    });
+}
+
 fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, result: &mut PrefsResult) {
     let pal = theme::p();
     ui.heading("Usuwanie tła (AI)");
-    ui.colored_label(pal.text_dim, "Modele BRIA RMBG działają lokalnie – zdjęcia nie są nigdzie wysyłane.");
+    if s.ai_model.is_online() {
+        ui.colored_label(pal.warning, "RMBG-3.0 online: zdjęcie jest wysyłane do fal.ai, każde usunięcie tła jest płatne.");
+    } else {
+        ui.colored_label(pal.text_dim, "Modele BRIA RMBG-1.4 i 2.0 działają lokalnie – zdjęcia nie są nigdzie wysyłane.");
+    }
     if !crate::ai::AVAILABLE {
         ui.colored_label(pal.warning, "W tej wersji (przeglądarka, Android, FreeBSD) usuwanie tła AI jest niedostępne.");
     }
@@ -282,6 +341,10 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                 ui.hyperlink_to("strona modelu", s.ai_model.page_url());
             });
         });
+        if s.ai_model.is_online() {
+            online_rows(ui, s);
+            return;
+        }
         row(ui, "Wymagania", |ui| {
             let (weights, run) = crate::ai::memory_need_gb(s.ai_model);
             let (text, color) = match s.ai_model {
@@ -290,6 +353,7 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                     format!("ok. {:.0} GB wolnej pamięci RAM · 15–20 s na zdjęcie (procesor)", (weights + run).ceil()),
                     pal.warning,
                 ),
+                AiModel::Rmbg30Fal => (String::new(), pal.text_dim),
             };
             ui.vertical(|ui| {
                 ui.colored_label(color, text);
@@ -303,7 +367,7 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                 let default = crate::settings::default_models_dir().join(s.ai_model.file_name());
                 let field = match s.ai_model {
                     AiModel::Rmbg14 => &mut s.ai_path_14,
-                    AiModel::Rmbg20 => &mut s.ai_path_20,
+                    AiModel::Rmbg20 | AiModel::Rmbg30Fal => &mut s.ai_path_20,
                 };
                 ui.add(
                     egui::TextEdit::singleline(field)
@@ -371,10 +435,13 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
         });
     });
     ui.add_space(8.0);
-    ui.colored_label(
-        pal.text_dim,
-        egui::RichText::new("Modele BRIA RMBG są darmowe do użytku niekomercyjnego; do użytku komercyjnego potrzebna jest umowa z BRIA.").small(),
-    );
+    let note = if s.ai_model.is_online() {
+        "RMBG-3.0 przez fal.ai: także do zastosowań komercyjnych; zapytania rozlicza fal.ai (przedpłacone kredyty)."
+    } else {
+        "Lokalne modele BRIA RMBG-1.4 i 2.0 są darmowe do użytku niekomercyjnego; do komercyjnego potrzebna jest umowa \
+         z BRIA – albo RMBG-3.0 przez fal.ai."
+    };
+    ui.colored_label(pal.text_dim, egui::RichText::new(note).small());
     ui.add_space(6.0);
     if ui.button("Przywróć domyślne").clicked() {
         s.reset_section(PrefsSection::Ai);

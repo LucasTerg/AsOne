@@ -21,8 +21,9 @@ path = "src/main.rs"
 default = ["mozjpeg", "ai", "avif"]
 # Wczytywanie AVIF (poza przeglądarką).
 avif = ["asone-core/avif"]
-# Usuwanie tła AI lokalnie (ONNX Runtime przez `ort`, modele BRIA RMBG) – Linux, Windows, macOS.
-ai = ["dep:ort", "dep:ureq"]
+# Usuwanie tła AI: lokalnie (ONNX Runtime przez `ort`, modele BRIA RMBG) i RMBG-3.0 online (fal.ai)
+# – Linux, Windows, macOS.
+ai = ["dep:ort", "dep:ureq", "dep:base64", "dep:serde_json"]
 # MozJPEG przy eksporcie (desktop/Android). Bez niej – oraz na wasm – czysto rustowy koder.
 mozjpeg = ["asone-core/mozjpeg"]
 nasm = ["asone-core/nasm"]
@@ -50,6 +51,9 @@ rayon = "1.12"
 [target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))'.dependencies]
 ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "download-binaries", "copy-dylibs", "tls-native", "api-23"], optional = true }
 ureq = { version = "3.5", optional = true }
+# RMBG-3.0 online (fal.ai): zdjęcie jako data URI w JSON.
+base64 = { version = "0.22", optional = true }
+serde_json = { version = "1", optional = true }
 
 # Desktop: schowek („Wklej nazwę”, także Wayland) i systemowy kosz („Usuń z dysku”).
 [target.'cfg(not(any(target_os = "android", target_arch = "wasm32")))'.dependencies]
