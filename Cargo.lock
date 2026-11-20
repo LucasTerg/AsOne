@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "asone"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "arboard",
  "asone-core",
@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "asone-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "asone-core",
  "base64 0.22.1",
@@ -323,7 +323,7 @@ dependencies = [
 
 [[package]]
 name = "asone-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "avif-decode",
  "deunicode",
