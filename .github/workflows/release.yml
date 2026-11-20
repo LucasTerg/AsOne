@@ -42,7 +42,8 @@ jobs:
       - name: Pakiety systemowe i runtime Flatpak
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends nasm pkg-config flatpak
+          # librsvg2-common: flatpak build-export sprawdza ikonę SVG przez gdk-pixbuf.
+          sudo apt-get install -y --no-install-recommends nasm pkg-config flatpak librsvg2-common
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//26.08 org.freedesktop.Sdk//26.08
       - uses: dtolnay/rust-toolchain@stable
@@ -64,9 +65,11 @@ jobs:
         run: |
           f="$RUNNER_TEMP/build.log"
           [ -f "$f" ] || exit 0
-          enc() { sed 's/\r//g; s/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
-          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked' "$f" | tail -n 40 | enc)"
-          echo "::error title=Końcówka logu::$(tail -n 60 "$f" | enc)"
+          clean="$RUNNER_TEMP/build-clean.log"
+          sed 's/\x1b\[[0-9;]*m//g; s/\r//g' "$f" > "$clean"
+          enc() { sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked|Undefined symbols|referenced from|ld: |^ +"?_' "$clean" | grep -v 'ld: warning' | tail -n 60 | enc)"
+          echo "::error title=Końcówka logu::$(grep -v 'ld: warning' "$clean" | tail -n 60 | enc)"
           echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - uses: actions/upload-artifact@v5
         with:
@@ -107,9 +110,11 @@ jobs:
         run: |
           f="$RUNNER_TEMP/build.log"
           [ -f "$f" ] || exit 0
-          enc() { sed 's/\r//g; s/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
-          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked' "$f" | tail -n 40 | enc)"
-          echo "::error title=Końcówka logu::$(tail -n 60 "$f" | enc)"
+          clean="$RUNNER_TEMP/build-clean.log"
+          sed 's/\x1b\[[0-9;]*m//g; s/\r//g' "$f" > "$clean"
+          enc() { sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked|Undefined symbols|referenced from|ld: |^ +"?_' "$clean" | grep -v 'ld: warning' | tail -n 60 | enc)"
+          echo "::error title=Końcówka logu::$(grep -v 'ld: warning' "$clean" | tail -n 60 | enc)"
           echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - name: Paczka ZIP
         shell: bash
@@ -135,8 +140,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { target: aarch64-apple-darwin, arch: arm64 }
-          - { target: x86_64-apple-darwin, arch: x86_64 }
+          # Minimalny macOS = ten, dla którego zbudowany jest ONNX Runtime (arm64: pyke 13.4, Intel: PyPI 13.0).
+          - { target: aarch64-apple-darwin, arch: arm64, min_macos: "13.4" }
+          - { target: x86_64-apple-darwin, arch: x86_64, min_macos: "13.0" }
+    env:
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.min_macos }}
+      MIN_MACOS: ${{ matrix.min_macos }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -168,7 +177,6 @@ jobs:
             echo "ORT_PREFER_DYNAMIC_LINK=1"
             echo "RUSTFLAGS=-C link-arg=-Wl,-rpath,@executable_path"
             echo "EXTRA_DYLIBS=$ORT/libonnxruntime.1.23.2.dylib"
-            echo "MIN_MACOS=13.0"
           } >> "$GITHUB_ENV"
       - name: Budowanie
         run: |
@@ -181,9 +189,11 @@ jobs:
         run: |
           f="$RUNNER_TEMP/build.log"
           [ -f "$f" ] || exit 0
-          enc() { sed 's/\r//g; s/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
-          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked' "$f" | tail -n 40 | enc)"
-          echo "::error title=Końcówka logu::$(tail -n 60 "$f" | enc)"
+          clean="$RUNNER_TEMP/build-clean.log"
+          sed 's/\x1b\[[0-9;]*m//g; s/\r//g' "$f" > "$clean"
+          enc() { sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked|Undefined symbols|referenced from|ld: |^ +"?_' "$clean" | grep -v 'ld: warning' | tail -n 60 | enc)"
+          echo "::error title=Końcówka logu::$(grep -v 'ld: warning' "$clean" | tail -n 60 | enc)"
           echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - name: AsOne.app (ZIP)
         run: packaging/macos/bundle.sh ${{ matrix.target }} ${{ matrix.arch }}
@@ -264,9 +274,11 @@ jobs:
         run: |
           f="$RUNNER_TEMP/build.log"
           [ -f "$f" ] || exit 0
-          enc() { sed 's/\r//g; s/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
-          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked' "$f" | tail -n 40 | enc)"
-          echo "::error title=Końcówka logu::$(tail -n 60 "$f" | enc)"
+          clean="$RUNNER_TEMP/build-clean.log"
+          sed 's/\x1b\[[0-9;]*m//g; s/\r//g' "$f" > "$clean"
+          enc() { sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked|Undefined symbols|referenced from|ld: |^ +"?_' "$clean" | grep -v 'ld: warning' | tail -n 60 | enc)"
+          echo "::error title=Końcówka logu::$(grep -v 'ld: warning' "$clean" | tail -n 60 | enc)"
           echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - uses: actions/upload-artifact@v5
         with:
@@ -305,9 +317,11 @@ jobs:
         run: |
           f="$RUNNER_TEMP/build.log"
           [ -f "$f" ] || exit 0
-          enc() { sed 's/\r//g; s/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
-          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked' "$f" | tail -n 40 | enc)"
-          echo "::error title=Końcówka logu::$(tail -n 60 "$f" | enc)"
+          clean="$RUNNER_TEMP/build-clean.log"
+          sed 's/\x1b\[[0-9;]*m//g; s/\r//g' "$f" > "$clean"
+          enc() { sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          echo "::error title=Błędy z logu::$(grep -E '^error|error\[|[Ee]rror:|ERROR|failed|panicked|Undefined symbols|referenced from|ld: |^ +"?_' "$clean" | grep -v 'ld: warning' | tail -n 60 | enc)"
+          echo "::error title=Końcówka logu::$(grep -v 'ld: warning' "$clean" | tail -n 60 | enc)"
           echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - uses: actions/upload-artifact@v5
         with:
@@ -354,7 +368,7 @@ jobs:
 
             Programy nie są podpisane certyfikatami Microsoft ani Apple:
             * Windows (SmartScreen): „Więcej informacji” › „Uruchom mimo to”.
-            * macOS: po pierwszej próbie Ustawienia systemowe › Prywatność i ochrona › „Otwórz mimo to” (albo `xattr -dr com.apple.quarantine AsOne.app`). Wersja Intel wymaga macOS 13 lub nowszego.
+            * macOS: po pierwszej próbie Ustawienia systemowe › Prywatność i ochrona › „Otwórz mimo to” (albo `xattr -dr com.apple.quarantine AsOne.app`). Wymagany macOS 13 (Intel) lub 13.4 (Apple Silicon) albo nowszy.
 
             Modele usuwania tła (BRIA RMBG) pobiera się w programie: Ustawienia › Preferencje › Usuwanie tła (AI).
             `SHA256SUMS.txt` – sumy kontrolne plików.
