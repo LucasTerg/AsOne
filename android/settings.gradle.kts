@@ -9,6 +9,8 @@ pluginManagement {
     }
     mavenCentral()
     gradlePluginPortal()
+    // Kopia Maven Central (Google) – gdy repo.maven.apache.org chwilowo nie odpowiada.
+    maven("https://maven-central.storage-download.googleapis.com/maven2/")
   }
 }
 
@@ -23,6 +25,7 @@ dependencyResolutionManagement {
       }
     }
     mavenCentral()
+    maven("https://maven-central.storage-download.googleapis.com/maven2/")
   }
 }
 

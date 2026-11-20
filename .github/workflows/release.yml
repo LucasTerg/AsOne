@@ -275,7 +275,9 @@ jobs:
           else
             echo "::warning title=Android::Brak sekretu ANDROID_KEYSTORE_BASE64 – APK podpisany kluczem debug."
           fi
-          (cd android && ./gradlew assembleRelease --no-daemon --console=plain) 2>&1 | tee -a "$RUNNER_TEMP/build.log"
+          gradle() { (cd android && ./gradlew assembleRelease --no-daemon --console=plain "$@") 2>&1 | tee -a "$RUNNER_TEMP/build.log"; }
+          # Maven Central bywa chwilowo niedostępny („Could not find …”) – druga próba po minucie.
+          gradle || { echo "::warning title=Gradle::błąd pobierania zależności – druga próba"; sleep 60; gradle --refresh-dependencies; }
           V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
           mkdir -p dist
           cp android/app/build/outputs/apk/release/app-release.apk "dist/AsOne-$V-android.apk"
