@@ -7,6 +7,14 @@ z limitami pilnowanymi przy każdym zapisie.
 
 ## Pobieranie
 
+**Najnowsza wersja:** <https://github.com/LucasTerg/AsOne/releases/latest> – albo przyciski pobierania
+na <https://asone.lmk.one/>. AppImage aktualizuje się sam: sprawdza nową wersję przy starcie (wyłączenie:
+Preferencje › Interfejs) i w menu Pomoc › Sprawdź aktualizacje; pobrany plik jest sprawdzany sumą SHA-256.
+Ma też wbudowaną informację o aktualizacji dla AppImageUpdate / GearLever (zsync – tylko zmienione części).
+
+Linux pod Waylandem: AsOne otwiera okno przez XWayland (X11), bo tylko tak działa przeciąganie plików
+z menedżera plików na program; `ASONE_WAYLAND=1` – czysty Wayland (bez przeciągania).
+
 Gotowe pliki są w [Releases](https://github.com/LucasTerg/AsOne/releases): Linux (AppImage,
 Flatpak, tar.gz; x86_64 i aarch64), Windows (x86_64, ARM64), macOS (Apple Silicon, Intel),
 FreeBSD, Android (APK) i wersja web. Buduje je GitHub Actions (`.github/workflows/release.yml`)

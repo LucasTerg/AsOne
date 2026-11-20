@@ -80,8 +80,15 @@ build_appimage() {
   # Bez FUSE (kontenery, SteamOS): appimagetool rozpakowuje się sam.
   # Nowy plik obok + podmiana nazwy: działająca kopia AppImage czyta ze starego pliku (FUSE)
   # i wysypałaby się, gdyby nadpisać go w miejscu.
-  APPIMAGE_EXTRACT_AND_RUN=1 ARCH="$ARCH" "$tool" --no-appstream "$appdir" "$out.new" >/dev/null
+  # Informacja o aktualizacji (AppImageUpdate, GearLever): najnowsze wydanie na GitHubie. Gdy jest
+  # zsyncmake (pakiet zsync), powstaje też .zsync – aktualizacja pobiera tylko zmienione części.
+  local update="gh-releases-zsync|LucasTerg|AsOne|latest|AsOne-*-$ARCH.AppImage.zsync"
+  APPIMAGE_EXTRACT_AND_RUN=1 ARCH="$ARCH" "$tool" --no-appstream -u "$update" --file-url "AsOne-$VERSION-$ARCH.AppImage" \
+    "$appdir" "$out.new" >/dev/null
   mv -f "$out.new" "$out"
+  if [[ -f "$out.new.zsync" ]]; then
+    mv -f "$out.new.zsync" "$out.zsync"
+  fi
   echo "    zapisano $out"
 }
 
@@ -94,7 +101,7 @@ build_flatpak() {
   cp -R "$STAGE/." "$app/files/"
   flatpak build-finish "$app" \
     --command=asone \
-    --socket=wayland --socket=fallback-x11 --share=ipc \
+    --socket=wayland --socket=x11 --share=ipc \
     --device=dri \
     --share=network \
     --filesystem=xdg-pictures --filesystem=xdg-download --filesystem=xdg-documents --filesystem=xdg-desktop \

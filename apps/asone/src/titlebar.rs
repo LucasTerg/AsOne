@@ -29,6 +29,7 @@ pub enum MenuAction {
     ToggleTabNumberOnly,
     ToggleHidden(crate::settings::HideItem),
     Shortcuts,
+    CheckUpdates,
     About,
 }
 
@@ -274,6 +275,9 @@ fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, state: MenuStat
         _ => {
             if item(ui, "Skróty klawiszowe", "F1") {
                 out.push(MenuAction::Shortcuts);
+            }
+            if cfg!(not(target_arch = "wasm32")) && item(ui, "Sprawdź aktualizacje…", "") {
+                out.push(MenuAction::CheckUpdates);
             }
             if item(ui, "O programie AsOne", "") {
                 out.push(MenuAction::About);

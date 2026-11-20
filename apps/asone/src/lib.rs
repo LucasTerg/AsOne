@@ -24,6 +24,8 @@ pub mod settings;
 pub mod tabs;
 pub mod theme;
 pub mod titlebar;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod update;
 pub mod waifu2x;
 #[cfg(target_arch = "wasm32")]
 pub mod web;
@@ -35,7 +37,8 @@ pub const APP_ID: &str = "io.github.lucasterg.AsOne";
 /// Opcje okna natywnego (desktop i Android).
 #[cfg(not(target_arch = "wasm32"))]
 pub fn native_options() -> eframe::NativeOptions {
-    eframe::NativeOptions {
+    #[allow(unused_mut)]
+    let mut options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         viewport: egui::ViewportBuilder::default()
             .with_title(APP_TITLE)
@@ -49,7 +52,20 @@ pub fn native_options() -> eframe::NativeOptions {
             .with_decorations(cfg!(any(target_os = "macos", target_os = "android"))),
         wgpu_options: renderer::wgpu_configuration(),
         ..Default::default()
+    };
+    // Linux/BSD pod Waylandem: okno przez XWayland (X11), bo winit 0.30 nie obsługuje na Waylandzie
+    // upuszczania plików z menedżera plików. `ASONE_WAYLAND=1` – czysty Wayland (bez przeciągania).
+    #[cfg(all(unix, not(any(target_os = "android", target_os = "macos"))))]
+    {
+        let set = |k: &str| std::env::var_os(k).is_some_and(|v| !v.is_empty());
+        if set("WAYLAND_DISPLAY") && set("DISPLAY") && !set("ASONE_WAYLAND") {
+            options.event_loop_builder = Some(Box::new(|builder| {
+                use winit::platform::x11::EventLoopBuilderExtX11;
+                builder.with_x11();
+            }));
+        }
     }
+    options
 }
 
 /// Uruchamia aplikację natywną; `files` od razu trafiają do zakładek.

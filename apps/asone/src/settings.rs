@@ -298,6 +298,8 @@ pub struct Settings {
     pub show_tooltips: bool,
     /// Wygląd paska menu.
     pub bar_style: BarStyle,
+    /// AppImage: sprawdzanie nowej wersji przy starcie (GitHub).
+    pub check_updates: bool,
     /// Ostatnio otwierane foldery (ekran startowy), najnowsze pierwsze.
     pub recent_folders: Vec<String>,
 
@@ -380,6 +382,7 @@ impl Default for Settings {
             ui_scale: 100,
             show_tooltips: true,
             bar_style: BarStyle::Flat,
+            check_updates: true,
             recent_folders: Vec::new(),
             replicate_enabled: true,
             replicate_key: String::new(),
@@ -633,6 +636,7 @@ impl Settings {
                 self.ui_scale = d.ui_scale;
                 self.show_tooltips = d.show_tooltips;
                 self.bar_style = d.bar_style;
+                self.check_updates = d.check_updates;
                 self.animations = d.animations;
                 self.system_title_bar = d.system_title_bar;
                 self.photo_tabs_bottom = d.photo_tabs_bottom;

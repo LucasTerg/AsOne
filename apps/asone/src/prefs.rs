@@ -220,6 +220,12 @@ fn interface_page(ui: &mut Ui, s: &mut Settings) {
         row(ui, "", |ui| {
             ui.checkbox(&mut s.show_tooltips, "Pokaż podpowiedzi");
         });
+        if cfg!(not(target_arch = "wasm32")) {
+            row(ui, "", |ui| {
+                ui.checkbox(&mut s.check_updates, "Sprawdzaj aktualizacje przy starcie (wersja AppImage)")
+                    .on_hover_text("Pyta GitHub o najnowsze wydanie; nowa wersja pobiera się dopiero po kliknięciu „Zaktualizuj”.");
+            });
+        }
         row(ui, "", |ui| {
             ui.checkbox(&mut s.animations, "Animacje (menu, przewijanie)");
         });

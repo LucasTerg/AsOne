@@ -43,7 +43,8 @@ jobs:
         run: |
           sudo apt-get update
           # librsvg2-common: flatpak build-export sprawdza ikonę SVG przez gdk-pixbuf.
-          sudo apt-get install -y --no-install-recommends nasm pkg-config flatpak librsvg2-common
+          # zsync: appimagetool tworzy plik .zsync (aktualizacja AppImage tylko zmienionymi częściami).
+          sudo apt-get install -y --no-install-recommends nasm pkg-config flatpak librsvg2-common zsync
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//26.08 org.freedesktop.Sdk//26.08
       - uses: dtolnay/rust-toolchain@stable
@@ -76,6 +77,7 @@ jobs:
           name: linux-${{ matrix.arch }}
           path: |
             dist/*.AppImage
+            dist/*.AppImage.zsync
             dist/*.flatpak
             dist/*.tar.gz
           if-no-files-found: error
@@ -372,7 +374,7 @@ jobs:
 
             | System | Plik |
             |---|---|
-            | Linux x86_64 / aarch64 | `.AppImage` (uruchom), `.flatpak` (`flatpak install --user AsOne-….flatpak`), `.tar.gz` (same binarki `asone` + `asone-cli`) |
+            | Linux x86_64 / aarch64 | `.AppImage` (uruchom; aktualizuje się sam – Pomoc › Sprawdź aktualizacje), `.flatpak` (`flatpak install --user AsOne-….flatpak`), `.tar.gz` (same binarki `asone` + `asone-cli`) |
             | Windows x86_64 / ARM64 | `.zip` – rozpakuj i uruchom `asone.exe` |
             | macOS Apple Silicon / Intel | `.zip` z `AsOne.app` |
             | FreeBSD x86_64 | `.tar.gz` (usuwanie tła tylko online – RMBG-3.0 przez fal.ai; edycja AI przez Replicate) |

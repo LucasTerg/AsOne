@@ -98,7 +98,8 @@ rm -rf "$SITE/fdroid/repo"
 mkdir -p "$SITE/fdroid"
 cp -R "$WORK/repo" "$SITE/fdroid/repo"
 HOST_PATH="${REPO_URL#https://}"
-sed -e "s|@REPO_URL@|$REPO_URL|g" -e "s|@HOST_PATH@|$HOST_PATH|g" -e "s|@FINGERPRINT@|$FINGERPRINT|g" \
+VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' "$ROOT/Cargo.toml" | head -n 1)"
+sed -e "s|@REPO_URL@|$REPO_URL|g" -e "s|@HOST_PATH@|$HOST_PATH|g" -e "s|@FINGERPRINT@|$FINGERPRINT|g" -e "s|@VERSION@|$VERSION|g" \
   "$HERE/index.html.in" > "$SITE/index.html"
 touch "$SITE/.nojekyll"
 if [ -n "$DOMAIN" ]; then

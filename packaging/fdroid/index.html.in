@@ -39,6 +39,8 @@
   code { background: var(--code); padding: .1rem .3rem; border-radius: 4px; word-break: break-all; }
   a.button { display: inline-block; background: #2f7cf6; color: #fff; padding: .6rem 1rem; border-radius: 8px; text-decoration: none; }
   a.button.big { font-size: 1.1rem; padding: .8rem 1.4rem; }
+  .downloads { display: flex; flex-wrap: wrap; gap: .5rem; margin: .6rem 0; }
+  .downloads a.button { background: var(--code); color: var(--fg); border: 1px solid var(--border); }
   small { color: var(--dim); }
   header { display: flex; align-items: center; gap: .8rem; }
   header img { width: 48px; height: 48px; }
@@ -62,9 +64,18 @@
 Progressive JPEG bez metadanych.</p>
 <p><a class="button big" href="app/">Otwórz w przeglądarce</a>
 <small>WebGPU albo WebGL2</small></p>
-<p>Wersje dla Linuksa, Windows, macOS i FreeBSD:
-<a href="https://github.com/LucasTerg/AsOne/releases">GitHub Releases</a> ·
-<a href="https://github.com/LucasTerg/AsOne">kod źródłowy</a>.</p>
+<h2>Pobierz – wersja @VERSION@</h2>
+<div class="downloads">
+  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-x86_64.AppImage">Linux · AppImage (x86_64)</a>
+  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-aarch64.AppImage">Linux · AppImage (ARM64)</a>
+  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-windows-x86_64.zip">Windows (x86_64)</a>
+  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-macos-arm64.zip">macOS (Apple Silicon)</a>
+  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-macos-x86_64.zip">macOS (Intel)</a>
+  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v@VERSION@/AsOne-@VERSION@-android.apk">Android (APK)</a>
+</div>
+<p><small>AppImage aktualizuje się sam (Pomoc › Sprawdź aktualizacje). Pozostałe pliki (Flatpak, Windows ARM64,
+FreeBSD, tar.gz) i wcześniejsze wersje: <a href="https://github.com/LucasTerg/AsOne/releases/latest">najnowsze wydanie
+na GitHubie</a> · <a href="https://github.com/LucasTerg/AsOne">kod źródłowy</a>.</small></p>
 
 <h2>Android – repozytorium F-Droid</h2>
 <p>Własne repozytorium z wersją AsOne na Androida, budowaną przez GitHub Actions.</p>

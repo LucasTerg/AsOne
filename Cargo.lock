@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "asone"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "arboard",
  "asone-core",
@@ -300,6 +300,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "sha2",
  "trash",
  "ureq",
  "wasm-bindgen",
@@ -312,7 +313,7 @@ dependencies = [
 
 [[package]]
 name = "asone-cli"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "asone-core",
  "base64 0.22.1",
@@ -327,7 +328,7 @@ dependencies = [
 
 [[package]]
 name = "asone-core"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "avif-decode",
  "deunicode",

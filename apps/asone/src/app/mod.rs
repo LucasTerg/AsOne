@@ -110,6 +110,11 @@ pub struct AsOneApp {
     ai_prompt: String,
     /// Wybrana zakładka w sekcji „Narzędzia AI”.
     ai_tool: AiTool,
+    /// Samoaktualizacja AppImage.
+    #[cfg(not(target_arch = "wasm32"))]
+    update: Option<UpdateState>,
+    #[cfg(not(target_arch = "wasm32"))]
+    update_rx: Option<Receiver<UpdateMsg>>,
     /// Android: dokąd trafi tekst z systemowego okna edycji.
     #[cfg(target_os = "android")]
     text_target: platform::TextTarget,
@@ -146,6 +151,21 @@ pub(crate) enum InspectorTab {
     #[default]
     Tools,
     Metadata,
+}
+
+/// Samoaktualizacja AppImage: stan paska u góry okna.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) enum UpdateState {
+    Available(crate::update::Release),
+    Downloading { version: String, progress: std::sync::Arc<std::sync::atomic::AtomicU32> },
+    Ready { path: PathBuf, version: String },
+    Failed(String),
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) enum UpdateMsg {
+    Checked { result: Result<Option<crate::update::Release>, String>, manual: bool },
+    Installed(Result<(PathBuf, String), String>),
 }
 
 /// Zakładki sekcji „Narzędzia AI” w panelu (kolejne narzędzia dochodzą jako kolejne zakładki).
@@ -267,12 +287,20 @@ impl AsOneApp {
             recent_previews: HashMap::new(),
             ai_prompt: String::new(),
             ai_tool: AiTool::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            update: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            update_rx: None,
             #[cfg(target_os = "android")]
             text_target: platform::TextTarget::Name,
             meta_channel: metadata::MetaChannel::default(),
             settings,
         };
         app.apply_view_settings(ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        if app.settings.check_updates && crate::update::appimage_path().is_some() {
+            app.check_updates(ctx, false);
+        }
         app
     }
 
@@ -675,6 +703,15 @@ impl AsOneApp {
             }
             MenuAction::Shortcuts => self.dialogs.shortcuts = true,
             MenuAction::About => self.dialogs.about = true,
+            MenuAction::CheckUpdates => {
+                #[cfg(not(target_arch = "wasm32"))]
+                if crate::update::appimage_path().is_some() {
+                    self.check_updates(ctx, true);
+                } else {
+                    crate::platform::open_url(crate::update::RELEASES_PAGE);
+                    self.toast("Aktualizuje się sama wersja AppImage – pozostałe: strona wydań na GitHubie", false);
+                }
+            }
         }
     }
 
@@ -808,6 +845,122 @@ impl AsOneApp {
         }
     }
 
+    /// Sprawdzenie najnowszego wydania w tle (`manual` – z menu: komunikat także „masz najnowszą”).
+    #[cfg(not(target_arch = "wasm32"))]
+    fn check_updates(&mut self, ctx: &egui::Context, manual: bool) {
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let ctx = ctx.clone();
+        platform::spawn_detached("update-check", move || {
+            let _ = tx.send(UpdateMsg::Checked { result: crate::update::check(), manual });
+            ctx.request_repaint();
+        });
+        self.update_rx = Some(rx);
+        if manual {
+            self.toast("Sprawdzanie aktualizacji…", false);
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn poll_update(&mut self) {
+        let Some(rx) = &self.update_rx else { return };
+        let msgs: Vec<UpdateMsg> = rx.try_iter().collect();
+        for msg in msgs {
+            match msg {
+                UpdateMsg::Checked { result: Ok(Some(release)), .. } => self.update = Some(UpdateState::Available(release)),
+                UpdateMsg::Checked { result: Ok(None), manual } => {
+                    if manual {
+                        self.toast(format!("Masz najnowszą wersję AsOne ({})", env!("CARGO_PKG_VERSION")), false);
+                    }
+                }
+                UpdateMsg::Checked { result: Err(e), manual } => {
+                    if manual {
+                        self.toast(e, true);
+                    }
+                }
+                UpdateMsg::Installed(Ok((path, version))) => self.update = Some(UpdateState::Ready { path, version }),
+                UpdateMsg::Installed(Err(e)) => self.update = Some(UpdateState::Failed(e)),
+            }
+        }
+    }
+
+    /// Pasek u góry okna: nowa wersja / pobieranie / gotowe do uruchomienia.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn update_bar(&mut self, ui: &mut Ui) {
+        self.poll_update();
+        let Some(state) = &self.update else { return };
+        let pal = theme::p();
+        let mut action: Option<u8> = None; // 0 – zaktualizuj, 1 – później/zamknij, 2 – uruchom ponownie, 3 – strona
+        let frame = egui::Frame::new().fill(pal.accent.gamma_multiply(0.22)).inner_margin(egui::Margin::symmetric(10, 5));
+        egui::Panel::top("update_bar").frame(frame).show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| match state {
+                UpdateState::Available(r) => {
+                    ui.label(format!("Dostępna nowa wersja AsOne {} (masz {}).", r.version, env!("CARGO_PKG_VERSION")));
+                    if ui.button(egui::RichText::new("Zaktualizuj").strong()).clicked() {
+                        action = Some(0);
+                    }
+                    if ui.button("Później").clicked() {
+                        action = Some(1);
+                    }
+                    if ui.link("Co nowego").clicked() {
+                        action = Some(3);
+                    }
+                }
+                UpdateState::Downloading { version, progress } => {
+                    ui.label(format!("Pobieranie AsOne {version}…"));
+                    let f = progress.load(std::sync::atomic::Ordering::Relaxed) as f32 / 1000.0;
+                    ui.add(egui::ProgressBar::new(f).desired_width(240.0).show_percentage());
+                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
+                }
+                UpdateState::Ready { version, .. } => {
+                    ui.label(format!("AsOne {version} jest gotowy."));
+                    if ui.button(egui::RichText::new("Uruchom ponownie").strong()).clicked() {
+                        action = Some(2);
+                    }
+                    if ui.button("Później").clicked() {
+                        action = Some(1);
+                    }
+                }
+                UpdateState::Failed(e) => {
+                    ui.colored_label(pal.danger, format!("Aktualizacja nie powiodła się: {e}"));
+                    if ui.link("Strona wydań").clicked() {
+                        action = Some(3);
+                    }
+                    if ui.button("Zamknij").clicked() {
+                        action = Some(1);
+                    }
+                }
+            });
+        });
+        match action {
+            Some(0) => {
+                if let (Some(UpdateState::Available(release)), Some(current)) = (self.update.take(), crate::update::appimage_path()) {
+                    let progress = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+                    let (tx, rx) = crossbeam_channel::unbounded();
+                    let (p, ctx) = (progress.clone(), ui.ctx().clone());
+                    let version = release.version.clone();
+                    platform::spawn_detached("update-install", move || {
+                        let result = crate::update::install(&release, &current, &p).map(|path| (path, release.version.clone()));
+                        let _ = tx.send(UpdateMsg::Installed(result));
+                        ctx.request_repaint();
+                    });
+                    self.update_rx = Some(rx);
+                    self.update = Some(UpdateState::Downloading { version, progress });
+                }
+            }
+            Some(1) => self.update = None,
+            Some(2) => {
+                if let Some(UpdateState::Ready { path, .. }) = &self.update {
+                    match std::process::Command::new(path).spawn() {
+                        Ok(_) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
+                        Err(e) => self.update = Some(UpdateState::Failed(format!("{}: {e}", path.display()))),
+                    }
+                }
+            }
+            Some(3) => crate::platform::open_url(crate::update::RELEASES_PAGE),
+            _ => {}
+        }
+    }
+
     fn window_title(&self) -> String {
         match self.active_doc.and_then(|id| self.docs.get(&id)) {
             Some(doc) => format!("AsOne — {}", doc.file_name),
@@ -837,6 +990,8 @@ impl AsOneApp {
         for action in titlebar::title_bar(ui, &title, &self.settings, state) {
             self.menu_action(&ctx, action, &open);
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        self.update_bar(ui);
         self.top_bar(ui, &open);
         self.tool_bar(ui);
         self.inspector(ui, &open, &numbering);

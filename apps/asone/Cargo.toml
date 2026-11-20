@@ -50,6 +50,8 @@ web-time = "1.1"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rayon = "1.12"
 ureq = "3.5"
+# Samoaktualizacja AppImage: sprawdzenie sumy SHA-256 pobranego pliku.
+sha2 = "0.11"
 
 # AI: ONNX Runtime (prebudowane binarki pobierane przy budowaniu) i pobieranie modeli.
 [target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))'.dependencies]
@@ -69,6 +71,10 @@ xattr = "1"
 [target.'cfg(not(target_os = "android"))'.dependencies]
 rfd = "0.18"
 eframe = { version = "0.36", default-features = false, features = ["accesskit", "wayland", "x11"] }
+
+# Linux/BSD: wybór X11 (XWayland) zamiast Waylanda – upuszczanie plików (winit na Waylandzie go nie ma).
+[target.'cfg(all(unix, not(any(target_os = "android", target_os = "macos"))))'.dependencies]
+winit = { version = "0.30", default-features = false, features = ["x11"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # GameActivity (androidx.games:games-activity 4.4.0 – wersja z android-activity 0.6.1) z powłoką Kotlin
