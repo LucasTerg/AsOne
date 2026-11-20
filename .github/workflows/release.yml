@@ -414,11 +414,16 @@ jobs:
         with:
           name: android
           path: apk
+      # fdroidserver z PyPI (androguard 4): wersja z Ubuntu 24.04 (2.2.1, androguard 3) nie czyta
+      # tablicy zasobów z APK budowanych przez AGP 9 („res1 must be zero!”).
       - name: fdroidserver i JDK 21
         if: steps.keys.outputs.skip != '1'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends fdroidserver openjdk-21-jdk-headless apksigner qrencode
+          sudo apt-get install -y -qq --no-install-recommends openjdk-21-jdk-headless apksigner qrencode python3-venv
+          python3 -m venv "$RUNNER_TEMP/fdroidserver"
+          "$RUNNER_TEMP/fdroidserver/bin/pip" install -q "fdroidserver==2.4.5"
+          echo "$RUNNER_TEMP/fdroidserver/bin" >> "$GITHUB_PATH"
       - name: Aktualizacja repozytorium na gh-pages
         if: steps.keys.outputs.skip != '1'
         run: packaging/fdroid/update-repo.sh apk/*.apk

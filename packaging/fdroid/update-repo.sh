@@ -9,7 +9,7 @@
 # tymczasowym i nigdy nie trafia na gh-pages. Zmienne opcjonalne:
 #   REPO_URL   (domyślnie https://lucasterg.github.io/AsOne/fdroid/repo)
 #   NO_PUSH=1  (bez publikacji – do testów; wynik zostaje w $SITE)
-# Potrzebne: fdroidserver, JDK 21 (keytool, jarsigner – na Ubuntu 24.04 `openjdk-21-jdk-headless`,
+# Potrzebne: fdroidserver ≥ 2.4 (pip; starszy androguard nie czyta APK z AGP 9), JDK 21 (keytool, jarsigner – na Ubuntu 24.04 `openjdk-21-jdk-headless`,
 # bo fdroid używa /usr/lib/jvm/default-java), git, qrencode (kod QR na stronie).
 set -euo pipefail
 
