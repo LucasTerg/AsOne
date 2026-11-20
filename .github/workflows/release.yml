@@ -74,6 +74,8 @@ jobs:
           echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - uses: actions/upload-artifact@v5
         with:
+          # Tylko do przekazania plików do wydania – potem niepotrzebne.
+          retention-days: 3
           name: linux-${{ matrix.arch }}
           path: |
             dist/*.AppImage
@@ -131,6 +133,8 @@ jobs:
           (cd dist && 7z a -tzip "$OUT.zip" "$OUT" > /dev/null)
       - uses: actions/upload-artifact@v5
         with:
+          # Tylko do przekazania plików do wydania – potem niepotrzebne.
+          retention-days: 3
           name: windows-${{ matrix.arch }}
           path: dist/*.zip
           if-no-files-found: error
@@ -205,6 +209,8 @@ jobs:
         run: packaging/macos/bundle.sh ${{ matrix.target }} ${{ matrix.arch }}
       - uses: actions/upload-artifact@v5
         with:
+          # Tylko do przekazania plików do wydania – potem niepotrzebne.
+          retention-days: 3
           name: macos-${{ matrix.arch }}
           path: dist/*.zip
           if-no-files-found: error
@@ -232,6 +238,8 @@ jobs:
             tar czf "dist/AsOne-$V-freebsd-x86_64.tar.gz" -C target/release asone asone-cli
       - uses: actions/upload-artifact@v5
         with:
+          # Tylko do przekazania plików do wydania – potem niepotrzebne.
+          retention-days: 3
           name: freebsd-x86_64
           path: dist/*.tar.gz
           if-no-files-found: error
@@ -297,6 +305,8 @@ jobs:
           echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - uses: actions/upload-artifact@v5
         with:
+          # Tylko do przekazania plików do wydania – potem niepotrzebne.
+          retention-days: 3
           name: android
           path: dist/*.apk
           if-no-files-found: error
@@ -340,6 +350,8 @@ jobs:
           echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - uses: actions/upload-artifact@v5
         with:
+          # Tylko do przekazania plików do wydania – potem niepotrzebne.
+          retention-days: 3
           name: web
           path: dist/*.zip
           if-no-files-found: error
@@ -378,15 +390,34 @@ jobs:
             | Windows x86_64 / ARM64 | `.zip` – rozpakuj i uruchom `asone.exe` |
             | macOS Apple Silicon / Intel | `.zip` z `AsOne.app` |
             | FreeBSD x86_64 | `.tar.gz` (usuwanie tła tylko online – RMBG-3.0 przez fal.ai; edycja AI przez Replicate) |
-            | Android (arm64, x86_64) | `-android.apk` – wybór zdjęć z Galerii, zapis do Galerii (Pictures/AsOne); aktualizacje także z repozytorium F-Droid: https://lucasterg.github.io/AsOne/ |
-            | Przeglądarka | online: https://lucasterg.github.io/AsOne/app/ albo `-web.zip` – pliki do wrzucenia na serwer WWW (WebGPU / WebGL2; nie działa otwarte prosto z dysku) |
+            | Android (arm64, x86_64) | `-android.apk` – wybór zdjęć z Galerii, zapis do Galerii (Pictures/AsOne); aktualizacje także z repozytorium F-Droid: https://asone.lmk.one/ |
+            | Przeglądarka | online: https://asone.lmk.one/app/ albo `-web.zip` – pliki do wrzucenia na serwer WWW (WebGPU / WebGL2; nie działa otwarte prosto z dysku) |
 
             Programy nie są podpisane certyfikatami Microsoft ani Apple:
             * Windows (SmartScreen): „Więcej informacji” › „Uruchom mimo to”.
             * macOS: po pierwszej próbie Ustawienia systemowe › Prywatność i ochrona › „Otwórz mimo to” (albo `xattr -dr com.apple.quarantine AsOne.app`). Wymagany macOS 13 (Intel) lub 13.4 (Apple Silicon) albo nowszy.
 
             Modele usuwania tła (BRIA RMBG) pobiera się w programie: Ustawienia › Preferencje › Usuwanie tła (AI).
-            `SHA256SUMS.txt` – sumy kontrolne plików.
+            `SHA256SUMS.txt` – sumy kontrolne plików. Na GitHubie zostają 3 najnowsze wydania; kod każdej wersji – w tagach.
+      # Porządek: zostają 3 najnowsze wydania (z plikami); starsze są usuwane, tagi i kod zostają.
+      # Tylko gdy to wydanie jest wśród 3 najnowszych (ponowne wydanie starszej wersji niczego nie usuwa).
+      - name: Starsze wydania (zostają 3 najnowsze)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP: 3
+          CURRENT: ${{ inputs.tag || github.ref_name }}
+        run: |
+          tags="$(gh release list -R "$GITHUB_REPOSITORY" --limit 200 --exclude-drafts --json tagName --jq '.[].tagName' \
+            | grep -E '^v[0-9]' | sort -rV)"
+          if ! printf '%s\n' "$tags" | head -n "$KEEP" | grep -qxF "$CURRENT"; then
+            echo "$CURRENT nie jest wśród $KEEP najnowszych – bez usuwania"
+            exit 0
+          fi
+          printf '%s\n' "$tags" | tail -n +"$((KEEP + 1))" | while read -r tag; do
+            [ -n "$tag" ] || continue
+            echo "usuwam wydanie $tag (tag zostaje)"
+            gh release delete "$tag" -R "$GITHUB_REPOSITORY" --yes
+          done
 
   fdroid:
     name: GitHub Pages (F-Droid, wersja web)
