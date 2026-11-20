@@ -20,13 +20,17 @@ z limitami pilnowanymi przy każdym zapisie.
 2. Kliknij miniaturę → zdjęcie otwiera się w osobnej zakładce `#1`, `#2`, … (ponowny klik zamyka
    zakładkę). „Odznacz” zamyka wszystkie zakładki, „Wyczyść listę” usuwa zdjęcia z listy.
 3. Wklej nazwę (przycisk „Wklej”), np. `123-marka model` → `123-marka-model-1.jpg`, `-2.jpg`, …
-   („Start nr” zmienia pierwszy numer).
+   („Start nr” zmienia pierwszy numer). Menu kontekstowe zdjęcia › **Dopisz wersję**: `-ver2`
+   (zwykle), `-ver3`, `-ver4`, `-ver5` → `123-marka-2-ver2.jpg`.
 4. Przeciągnij miniatury na liście albo zakładki, żeby zmienić kolejność – numeracja przelicza się od razu.
 5. Kadruj (C), dodaj marginesy, białe tło, „Dopasuj do kwadratu 1:1”, usuń tło gumką (E) lub prostokątem (M).
 6. **Zapisz z zakładek (N)** albo `Ctrl+S` – eksport tylko otwartych zakładek, w ich kolejności.
+   Albo **Zmień tylko nazwę** – bez nowych JPG: pliki otwartych zakładek dostają na dysku nowe
+   nazwy (w swoich folderach, rozszerzenie zostaje), po podglądzie zmian (jak w Asystencie PIM).
 
 Domyślny folder zapisu to `web/` obok zdjęć (zmiana: przycisk „Folder” w górnym pasku).
-Oryginały nigdy nie są modyfikowane ani nadpisywane.
+Eksport nigdy nie modyfikuje ani nie nadpisuje oryginałów; „Zmień tylko nazwę” zmienia wyłącznie
+ich nazwy i nie nadpisuje istniejących plików.
 
 **Ustawienia › Preferencje** (jak w PhotoCrafcie): *Interfejs* (16 motywów, w tym Sepia, kolor
 płótna, skala interfejsu − / +, zakładki zdjęć na górze lub na dole, na zakładce pełna nazwa albo

@@ -1,9 +1,7 @@
 //! Nazwy plików wynikowych przyjazne dla adresów URL.
 
-/// Zamienia dowolny tekst na „slug”: tylko ASCII, małe litery i cyfry,
-/// a każda seria spacji/znaków specjalnych staje się pojedynczym myślnikiem.
-///
-/// Polskie (i inne) znaki diakrytyczne są transliterowane (`ą→a`, `ł→l`, `ż→z`…).
+/// Zamienia tekst na nazwę pliku: litery ASCII (wielkość liter zostaje) i cyfry, znaki
+/// diakrytyczne transliterowane, każda seria innych znaków → jeden myślnik.
 pub fn slugify(raw: &str) -> String {
     let ascii = deunicode::deunicode(raw);
     let mut out = String::with_capacity(ascii.len());
@@ -14,7 +12,7 @@ pub fn slugify(raw: &str) -> String {
                 out.push('-');
             }
             pending_dash = false;
-            out.push(ch.to_ascii_lowercase());
+            out.push(ch);
         } else {
             pending_dash = true;
         }
@@ -27,12 +25,18 @@ pub fn slugify(raw: &str) -> String {
 /// `index` to numer porządkowy liczony od 1 (pozycja zakładki ze zdjęciem).
 /// Gdy nazwa bazowa po oczyszczeniu jest pusta, zwracany jest sam numer (`1.jpg`).
 pub fn build_filename(raw_input: &str, index: usize, ext: &str) -> String {
+    build_filename_ver(raw_input, index, None, ext)
+}
+
+/// Jak [`build_filename`], z dopiskiem wersji: `Some(2)` → `123-marka-2-ver2.jpg`.
+pub fn build_filename_ver(raw_input: &str, index: usize, version: Option<u8>, ext: &str) -> String {
     let base = slugify(raw_input);
     let ext = ext.trim_start_matches('.');
+    let ver = version.map(|v| format!("-ver{v}")).unwrap_or_default();
     if base.is_empty() {
-        format!("{index}.{ext}")
+        format!("{index}{ver}.{ext}")
     } else {
-        format!("{base}-{index}.{ext}")
+        format!("{base}-{index}{ver}.{ext}")
     }
 }
 
@@ -46,21 +50,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn przyklad_ze_specyfikacji() {
-        assert_eq!(build_filename("123-marka model", 1, "jpg"), "123-marka-model-1.jpg");
-        assert_eq!(build_filename("123-marka model", 2, "jpg"), "123-marka-model-2.jpg");
-        assert_eq!(build_filename("123-marka model", 3, ".jpg"), "123-marka-model-3.jpg");
+    fn wzor_nazwa_marka_model() {
+        assert_eq!(build_filename("Maska LED ŻÓŁW Pure 1234 2.5 mm", 1, "jpg"), "Maska-LED-ZOLW-Pure-1234-2-5-mm-1.jpg");
+        assert_eq!(
+            build_filename_ver("Maska LED ŻÓŁW Pure 1234 2.5 mm", 1, Some(2), "jpg"),
+            "Maska-LED-ZOLW-Pure-1234-2-5-mm-1-ver2.jpg"
+        );
+        assert_eq!(build_filename("123-marka model", 2, ".jpg"), "123-marka-model-2.jpg");
     }
 
     #[test]
-    fn polskie_znaki() {
-        assert_eq!(slugify("Zażółć gęślą jaźń"), "zazolc-gesla-jazn");
-        assert_eq!(slugify("ŁÓDŹ Śnieżka Ćma"), "lodz-sniezka-cma");
+    fn znaki_diakrytyczne() {
+        assert_eq!(slugify("Zażółć gęślą jaźń"), "Zazolc-gesla-jazn");
+        assert_eq!(slugify("Größe Öl"), "Grosse-Ol");
+        assert_eq!(slugify("Příliš žluťoučký kůň"), "Prilis-zlutoucky-kun");
     }
 
     #[test]
     fn znaki_specjalne_i_spacje() {
-        assert_eq!(slugify("  Buty -- Nike!!  Air  "), "buty-nike-air");
+        assert_eq!(slugify("  Buty -- Nike!!  Air  "), "Buty-Nike-Air");
+        assert_eq!(slugify("Lampa (UV) 48W+ 100% #1 $5"), "Lampa-UV-48W-100-1-5");
         assert_eq!(slugify("a/b\\c_d.e,f"), "a-b-c-d-e-f");
         assert_eq!(slugify("---"), "");
     }
@@ -73,6 +82,7 @@ mod tests {
     #[test]
     fn pusta_nazwa() {
         assert_eq!(build_filename("", 4, "jpg"), "4.jpg");
+        assert_eq!(build_filename_ver("", 3, Some(4), "png"), "3-ver4.png");
         assert_eq!(build_filename("  !!  ", 1, "jpg"), "1.jpg");
     }
 }

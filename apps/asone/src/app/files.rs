@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use asone_core::archive::{PdfPage, images_to_pdf, zip_files};
 use asone_core::autocrop::{DEFAULT_THRESHOLD, content_bbox};
 use asone_core::imageio::fit_within;
-use asone_core::naming::{build_filename, slugify};
+use asone_core::naming::{build_filename_ver, slugify};
 use egui_dock::{Node, NodeIndex, NodePath, Split, SurfaceIndex};
 
 use super::{AsOneApp, ExportJob, OpsMsg};
@@ -211,6 +211,13 @@ impl AsOneApp {
                     self.selected.clear();
                 }
                 Action::ClearList => self.dialogs.clear_list = true,
+                Action::SetVersion(ids, version) => {
+                    for id in ids {
+                        if let Some(doc) = self.docs.get_mut(&id) {
+                            doc.version = version;
+                        }
+                    }
+                }
             }
         }
     }
@@ -336,6 +343,62 @@ impl AsOneApp {
         }
     }
 
+    /// Dlaczego „Zmień tylko nazwę” jest nieaktywne (`None` = można).
+    pub(super) fn rename_blocker(&self, open: &[DocId]) -> Option<&'static str> {
+        if !platform::FILE_OPS {
+            Some("Zmiana nazw plików działa w wersji desktopowej")
+        } else if self.export.is_some() {
+            Some("Trwa eksport")
+        } else if open.is_empty() {
+            Some("Otwórz zdjęcia w zakładkach (kliknij miniaturę)")
+        } else if slugify(&self.base_name).is_empty() {
+            Some("Wklej lub wpisz nazwę")
+        } else if open.iter().any(|id| self.docs.get(id).is_none_or(|d| d.source.path().is_none())) {
+            Some("Zdjęcia muszą być plikami na dysku")
+        } else {
+            None
+        }
+    }
+
+    /// „Zmień tylko nazwę”: przygotowuje podgląd (okno z potwierdzeniem).
+    pub(super) fn prepare_rename(&mut self, open: &[DocId]) {
+        if self.rename_blocker(open).is_some() {
+            return;
+        }
+        let start = self.settings.start_number.max(1) as usize;
+        let files: Vec<(PathBuf, Option<u8>)> = open
+            .iter()
+            .filter_map(|id| self.docs.get(id).and_then(|d| Some((d.source.path()?.to_path_buf(), d.version))))
+            .collect();
+        let plans = asone_core::rename::plan_rename(&self.base_name, start, &files);
+        self.dialogs.rename = Some(open.iter().copied().zip(plans).collect());
+    }
+
+    /// Wykonuje zatwierdzoną zmianę nazw i podmienia ścieżki w dokumentach.
+    pub(super) fn apply_rename(&mut self, plans: Vec<(DocId, asone_core::rename::RenamePlan)>) {
+        let only: Vec<_> = plans.iter().map(|(_, p)| p.clone()).collect();
+        let results = asone_core::rename::rename_files(&only);
+        let (mut changed, mut errors) = (0, Vec::new());
+        for ((id, plan), result) in plans.into_iter().zip(results) {
+            match result {
+                Ok(path) => {
+                    if !plan.is_noop() {
+                        changed += 1;
+                    }
+                    if let Some(doc) = self.docs.get_mut(&id) {
+                        doc.source = ImageSource::Path(path);
+                        doc.file_name = doc.source.name();
+                    }
+                }
+                Err(e) => errors.push(e),
+            }
+        }
+        match errors.as_slice() {
+            [] => self.toast(format!("Zmieniono nazwy plików: {changed}"), false),
+            [first, ..] => self.toast(format!("Zmieniono: {changed} · błędy: {} – {first}", errors.len()), true),
+        }
+    }
+
     pub(super) fn start_export(&mut self, ctx: &egui::Context, open: &[DocId]) {
         if self.export_blocker(open).is_some() {
             return;
@@ -351,7 +414,7 @@ impl AsOneApp {
                 #[cfg(target_arch = "wasm32")]
                 let _ = g;
                 Some(ExportItem {
-                    file_name: build_filename(&self.base_name, start + i, "jpg"),
+                    file_name: build_filename_ver(&self.base_name, start + i, doc.version, "jpg"),
                     edits: doc.edits.clone(),
                     #[cfg(not(target_arch = "wasm32"))]
                     gpu: crate::renderer::OffscreenSource {

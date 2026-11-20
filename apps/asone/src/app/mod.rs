@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use asone_core::naming::{build_filename, slugify};
+use asone_core::naming::{build_filename_ver, slugify};
 use crossbeam_channel::{Receiver, Sender};
 use egui::{Key, Ui};
 use egui_dock::{DockArea, DockState};
@@ -72,6 +72,8 @@ pub enum AboutTab {
 pub(crate) struct Dialogs {
     delete: Option<Vec<DocId>>,
     clear_list: bool,
+    /// „Zmień tylko nazwę”: podgląd zmian do potwierdzenia.
+    rename: Option<Vec<(DocId, asone_core::rename::RenamePlan)>>,
     about: bool,
     about_tab: AboutTab,
     shortcuts: bool,
@@ -249,7 +251,10 @@ impl AsOneApp {
         let start = self.settings.start_number.max(1) as usize;
         open.iter()
             .enumerate()
-            .map(|(i, id)| (*id, (start + i, has_name.then(|| build_filename(&self.base_name, start + i, "jpg")))))
+            .map(|(i, id)| {
+                let version = self.docs.get(id).and_then(|d| d.version);
+                (*id, (start + i, has_name.then(|| build_filename_ver(&self.base_name, start + i, version, "jpg"))))
+            })
             .collect()
     }
 
@@ -435,6 +440,7 @@ impl AsOneApp {
             MenuAction::AddFiles => self.pickers.pick_images(),
             MenuAction::AddFolder => self.pickers.pick_image_folder(),
             MenuAction::Export => self.start_export(ctx, open),
+            MenuAction::RenameOnly => self.prepare_rename(open),
             MenuAction::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             MenuAction::Preferences(section) => self.prefs.open(section, &self.settings),
             MenuAction::SetTheme(kind) => {

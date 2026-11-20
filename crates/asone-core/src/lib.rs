@@ -22,3 +22,4 @@ pub mod finish;
 pub mod imageio;
 pub mod jpeg;
 pub mod naming;
+pub mod rename;

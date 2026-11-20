@@ -13,6 +13,7 @@ pub enum MenuAction {
     AddFiles,
     AddFolder,
     Export,
+    RenameOnly,
     Quit,
     Preferences(crate::settings::PrefsSection),
     SetTheme(ThemeKind),
@@ -190,6 +191,9 @@ fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, state: MenuStat
             ui.separator();
             if item(ui, "Zapisz z zakładek", "Ctrl+S") {
                 out.push(MenuAction::Export);
+            }
+            if crate::platform::FILE_OPS && item(ui, "Zmień tylko nazwę…", "") {
+                out.push(MenuAction::RenameOnly);
             }
             if cfg!(not(target_arch = "wasm32")) {
                 ui.separator();

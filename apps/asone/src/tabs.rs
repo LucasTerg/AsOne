@@ -142,6 +142,29 @@ pub enum Action {
     CloseAllTabs,
     /// „Wyczyść listę” / „Usuń wszystkie z listy” (z potwierdzeniem).
     ClearList,
+    /// Dopisek wersji w nazwie wynikowej (`-ver2`…); `None` usuwa dopisek.
+    SetVersion(Vec<DocId>, Option<u8>),
+}
+
+/// Podmenu „Dopisz wersję”: `-ver2` (zwykle), `-ver3`, `-ver4`, `-ver5`, „Bez dopisku”.
+fn version_menu(ui: &mut Ui, targets: &[DocId], current: Option<u8>, actions: &mut Vec<Action>) {
+    let suffix = if targets.len() > 1 { format!(" ({})", targets.len()) } else { String::new() };
+    ui.menu_button(format!("Dopisz wersję (-ver){suffix}"), |ui| {
+        ui.set_min_width(170.0);
+        for v in 2u8..=5 {
+            let mark = if current == Some(v) { "✔ " } else { "    " };
+            let hint = if v == 2 { "  (zwykle)" } else { "" };
+            if ui.button(format!("{mark}-ver{v}{hint}")).clicked() {
+                actions.push(Action::SetVersion(targets.to_vec(), Some(v)));
+                ui.close();
+            }
+        }
+        ui.separator();
+        if ui.add_enabled(current.is_some(), egui::Button::new("Bez dopisku")).clicked() {
+            actions.push(Action::SetVersion(targets.to_vec(), None));
+            ui.close();
+        }
+    });
 }
 
 pub struct Viewer<'a> {
@@ -194,6 +217,13 @@ impl egui_dock::TabViewer for Viewer<'_> {
                     }
                 }
             }
+        }
+    }
+
+    fn context_menu(&mut self, ui: &mut Ui, tab: &mut AppTab, _path: egui_dock::NodePath) {
+        if let AppTab::Photo(id) = *tab {
+            let current = self.docs.get(&id).and_then(|d| d.version);
+            version_menu(ui, &[id], current, self.actions);
         }
     }
 
@@ -390,6 +420,12 @@ impl Viewer<'_> {
             painter.rect_filled(badge, CornerRadius::same(3), pal.accent);
             painter.text(badge.center(), egui::Align2::CENTER_CENTER, format!("#{n}"), egui::FontId::proportional(12.0), pal.accent_text);
         }
+        if let Some(v) = doc.version {
+            let x = if number.is_some() { 38.0 } else { 4.0 };
+            let badge = Rect::from_min_size(rect.min + vec2(x, 4.0), vec2(36.0, 18.0));
+            painter.rect_filled(badge, CornerRadius::same(3), pal.warning);
+            painter.text(badge.center(), egui::Align2::CENTER_CENTER, format!("ver{v}"), egui::FontId::proportional(11.0), Color32::BLACK);
+        }
         if matches!(doc.load, LoadState::Loading) {
             painter.circle_filled(rect.right_top() + vec2(-14.0, 14.0), 5.0, pal.accent);
         }
@@ -446,6 +482,8 @@ impl Viewer<'_> {
                 self.actions.push(Action::CloseTab(id));
                 ui.close();
             }
+            let current = targets.iter().map(|t| self.docs.get(t).and_then(|d| d.version)).reduce(|a, b| if a == b { a } else { None });
+            version_menu(ui, &targets, current.flatten(), self.actions);
             if crate::platform::FILE_OPS && has_path {
                 ui.separator();
                 if !many && ui.button("Otwórz plik").clicked() {

@@ -256,8 +256,8 @@ mod tests {
         let out = dir.join("web");
         let entries = export_batch(&inputs, &out, &opts, 4, |_| {});
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].file_name, "zolte-buty-1.jpg");
-        assert_eq!(entries[1].file_name, "zolte-buty-2.jpg");
+        assert_eq!(entries[0].file_name, "Zolte-buty-1.jpg");
+        assert_eq!(entries[1].file_name, "Zolte-buty-2.jpg");
         for e in &entries {
             let saved = e.result.clone().unwrap();
             assert_eq!(saved.size, [100, 100]);

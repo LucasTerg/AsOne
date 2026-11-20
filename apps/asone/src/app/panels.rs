@@ -25,6 +25,11 @@ mod git_stats {
 /// Dopisujemy tylko osoby z realnym wkładem – np. przyjętym pull requestem – nigdy „na zapas”.
 const CONTRIBUTORS: &[(&str, &str, &str)] = &[("LucasTerg", "Lucas", "Twórca i główny deweloper")];
 
+/// Tekst w jednej linii (bez łamania) – kolumna i okno poszerzają się do jego długości.
+fn one_line(ui: &mut Ui, text: RichText) {
+    ui.add(egui::Label::new(text).wrap_mode(egui::TextWrapMode::Extend));
+}
+
 /// 12345 → „12 345”.
 fn group(n: u64) -> String {
     let s = n.to_string();
@@ -159,6 +164,21 @@ impl AsOneApp {
                             let ctx = ui.ctx().clone();
                             self.start_export(&ctx, open);
                         }
+                        if platform::FILE_OPS {
+                            let blocker = self.rename_blocker(open);
+                            let response = ui.add_enabled(blocker.is_none(), egui::Button::new("Zmień tylko nazwę").min_size(vec2(0.0, 26.0)));
+                            let response = match blocker {
+                                Some(reason) => response.on_disabled_hover_text(reason),
+                                None => response.on_hover_text(format!(
+                                    "Zmienia nazwy {} plików na dysku (w ich folderach) według wklejonej nazwy i kolejności zakładek – \
+                                     bez zapisu nowych JPG. Najpierw pokaże listę zmian.",
+                                    open.len()
+                                )),
+                            };
+                            if response.clicked() {
+                                self.prepare_rename(open);
+                            }
+                        }
                     }
                 });
             });
@@ -247,22 +267,25 @@ impl AsOneApp {
                                 ReportEntry::Saved { name, bytes, size, quality, notes } => {
                                     ui.colored_label(pal.ok(), "✔");
                                     ui.vertical(|ui| {
-                                        ui.label(name);
+                                        one_line(ui, RichText::new(name));
                                         for n in notes {
-                                            ui.colored_label(pal.warning, format!("↳ {n}"));
+                                            one_line(ui, RichText::new(format!("↳ {n}")).color(pal.warning));
                                         }
                                     });
-                                    ui.label(format!(
-                                        "{}×{} · {:.0} KB · jakość {quality}",
-                                        size[0],
-                                        size[1],
-                                        *bytes as f64 / 1024.0
-                                    ));
+                                    one_line(
+                                        ui,
+                                        RichText::new(format!(
+                                            "{}×{} · {:.0} KB · jakość {quality}",
+                                            size[0],
+                                            size[1],
+                                            *bytes as f64 / 1024.0
+                                        )),
+                                    );
                                 }
                                 ReportEntry::Failed { name, error } => {
                                     ui.colored_label(pal.danger, "✖");
-                                    ui.label(name);
-                                    ui.colored_label(pal.danger, error);
+                                    one_line(ui, RichText::new(name));
+                                    one_line(ui, RichText::new(error).color(pal.danger));
                                 }
                             }
                             ui.end_row();
@@ -334,6 +357,55 @@ impl AsOneApp {
             }
             if !open {
                 self.dialogs.delete = None;
+            }
+        }
+
+        if let Some(plans) = self.dialogs.rename.clone() {
+            let mut open = true;
+            let mut confirm = false;
+            let changes = plans.iter().filter(|(_, p)| !p.is_noop()).count();
+            egui::Window::new("Zmień tylko nazwę")
+                .open(&mut open)
+                .collapsible(false)
+                .resizable(true)
+                .default_width(560.0)
+                .default_pos(ctx.content_rect().center() - vec2(280.0, 180.0))
+                .show(ctx, |ui| {
+                    ui.label(format!("Pliki na dysku dostaną nowe nazwy ({changes} z {}). Zawartość i folder się nie zmieniają.", plans.len()));
+                    ui.colored_label(pal.text_dim, "Istniejące pliki o tych nazwach nie zostaną nadpisane.");
+                    ui.add_space(4.0);
+                    egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
+                        egui::Grid::new("rename_preview").num_columns(3).striped(true).spacing(vec2(10.0, 4.0)).show(ui, |ui| {
+                            for (_, p) in &plans {
+                                let name = |path: &std::path::Path| path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                                ui.monospace(name(&p.from));
+                                ui.label("»");
+                                if p.is_noop() {
+                                    ui.colored_label(pal.text_dim, "bez zmian");
+                                } else {
+                                    ui.colored_label(pal.accent, RichText::new(name(&p.to)).monospace());
+                                }
+                                ui.end_row();
+                            }
+                        });
+                    });
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        let ok = egui::Button::new(RichText::new(format!("Zmień nazwy ({changes})")).color(pal.accent_text)).fill(pal.accent);
+                        if ui.add_enabled(changes > 0, ok).clicked() {
+                            confirm = true;
+                        }
+                        if ui.button("Anuluj").clicked() {
+                            self.dialogs.rename = None;
+                        }
+                    });
+                });
+            if confirm {
+                self.dialogs.rename = None;
+                self.apply_rename(plans);
+            }
+            if !open {
+                self.dialogs.rename = None;
             }
         }
 
