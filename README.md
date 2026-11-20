@@ -93,6 +93,14 @@ folder, prawy przycisk – „Usuń z ostatnich”. Przyciski i widok listy plik
 Szczegóły, rozmiar, nazwy) są w osobnej zakładce **Opcje listy** – nad listą, do przeciągnięcia
 w inne miejsce.
 
+**Edycja AI (Replicate)** – panel „Edycja AI” albo prawy przycisk na zdjęciu: polecenie (własne
+albo gotowe: białe tło z cieniem, usuń napisy / znaki wodne, popraw światło, usuń kurz, produkt we
+wnętrzu) i FLUX.1 Kontext Pro (0,04 $ za obraz) lub Max (0,08 $). Wysyłany jest obraz z zakładki
+(kadr, marginesy, smartfon), wynik (ok. 1 Mpx) zastępuje zdjęcie – „Przywróć oryginał” wraca do
+pliku. Ustawienia › Preferencje › **Replicate (AI online)**: jeden przełącznik wyłącza wszystkie
+płatne funkcje Replicate; klucz (`r8_…`) w polu, w `REPLICATE_API_TOKEN` albo w pliku
+`~/.config/asone/replicate-token`. Bez klucza funkcje są ukryte.
+
 **Prawy przycisk na zdjęciu**: smartfon (wklej / podmień / dopasuj / usuń), Usuń tło, Kadruj (auto),
 Dopasuj do kwadratu, Ramka 5 px, Zeruj marginesy, Dopasuj widok, Cofnij / Ponów.
 

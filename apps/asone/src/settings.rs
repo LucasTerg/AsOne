@@ -49,6 +49,75 @@ pub enum TabTitle {
     NumberOnly,
 }
 
+/// Model edycji zdjęcia poleceniem na Replicate.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EditModel {
+    /// FLUX.1 Kontext Pro – 0,04 USD za obraz (cennik Replicate z 20.11.2026).
+    #[default]
+    KontextPro,
+    /// FLUX.1 Kontext Max – dokładniejszy, 0,08 USD za obraz.
+    KontextMax,
+}
+
+impl EditModel {
+    pub const ALL: [EditModel; 2] = [EditModel::KontextPro, EditModel::KontextMax];
+
+    /// Identyfikator modelu na Replicate.
+    pub fn id(self) -> &'static str {
+        match self {
+            EditModel::KontextPro => "black-forest-labs/flux-kontext-pro",
+            EditModel::KontextMax => "black-forest-labs/flux-kontext-max",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            EditModel::KontextPro => "FLUX.1 Kontext Pro",
+            EditModel::KontextMax => "FLUX.1 Kontext Max (dokładniejszy)",
+        }
+    }
+
+    /// Cena jednego obrazu (cennik Replicate z 20.11.2026).
+    pub fn price(self) -> &'static str {
+        match self {
+            EditModel::KontextPro => "0,04 $",
+            EditModel::KontextMax => "0,08 $",
+        }
+    }
+
+    pub fn page_url(self) -> String {
+        format!("https://replicate.com/{}", self.id())
+    }
+}
+
+/// Gotowe polecenia edycji AI: (etykieta, polecenie dla modelu – po angielsku, tak rozumie najlepiej).
+pub const AI_PRESETS: [(&str, &str); 5] = [
+    (
+        "Białe tło i delikatny cień",
+        "Place the product on a pure white background with a soft, natural shadow under it. \
+         Keep the product exactly the same: shape, colors, text and logos.",
+    ),
+    (
+        "Usuń napisy i znaki wodne",
+        "Remove all watermarks, captions and overlaid text that are not printed on the product. \
+         Keep everything else exactly the same.",
+    ),
+    (
+        "Popraw światło i kolory",
+        "Improve the lighting to bright, even studio light with natural colors and crisp details. \
+         Do not change the product's shape, text or logos.",
+    ),
+    (
+        "Usuń kurz i rysy",
+        "Remove dust, scratches and small blemishes from the product surface. Keep everything else exactly the same.",
+    ),
+    (
+        "Produkt we wnętrzu",
+        "Place the product in a bright, modern home interior with realistic lighting and shadows. \
+         Keep the product exactly the same, including text and logos.",
+    ),
+];
+
 /// Wygląd paska menu (tytułowego).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BarStyle {
@@ -184,6 +253,14 @@ pub struct Settings {
     pub bar_style: BarStyle,
     /// Ostatnio otwierane foldery (ekran startowy), najnowsze pierwsze.
     pub recent_folders: Vec<String>,
+
+    // --- Replicate (edycja AI online, płatna) ---
+    /// Jeden przełącznik dla wszystkich funkcji Replicate (np. gdy brak środków na koncie).
+    pub replicate_enabled: bool,
+    /// Klucz API Replicate (`r8_…`, zapisywany lokalnie). Pusty = zmienna `REPLICATE_API_TOKEN`
+    /// albo plik `~/.config/asone/replicate-token`.
+    pub replicate_key: String,
+    pub replicate_model: EditModel,
     pub animations: bool,
     /// Systemowy pasek tytułu zamiast własnego (Linux/Windows).
     pub system_title_bar: bool,
@@ -242,6 +319,9 @@ impl Default for Settings {
             show_tooltips: true,
             bar_style: BarStyle::Flat,
             recent_folders: Vec::new(),
+            replicate_enabled: true,
+            replicate_key: String::new(),
+            replicate_model: EditModel::KontextPro,
             animations: true,
             system_title_bar: false,
             photo_tabs_bottom: false,
@@ -330,6 +410,41 @@ impl Settings {
     pub fn out_subfolder_name(&self) -> String {
         let name = self.out_subfolder.trim().trim_matches(['/', '\\']).trim();
         if name.is_empty() { "web".into() } else { name.to_string() }
+    }
+
+    /// Klucz Replicate: wpisany w Ustawieniach, zmienna `REPLICATE_API_TOKEN` albo plik
+    /// `~/.config/asone/replicate-token` (desktop).
+    pub fn replicate_api_key(&self) -> String {
+        let key = self.replicate_key.trim();
+        if !key.is_empty() {
+            return key.to_string();
+        }
+        if let Ok(k) = std::env::var("REPLICATE_API_TOKEN")
+            && !k.trim().is_empty()
+        {
+            return k.trim().to_string();
+        }
+        // Plik czytany raz na uruchomienie (funkcja jest wołana co klatkę).
+        #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
+        {
+            static FILE_KEY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+            FILE_KEY
+                .get_or_init(|| {
+                    std::env::var_os("HOME")
+                        .or_else(|| std::env::var_os("USERPROFILE"))
+                        .and_then(|home| std::fs::read_to_string(std::path::PathBuf::from(home).join(".config/asone/replicate-token")).ok())
+                        .map(|k| k.trim().to_string())
+                        .unwrap_or_default()
+                })
+                .clone()
+        }
+        #[cfg(any(target_os = "android", target_arch = "wasm32"))]
+        String::new()
+    }
+
+    /// Funkcje Replicate widoczne: włączone, ta wersja je obsługuje i jest klucz.
+    pub fn replicate_active(&self) -> bool {
+        self.replicate_enabled && crate::ai::AVAILABLE && !self.replicate_api_key().is_empty()
     }
 
     /// Klucz fal.ai: wpisany w Ustawieniach albo ze zmiennej środowiskowej `FAL_KEY`.
@@ -436,6 +551,11 @@ impl Settings {
                 self.ai_path_14 = d.ai_path_14;
                 self.ai_path_20 = d.ai_path_20;
             }
+            PrefsSection::Replicate => {
+                // Klucz zostaje – „Przywróć domyślne” nie kasuje danych logowania.
+                self.replicate_enabled = d.replicate_enabled;
+                self.replicate_model = d.replicate_model;
+            }
             PrefsSection::Export => {
                 self.enforce_dimensions = d.enforce_dimensions;
                 self.max_width = d.max_width;
@@ -457,6 +577,7 @@ pub enum PrefsSection {
     Interface,
     Export,
     Ai,
+    Replicate,
 }
 
 /// Katalog modeli AI w danych aplikacji (np. `~/.local/share/asone/models`).

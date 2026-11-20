@@ -136,6 +136,10 @@ pub enum CanvasAction {
     Flatten,
     /// Po „Spłaszcz”: powrót do pliku źródłowego.
     RestoreOriginal,
+    /// Edycja AI (Replicate) poleceniem z panelu.
+    AiEdit,
+    /// Edycja AI gotowym poleceniem (`settings::AI_PRESETS`).
+    AiPreset(u8),
     RemoveBackground,
     AutoCrop,
     FitSquare,
@@ -147,7 +151,15 @@ pub enum CanvasAction {
 }
 
 /// Menu pod prawym przyciskiem na zdjęciu.
-fn canvas_menu(ui: &mut egui::Ui, has_overlay: bool, flattened: bool, can_undo: bool, can_redo: bool, actions: &mut Vec<CanvasAction>) {
+fn canvas_menu(
+    ui: &mut egui::Ui,
+    has_overlay: bool,
+    flattened: bool,
+    replicate: bool,
+    can_undo: bool,
+    can_redo: bool,
+    actions: &mut Vec<CanvasAction>,
+) {
     use crate::platform::{CAN_PASTE_IMAGE, CAN_PICK_OVERLAY};
     ui.set_min_width(240.0);
     let mut item = |ui: &mut egui::Ui, enabled: bool, label: &str, action: CanvasAction| {
@@ -168,6 +180,16 @@ fn canvas_menu(ui: &mut egui::Ui, has_overlay: bool, flattened: bool, can_undo: 
         item(ui, true, "Przywróć oryginał (z pliku)", CanvasAction::RestoreOriginal);
     }
     ui.separator();
+    if replicate {
+        ui.menu_button("Edycja AI (Replicate)", |ui| {
+            ui.set_min_width(220.0);
+            for (i, (label, _)) in crate::settings::AI_PRESETS.iter().enumerate() {
+                item(ui, true, label, CanvasAction::AiPreset(i as u8));
+            }
+            ui.separator();
+            item(ui, true, "Polecenie z panelu", CanvasAction::AiEdit);
+        });
+    }
     item(ui, crate::ai::AVAILABLE, "Usuń tło", CanvasAction::RemoveBackground);
     item(ui, true, "Kadruj (auto)", CanvasAction::AutoCrop);
     item(ui, true, "Dopasuj do kwadratu 1:1", CanvasAction::FitSquare);
@@ -311,6 +333,7 @@ pub fn photo_ui(
     tool: Tool,
     brush: &BrushSettings,
     inspection: bool,
+    replicate: bool,
 ) -> CanvasOutput {
     let mut out = CanvasOutput::default();
     let full = ui.available_rect_before_wrap();
@@ -649,7 +672,7 @@ pub fn photo_ui(
         let has_overlay = doc.overlay_image.is_some() && doc.edits.overlay.is_some();
         let flattened = doc.content.is_some();
         let (can_undo, can_redo) = (doc.history.can_undo(), doc.history.can_redo());
-        response.context_menu(|ui| canvas_menu(ui, has_overlay, flattened, can_undo, can_redo, &mut out.actions));
+        response.context_menu(|ui| canvas_menu(ui, has_overlay, flattened, replicate, can_undo, can_redo, &mut out.actions));
     }
 
     // --- Pasek stanu ----------------------------------------------------------------------

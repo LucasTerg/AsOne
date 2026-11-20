@@ -36,7 +36,7 @@ pub enum LoadResult {
         thumbnail: bool,
         error: String,
     },
-    /// „Spłaszcz”: obraz wynikowy (kadr, marginesy, tło, warstwa) jako nowa zawartość zakładki.
+    /// „Spłaszcz” / edycja AI: nowy obraz jako zawartość zakładki (`ai` – wynik z Replicate).
     Flattened {
         id: DocId,
         gpu: DocGpu,
@@ -44,6 +44,7 @@ pub enum LoadResult {
         ai_proxy: Arc<RgbaImage>,
         content: Arc<RgbaImage>,
         thumb: egui::ColorImage,
+        ai: bool,
     },
     FlattenFailed {
         id: DocId,
@@ -99,21 +100,40 @@ impl Loader {
         self.tasks.spawn(move || {
             let result = (|| -> Result<LoadResult, String> {
                 let gpu = gpu.ok_or("Brak GPU (wgpu)")?;
-                let (img, _) = decode_for_gpu(&source, gpu.max_texture_dim)?;
-                let (size, mut rgb) = asone_core::compose::compose_rgb(&img, Some(&mask), &edits);
-                drop(img);
-                if let (Some(layer), Some(rect)) = (&overlay, edits.overlay) {
-                    asone_core::compose::draw_overlay(size, &mut rgb, layer, rect)?;
-                }
-                let rgba: Vec<u8> = rgb.as_chunks::<3>().0.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect();
-                let image = RgbaImage::from_raw(size[0], size[1], rgba).ok_or("Błąd bufora")?;
-                // Marginesy mogły wyjść poza limit tekstury GPU – wtedy zmniejszamy.
-                let limited = fit_within(size, gpu.max_texture_dim);
-                let image = if limited == size { image } else { resize_rgba(&image, limited, lanczos3())? };
-                let thumb = thumbnail(&image)?;
-                let content = Arc::new(image);
-                let full = full_from_image(&gpu, (*content).clone(), None)?;
-                Ok(LoadResult::Flattened { id, gpu: full.gpu, mask: full.mask, ai_proxy: full.ai_proxy, content, thumb })
+                let image = compose_output(&source, &mask, &edits, overlay.as_deref(), gpu.max_texture_dim)?;
+                new_content(&gpu, id, image, false)
+            })();
+            let _ = tx.send(result.unwrap_or_else(|e| LoadResult::FlattenFailed { id, error: format!("Spłaszczanie: {e}") }));
+            ctx.request_repaint();
+        });
+    }
+
+    /// Edycja AI (Replicate): obraz wynikowy + polecenie → model → nowa zawartość zakładki.
+    #[allow(clippy::too_many_arguments)]
+    pub fn request_ai_edit(
+        &self,
+        id: DocId,
+        source: ImageSource,
+        mask: Vec<u8>,
+        edits: asone_core::edits::EditParams,
+        overlay: Option<Arc<RgbaImage>>,
+        prompt: String,
+        model: &'static str,
+        key: String,
+    ) {
+        let (tx, ctx, gpu) = (self.tx.clone(), self.ctx.clone(), self.gpu.clone());
+        self.tasks.spawn(move || {
+            let result = (|| -> Result<LoadResult, String> {
+                let gpu = gpu.ok_or("Brak GPU (wgpu)")?;
+                let input = compose_output(&source, &mask, &edits, overlay.as_deref(), gpu.max_texture_dim)?;
+                #[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+                let image = crate::replicate::edit_image(&input, &prompt, model, &key);
+                #[cfg(not(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos"))))]
+                let image: Result<RgbaImage, String> = {
+                    let _ = (&input, &prompt, model, &key);
+                    Err("Edycja AI działa w wersji desktopowej (Linux, Windows, macOS)".to_string())
+                };
+                new_content(&gpu, id, image?, true)
             })();
             let _ = tx.send(result.unwrap_or_else(|error| LoadResult::FlattenFailed { id, error }));
             ctx.request_repaint();
@@ -191,6 +211,35 @@ struct FullLoad {
 fn load_full(gpu: &GpuShared, source: &ImageSource) -> Result<FullLoad, String> {
     let (img, downscaled_from) = decode_for_gpu(source, gpu.max_texture_dim)?;
     full_from_image(gpu, img, downscaled_from)
+}
+
+/// Obraz wynikowy (kadr, marginesy, maska na tle, warstwa) jako RGBA – na CPU, jak eksport.
+fn compose_output(
+    source: &ImageSource,
+    mask: &[u8],
+    edits: &asone_core::edits::EditParams,
+    overlay: Option<&RgbaImage>,
+    max_texture_dim: u32,
+) -> Result<RgbaImage, String> {
+    let (img, _) = decode_for_gpu(source, max_texture_dim)?;
+    let (size, mut rgb) = asone_core::compose::compose_rgb(&img, Some(mask), edits);
+    drop(img);
+    if let (Some(layer), Some(rect)) = (overlay, edits.overlay) {
+        asone_core::compose::draw_overlay(size, &mut rgb, layer, rect)?;
+    }
+    let rgba: Vec<u8> = rgb.as_chunks::<3>().0.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect();
+    RgbaImage::from_raw(size[0], size[1], rgba).ok_or_else(|| "Błąd bufora".to_string())
+}
+
+/// Nowa zawartość zakładki z gotowego obrazu (w limicie tekstury GPU).
+fn new_content(gpu: &GpuShared, id: DocId, image: RgbaImage, ai: bool) -> Result<LoadResult, String> {
+    let size = [image.width(), image.height()];
+    let limited = fit_within(size, gpu.max_texture_dim);
+    let image = if limited == size { image } else { resize_rgba(&image, limited, lanczos3())? };
+    let thumb = thumbnail(&image)?;
+    let content = Arc::new(image);
+    let full = full_from_image(gpu, (*content).clone(), None)?;
+    Ok(LoadResult::Flattened { id, gpu: full.gpu, mask: full.mask, ai_proxy: full.ai_proxy, content, thumb, ai })
 }
 
 /// Tekstura z mipmapami, maska (z kanału alfa) i kopia dla AI z gotowego obrazu.

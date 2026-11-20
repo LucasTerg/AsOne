@@ -61,6 +61,8 @@ impl AsOneApp {
         let ai_model = self.settings.ai_model;
         let ai_path = self.settings.ai_model_path();
         let hide_mask = self.settings.hide_mask_toggle;
+        let replicate = self.settings.replicate_active();
+        let edit_model = self.settings.replicate_model;
         let hide_inspection = self.settings.hide_inspection;
         let mut open_ai_prefs = false;
         let mut switch_tool = None;
@@ -366,6 +368,44 @@ impl AsOneApp {
                 ui.separator();
             }
 
+            if replicate {
+                section(ui, "Edycja AI (Replicate)");
+                ui.add(
+                    egui::TextEdit::multiline(&mut self.ai_prompt)
+                        .hint_text("Co zrobić ze zdjęciem – najlepiej po angielsku, np. „place the product on a white background”")
+                        .desired_rows(2)
+                        .desired_width(f32::INFINITY),
+                );
+                let busy = matches!(doc.load, LoadState::Loading);
+                ui.horizontal_wrapped(|ui| {
+                    ui.menu_button("Gotowe polecenia", |ui| {
+                        ui.set_min_width(220.0);
+                        for (label, prompt) in crate::settings::AI_PRESETS {
+                            if ui.button(label).on_hover_text(prompt).clicked() {
+                                self.ai_prompt = prompt.to_string();
+                                ui.close();
+                            }
+                        }
+                    });
+                    let run = ui
+                        .add_enabled(!busy && !self.ai_prompt.trim().is_empty(), egui::Button::new(format!("Wykonaj ({})", edit_model.price())))
+                        .on_hover_text(format!(
+                            "{} na Replicate: zdjęcie z zakładki (z kadrem, marginesami i smartfonem) zostanie wysłane, \
+                             a wynik (ok. 1 Mpx) zastąpi zdjęcie. Płatne: {} za obraz.",
+                            edit_model.label(),
+                            edit_model.price()
+                        ));
+                    if run.clicked() {
+                        phone = Some(CanvasAction::AiEdit);
+                    }
+                    if busy {
+                        ui.spinner();
+                    }
+                });
+                ui.colored_label(pal.text_dim, "Wynik zastępuje zdjęcie; „Przywróć oryginał” wraca do pliku.");
+                ui.separator();
+            }
+
             match tool {
                 Tool::Eraser => {
                     section(ui, "Gumka");
@@ -472,9 +512,38 @@ impl AsOneApp {
         doc.load = LoadState::Loading;
     }
 
+    /// Edycja AI (Replicate): obraz z zakładki + polecenie; wynik zastąpi zdjęcie.
+    pub(super) fn start_ai_edit(&mut self, id: DocId, prompt: String) {
+        if !self.settings.replicate_active() {
+            self.toast("Funkcje Replicate są wyłączone albo brak klucza – Ustawienia › Preferencje › Replicate", true);
+            return;
+        }
+        if prompt.trim().is_empty() {
+            self.toast("Wpisz polecenie dla AI (co zrobić ze zdjęciem)", true);
+            return;
+        }
+        let (key, model) = (self.settings.replicate_api_key(), self.settings.replicate_model);
+        let Some(doc) = self.docs.get_mut(&id) else { return };
+        if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() {
+            return;
+        }
+        doc.commit_history();
+        let overlay = doc.overlay_image.clone().filter(|_| doc.edits.overlay.is_some());
+        self.loader.request_ai_edit(id, doc.pixel_source(), doc.mask_cpu.clone(), doc.edits.clone(), overlay, prompt, model.id(), key);
+        doc.load = LoadState::Loading;
+        self.toast(format!("Edycja AI ({}, {}) – zwykle kilkanaście sekund…", model.label(), model.price()), false);
+    }
+
     /// Polecenia z menu kontekstowego zdjęcia i przycisków „Smartfon”.
     pub(super) fn canvas_action(&mut self, id: DocId, action: CanvasAction) {
         match action {
+            CanvasAction::AiEdit => self.start_ai_edit(id, self.ai_prompt.clone()),
+            CanvasAction::AiPreset(i) => {
+                if let Some((_, prompt)) = crate::settings::AI_PRESETS.get(i as usize) {
+                    self.ai_prompt = prompt.to_string();
+                    self.start_ai_edit(id, prompt.to_string());
+                }
+            }
             CanvasAction::Flatten => self.flatten(id),
             CanvasAction::RestoreOriginal => self.reload(&[id]),
             CanvasAction::PastePhone => self.pickers.paste_image(id),

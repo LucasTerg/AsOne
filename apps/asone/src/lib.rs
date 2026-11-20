@@ -13,6 +13,8 @@ pub mod document;
 pub mod export;
 #[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
 pub mod fal;
+#[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+pub mod replicate;
 pub mod history;
 pub mod loader;
 pub mod platform;

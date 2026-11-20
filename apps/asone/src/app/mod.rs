@@ -106,6 +106,8 @@ pub struct AsOneApp {
     folder_input: String,
     /// Ekran startowy: podglądy folderów z „Ostatnich”.
     recent_previews: HashMap<String, RecentPreview>,
+    /// Polecenie dla edycji AI (Replicate) z panelu.
+    ai_prompt: String,
 
     gpu: Option<Arc<GpuShared>>,
     loader: Loader,
@@ -242,6 +244,7 @@ impl AsOneApp {
             android_light_bars: None,
             meta: HashMap::new(),
             recent_previews: HashMap::new(),
+            ai_prompt: String::new(),
             meta_channel: metadata::MetaChannel::default(),
             settings,
         };
@@ -370,7 +373,7 @@ impl AsOneApp {
                         doc.dims = Some(dims);
                     }
                 }
-                LoadResult::Flattened { id, gpu, mask, ai_proxy, content, thumb } => {
+                LoadResult::Flattened { id, gpu, mask, ai_proxy, content, thumb, ai } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
                         doc.dims = Some([content.width(), content.height()]);
                         doc.gpu = Some(gpu);
@@ -390,14 +393,22 @@ impl AsOneApp {
                         doc.load = LoadState::Ready;
                         doc.camera.needs_fit = true;
                         doc.reset_history();
-                        self.toast("Zdjęcie spłaszczone – kadr obejmuje teraz całość (oryginał: „Przywróć oryginał”)", false);
+                        let size = format!("{}×{}", doc.dims.map_or(0, |d| d[0]), doc.dims.map_or(0, |d| d[1]));
+                        self.toast(
+                            if ai {
+                                format!("Edycja AI gotowa ({size} px) – oryginał: „Przywróć oryginał”")
+                            } else {
+                                "Zdjęcie spłaszczone – kadr obejmuje teraz całość (oryginał: „Przywróć oryginał”)".to_string()
+                            },
+                            false,
+                        );
                     }
                 }
                 LoadResult::FlattenFailed { id, error } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
                         doc.load = LoadState::Ready;
                     }
-                    self.toast(format!("Spłaszczanie: {error}"), true);
+                    self.toast(error, true);
                 }
                 LoadResult::Full { id, gpu, mask, has_alpha, downscaled_from, ai_proxy } => {
                     if let Some(doc) = self.docs.get_mut(&id) {

@@ -2,7 +2,7 @@
 
 use egui::{RichText, Ui, vec2};
 
-use crate::settings::{AiModel, BarStyle, CanvasColor, HideItem, PrefsSection, Settings, TabTitle, UI_SCALES};
+use crate::settings::{AiModel, BarStyle, CanvasColor, EditModel, HideItem, PrefsSection, Settings, TabTitle, UI_SCALES};
 use crate::theme::{self, ThemeKind};
 
 #[derive(Default)]
@@ -93,6 +93,7 @@ impl PrefsDialog {
                         (PrefsSection::Interface, "Interfejs"),
                         (PrefsSection::Export, "Eksport i limity"),
                         (PrefsSection::Ai, "Usuwanie tła (AI)"),
+                        (PrefsSection::Replicate, "Replicate (AI online)"),
                     ] {
                         if ui.add_sized(vec2(164.0, 26.0), egui::Button::selectable(self.section == section, label)).clicked() {
                             self.section = section;
@@ -113,6 +114,7 @@ impl PrefsDialog {
                                 PrefsSection::Interface => interface_page(ui, &mut self.draft),
                                 PrefsSection::Export => export_page(ui, &mut self.draft),
                                 PrefsSection::Ai => ai_page(ui, &mut self.draft, download, &mut result),
+                                PrefsSection::Replicate => replicate_page(ui, &mut self.draft),
                             }
                         });
                     });
@@ -283,6 +285,72 @@ fn export_page(ui: &mut Ui, s: &mut Settings) {
     ui.add_space(10.0);
     if ui.button("Przywróć domyślne (3000 × 3600, 3 MB)").clicked() {
         s.reset_section(PrefsSection::Export);
+    }
+}
+
+/// Replicate: jeden przełącznik dla wszystkich płatnych funkcji, klucz i model edycji.
+fn replicate_page(ui: &mut Ui, s: &mut Settings) {
+    let pal = theme::p();
+    ui.heading("Replicate (edycja AI online)");
+    ui.colored_label(
+        pal.text_dim,
+        "Edycja zdjęcia poleceniem (np. białe tło z cieniem, usunięcie napisów). Płatne za każdy obraz z kredytu \
+         konta Replicate; zdjęcie jest wysyłane na serwery Replicate (dane zapytań kasowane po godzinie).",
+    );
+    ui.add_space(8.0);
+    ui.checkbox(&mut s.replicate_enabled, egui::RichText::new("Włącz funkcje Replicate").strong())
+        .on_hover_text("Wyłączone: znikają wszystkie płatne przyciski Replicate (panel „Edycja AI” i menu zdjęcia).");
+    if !crate::ai::AVAILABLE {
+        ui.colored_label(pal.warning, "W tej wersji (przeglądarka, Android, FreeBSD) edycja AI jest niedostępna.");
+    }
+    ui.add_space(6.0);
+    ui.add_enabled_ui(s.replicate_enabled, |ui| {
+        egui::Grid::new("prefs_replicate").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
+            row(ui, "Klucz API", |ui| {
+                ui.vertical(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut s.replicate_key)
+                            .password(true)
+                            .hint_text("r8_…")
+                            .desired_width(300.0),
+                    );
+                    ui.horizontal_wrapped(|ui| {
+                        ui.hyperlink_to(egui::RichText::new("utwórz klucz").small(), "https://replicate.com/account/api-tokens");
+                        ui.small("·");
+                        ui.hyperlink_to(egui::RichText::new("kredyt i rozliczenia").small(), "https://replicate.com/account/billing");
+                    });
+                    if s.replicate_key.trim().is_empty() {
+                        if s.replicate_api_key().is_empty() {
+                            ui.colored_label(pal.warning, egui::RichText::new("brak klucza – funkcje Replicate są ukryte").small());
+                        } else {
+                            ui.small("używany klucz z REPLICATE_API_TOKEN albo ~/.config/asone/replicate-token");
+                        }
+                    }
+                    ui.small("Klucz wpisany tutaj jest zapisywany tylko lokalnie, w ustawieniach AsOne.");
+                });
+            });
+            row(ui, "Model", |ui| {
+                ui.vertical(|ui| {
+                    for model in EditModel::ALL {
+                        ui.horizontal(|ui| {
+                            ui.radio_value(&mut s.replicate_model, model, format!("{} – {} za obraz", model.label(), model.price()));
+                            ui.hyperlink_to(egui::RichText::new("strona").small(), model.page_url());
+                        });
+                    }
+                    ui.small("Ceny z cennika Replicate z 20.11.2026; wyniki wolno używać komercyjnie (strona modelu).");
+                });
+            });
+            row(ui, "Wysyłane", |ui| {
+                ui.vertical(|ui| {
+                    ui.small("obraz z zakładki (kadr, marginesy, smartfon) jako JPEG do 1536 px");
+                    ui.small("wynik (ok. 1 Mpx) zastępuje zdjęcie w zakładce – „Przywróć oryginał” wraca do pliku");
+                });
+            });
+        });
+    });
+    ui.add_space(10.0);
+    if ui.button("Przywróć domyślne").clicked() {
+        s.reset_section(PrefsSection::Replicate);
     }
 }
 
