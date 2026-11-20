@@ -481,6 +481,54 @@ pub fn open_in_file_manager(dir: &Path) {
     let _ = dir;
 }
 
+/// Android: marginesy pasków systemowych i wycięcia aparatu w pikselach `[lewo, góra, prawo, dół]`
+/// (`WindowInsets`: `systemBars | displayCutout` od API 30, starsze – `getSystemWindowInset*`).
+/// Aplikacja NativeActivity rysuje także pod zegarem i paskiem gestów – stąd ręczne odsunięcie.
+#[cfg(target_os = "android")]
+pub fn android_system_insets() -> Option<[i32; 4]> {
+    use jni::JavaVM;
+    use jni::objects::{JObject, JValue};
+    let app = crate::ANDROID_APP.get()?;
+    // SAFETY: wskaźniki VM i aktywności pochodzą od android-activity i żyją tyle co aplikacja.
+    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }.ok()?;
+    let mut env = vm.attach_current_thread_permanently().ok()?;
+    let sdk = app.config().sdk_version();
+    // Ramka lokalnych referencji: bez niej wywołania co klatkę zapełniłyby tablicę referencji.
+    let result = env.with_local_frame(16, |env| -> jni::errors::Result<[i32; 4]> {
+        // SAFETY: globalna referencja do aktywności – nie usuwamy jej.
+        let activity = unsafe { JObject::from_raw(app.activity_as_ptr().cast()) };
+        let window = env.call_method(&activity, "getWindow", "()Landroid/view/Window;", &[])?.l()?;
+        let decor = env.call_method(&window, "getDecorView", "()Landroid/view/View;", &[])?.l()?;
+        let insets = env.call_method(&decor, "getRootWindowInsets", "()Landroid/view/WindowInsets;", &[])?.l()?;
+        if insets.is_null() {
+            return Err(jni::errors::Error::NullPtr("getRootWindowInsets"));
+        }
+        if sdk >= 30 {
+            let types = "android/view/WindowInsets$Type";
+            let bars = env.call_static_method(types, "systemBars", "()I", &[])?.i()?;
+            let cutout = env.call_static_method(types, "displayCutout", "()I", &[])?.i()?;
+            let ins = env
+                .call_method(&insets, "getInsets", "(I)Landroid/graphics/Insets;", &[JValue::Int(bars | cutout)])?
+                .l()?;
+            let left = env.get_field(&ins, "left", "I")?.i()?;
+            let top = env.get_field(&ins, "top", "I")?.i()?;
+            let right = env.get_field(&ins, "right", "I")?.i()?;
+            let bottom = env.get_field(&ins, "bottom", "I")?.i()?;
+            Ok([left, top, right, bottom])
+        } else {
+            let left = env.call_method(&insets, "getSystemWindowInsetLeft", "()I", &[])?.i()?;
+            let top = env.call_method(&insets, "getSystemWindowInsetTop", "()I", &[])?.i()?;
+            let right = env.call_method(&insets, "getSystemWindowInsetRight", "()I", &[])?.i()?;
+            let bottom = env.call_method(&insets, "getSystemWindowInsetBottom", "()I", &[])?.i()?;
+            Ok([left, top, right, bottom])
+        }
+    });
+    if result.is_err() {
+        let _ = env.exception_clear();
+    }
+    result.ok()
+}
+
 /// Skąd pobrano plik – adresy, które przeglądarki zapisują przy pobieraniu:
 /// Linux/BSD `user.xdg.origin.url` / `user.xdg.referrer.url`, macOS `kMDItemWhereFroms`,
 /// Windows `Zone.Identifier` (HostUrl / ReferrerUrl). Pary (etykieta, wartość).

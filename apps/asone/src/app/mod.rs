@@ -122,8 +122,20 @@ pub struct AsOneApp {
     toast: Option<(String, bool, Instant)>,
     /// Prawy panel: „Narzędzia” albo „Metadane”.
     inspector_tab: InspectorTab,
+    /// Android: ostatnio odczytane marginesy pasków systemowych.
+    #[cfg(target_os = "android")]
+    insets: AndroidInsets,
     meta: HashMap<DocId, metadata::MetaState>,
     meta_channel: metadata::MetaChannel,
+}
+
+/// Android: marginesy pasków systemowych (px) – odczyt co sekundę albo po zmianie rozmiaru okna.
+#[cfg(target_os = "android")]
+#[derive(Default)]
+struct AndroidInsets {
+    px: [i32; 4],
+    size: Option<egui::Vec2>,
+    checked: Option<Instant>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -218,6 +230,8 @@ impl AsOneApp {
             dialogs: Dialogs::default(),
             toast: None,
             inspector_tab: InspectorTab::default(),
+            #[cfg(target_os = "android")]
+            insets: AndroidInsets::default(),
             meta: HashMap::new(),
             meta_channel: metadata::MetaChannel::default(),
             settings,
@@ -647,6 +661,27 @@ impl AsOneApp {
 }
 
 impl eframe::App for AsOneApp {
+    /// Android: odsuwa cały interfejs od zegara, paska gestów i wycięcia aparatu
+    /// (`safe_area_insets` – egui wtedy rysuje tylko w bezpiecznym obszarze).
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        #[cfg(target_os = "android")]
+        {
+            let size = raw_input.screen_rect.map(|r| r.size());
+            let stale = self.insets.checked.is_none_or(|t| t.elapsed() > Duration::from_secs(1));
+            if stale || size != self.insets.size {
+                if let Some(px) = platform::android_system_insets() {
+                    self.insets.px = px;
+                }
+                self.insets.size = size;
+                self.insets.checked = Some(Instant::now());
+            }
+            let ppp = ctx.pixels_per_point().max(0.1);
+            let [left, top, right, bottom] = self.insets.px.map(|v| v.max(0) as f32 / ppp);
+            raw_input.safe_area_insets = Some(egui::SafeAreaInsets(egui::epaint::MarginF32 { left, right, top, bottom }));
+        }
+        let _ = (ctx, raw_input);
+    }
+
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // W przeglądarce zadania „w tle” wykonujemy między klatkami.
         if platform::run_pending_tasks(12.0) {

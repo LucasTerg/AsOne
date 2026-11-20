@@ -55,10 +55,15 @@ pub fn run_native(options: eframe::NativeOptions, files: Vec<std::path::PathBuf>
     )
 }
 
+/// Aktywność Androida (do odczytu marginesów pasków systemowych przez JNI).
+#[cfg(target_os = "android")]
+pub static ANDROID_APP: std::sync::OnceLock<winit::platform::android::activity::AndroidApp> = std::sync::OnceLock::new();
+
 /// Punkt wejścia Androida (`cargo apk` / `xbuild` budują bibliotekę `cdylib`).
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(android_app: winit::platform::android::activity::AndroidApp) {
+    let _ = ANDROID_APP.set(android_app.clone());
     let mut options = native_options();
     options.android_app = Some(android_app);
     if let Err(e) = run_native(options, Vec::new()) {
