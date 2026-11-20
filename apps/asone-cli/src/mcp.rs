@@ -1,4 +1,4 @@
-//! Serwer MCP (oficjalne SDK `rmcp`, stdio). Nazwy narzędzi w `snake_case`, jak w programach Craft.
+//! Serwer MCP (oficjalne SDK `rmcp`, stdio). Nazwy narzędzi w `snake_case`.
 //!
 //! Dostęp do plików wyłącznie pod `--automation-read-root` (wejście) i `--automation-write-root`
 //! (wyjście). Bez katalogu dane uprawnienie nie istnieje. Oryginały nigdy nie są nadpisywane.
@@ -241,7 +241,7 @@ fn render_png(path: &std::path::Path, opts: &BatchOptions, max_side: u32) -> Res
 
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for AsOneMcp {
-    /// Jak w programach Craft: nieznany argument → JSON-RPC `-32602` z nazwą klucza, przed wykonaniem.
+    /// Nieznany argument → JSON-RPC `-32602` z nazwą klucza, przed wykonaniem.
     async fn call_tool(
         &self,
         request: CallToolRequestParams,

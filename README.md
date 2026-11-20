@@ -41,7 +41,7 @@ tego repozytorium pobiera APK prosto z Releases.
 APK lokalnie (Podman, Android SDK/NDK, Java 17+; ustawienia w nagłówku skryptu):
 `packaging/android/build-local.sh` → `dist/AsOne-<wersja>-android.apk`, instalacja `adb install -r …`.
 
-## Struktura (workspace jak w programach Craft)
+## Struktura
 
 | Ścieżka | Co to jest |
 |---|---|
@@ -236,7 +236,7 @@ claude mcp add asone -- asone-cli mcp --automation-read-root /praca/zdjecia --au
 `options`: `quality`, `max_long_side`, `margin`, `margin_top|right|bottom|left`, `square`,
 `background` (`#RRGGBB`), `crop` (`[l, t, r, b]` w 0–1).
 
-Zasady jak w programach Craft: dostęp do plików tylko pod podanymi katalogami (bez katalogu –
+Zasady: dostęp do plików tylko pod podanymi katalogami (bez katalogu –
 brak uprawnienia), ścieżki z `..` i dowiązania prowadzące na zewnątrz są odrzucane, nieznane
 argumenty dają JSON-RPC `-32602`, błędy wykonania – `isError: true`. Eksport zastępuje tylko
 wcześniejsze pliki `.jpg` o tych samych nazwach, nigdy oryginałów.

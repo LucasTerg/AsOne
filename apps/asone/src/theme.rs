@@ -1,4 +1,4 @@
-//! Motywy interfejsu: domyślny AsOne, motywy z PhotoCrafta (Preferencje › Interfejs) i Sepia.
+//! Motywy interfejsu: domyślny AsOne, dodatkowe motywy (Preferencje › Interfejs) i Sepia.
 //!
 //! Aktualna paleta jest globalna ([`p`]) – korzystają z niej panele, płótno i shader.
 
@@ -70,7 +70,7 @@ impl ThemeKind {
     }
 }
 
-/// Kolory jednego motywu (podzbiór tokenów PhotoCrafta).
+/// Kolory jednego motywu (podzbiór tokenów motywu).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Palette {
     /// Paski: tytułowy, górny, narzędzi, stanu.
@@ -154,7 +154,7 @@ const SEPIA: Palette = Palette {
 };
 
 impl Palette {
-    /// Kolory wygenerowane z `Tokens::for_kind` PhotoCrafta (z rozwiniętym dziedziczeniem).
+    /// Kolory wygenerowane z tokenów motywów (`Tokens::for_kind`, z rozwiniętym dziedziczeniem).
     pub fn for_kind(kind: ThemeKind) -> Palette {
         match kind {
             ThemeKind::AsOne => ASONE,

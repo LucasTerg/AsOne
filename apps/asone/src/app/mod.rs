@@ -1,4 +1,4 @@
-//! Główny stan aplikacji. Układ okna (styl Photoshop / PhotoCraft): pasek tytułu z menu,
+//! Główny stan aplikacji. Układ okna (styl Photoshop): pasek tytułu z menu,
 //! górny pasek eksportu, lewy pasek narzędzi, prawy inspektor i centralny dok zakładek.
 
 mod files;
