@@ -59,6 +59,18 @@ fn saved(file_name: String, f: Finished) -> ExportMsg {
     ExportMsg::Saved { file_name, bytes: f.jpeg.len() as u64, size: f.size, quality: f.quality, notes: f.notes }
 }
 
+/// Zapis gotowego JPG: plik (desktop) albo Galeria (Android, MediaStore przez Kotlin).
+#[cfg(not(target_arch = "wasm32"))]
+fn store(target: &std::path::Path, jpeg: &[u8]) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let name = target.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        crate::android::save_image(&name, jpeg).map(drop)
+    }
+    #[cfg(not(target_os = "android"))]
+    asone_core::batch::write_atomic(target, jpeg)
+}
+
 /// Desktop/Android: renderowanie na GPU w wątku eksportu, kompresja równolegle w puli `rayon`.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn start_export(
@@ -68,7 +80,7 @@ pub fn start_export(
     sources: Vec<std::path::PathBuf>,
     ctx: egui::Context,
 ) -> Receiver<ExportMsg> {
-    use asone_core::batch::{check_target, write_atomic};
+    use asone_core::batch::check_target;
 
     let (tx, rx) = crossbeam_channel::unbounded();
     crate::platform::spawn_detached("export", move || {
@@ -77,7 +89,10 @@ pub fn start_export(
             let _ = tx.send(msg);
             ctx.request_repaint();
         };
-        if let Err(e) = std::fs::create_dir_all(&settings.out_dir) {
+        // Android: zapis przez powłokę Kotlin do Galerii (MediaStore), bez folderu na dysku.
+        if !cfg!(target_os = "android")
+            && let Err(e) = std::fs::create_dir_all(&settings.out_dir)
+        {
             for item in &items {
                 send(ExportMsg::Failed {
                     file_name: item.file_name.clone(),
@@ -97,7 +112,9 @@ pub fn start_export(
 
         for item in items {
             let target = settings.out_dir.join(&item.file_name);
-            if let Err(error) = check_target(&target, &sources) {
+            if !cfg!(target_os = "android")
+                && let Err(error) = check_target(&target, &sources)
+            {
                 send(ExportMsg::Failed { file_name: item.file_name, error });
                 continue;
             }
@@ -110,8 +127,7 @@ pub fn start_export(
                     let settings = settings.clone();
                     spawned += 1;
                     pool.spawn(move || {
-                        let msg = match finish_image(size, rgb, &item.edits, &settings)
-                            .and_then(|f| write_atomic(&target, &f.jpeg).map(|()| f))
+                        let msg = match finish_image(size, rgb, &item.edits, &settings).and_then(|f| store(&target, &f.jpeg).map(|()| f))
                         {
                             Ok(f) => saved(item.file_name, f),
                             Err(error) => ExportMsg::Failed { file_name: item.file_name, error },

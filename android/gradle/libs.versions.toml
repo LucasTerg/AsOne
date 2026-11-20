@@ -1,0 +1,14 @@
+[versions]
+androidGradlePlugin = "9.5.1"
+androidxCore = "1.18.0"
+androidxAppcompat = "1.7.1"
+# Musi pasować do kodu C GameActivity w crate android-activity 0.6.1.
+androidxGamesActivity = "4.4.0"
+
+[libraries]
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidxAppcompat" }
+androidx-games-activity = { module = "androidx.games:games-activity", version.ref = "androidxGamesActivity" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

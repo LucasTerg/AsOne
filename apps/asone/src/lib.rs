@@ -5,6 +5,8 @@
 //! z którego korzysta też `asone-cli` (CLI + serwer MCP).
 
 pub mod ai;
+#[cfg(target_os = "android")]
+pub mod android;
 pub mod app;
 pub mod canvas;
 pub mod document;

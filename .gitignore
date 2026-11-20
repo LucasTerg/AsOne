@@ -3,3 +3,12 @@
 **/*.part
 git-switch.sh
 config.ini
+# Android (Gradle + biblioteki z cargo ndk)
+/android/.gradle/
+/android/.kotlin/
+/android/build/
+/android/app/build/
+/android/app/src/main/jniLibs/
+/android/local.properties
+*.keystore
+*.p12

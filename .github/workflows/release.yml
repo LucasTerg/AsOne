@@ -235,7 +235,7 @@ jobs:
           if-no-files-found: error
 
   android:
-    name: Android arm64 (APK)
+    name: Android (APK, GameActivity)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -243,35 +243,42 @@ jobs:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android
+          targets: aarch64-linux-android,x86_64-linux-android
       - uses: Swatinem/rust-cache@v2
         with:
           key: android
-      - name: cargo-apk
-        run: cargo install cargo-apk --locked
-      - name: APK
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: cargo-ndk
+        run: cargo install cargo-ndk --locked
+      # libasone_app.so dla arm64-v8a i x86_64, strony 16 KB (Android 15+), bez symboli.
+      - name: Biblioteki natywne (cargo ndk)
+        env:
+          RUSTFLAGS: "-C link-arg=-Wl,-z,max-page-size=16384"
+          CARGO_PROFILE_RELEASE_STRIP: symbols
+        run: |
+          set -o pipefail
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          cargo ndk -t arm64-v8a -t x86_64 -o android/app/src/main/jniLibs build --release -p asone --lib 2>&1 | tee -a "$RUNNER_TEMP/build.log"
+      # Powłoka Kotlin (GameActivity) + podpis stałym kluczem z sekretów (bez nich – klucz debug).
+      - name: APK (Gradle)
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          export ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME"
-          KS="$RUNNER_TEMP/release.keystore"
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$KS"
-            PASS="$KEYSTORE_PASSWORD"
-          else
-            # Bez sekretu: klucz tylko dla tego wydania (aktualizacja wymaga odinstalowania poprzedniej wersji).
-            PASS=android
-            keytool -genkeypair -keystore "$KS" -storepass "$PASS" -keypass "$PASS" -alias asone \
-              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=AsOne"
-          fi
-          export CARGO_APK_RELEASE_KEYSTORE="$KS"
-          export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="$PASS"
           set -o pipefail
-          cargo apk build --release -p asone --lib 2>&1 | tee -a "$RUNNER_TEMP/build.log"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            export ASONE_KEYSTORE="$RUNNER_TEMP/release.p12" ASONE_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
+          else
+            echo "::warning title=Android::Brak sekretu ANDROID_KEYSTORE_BASE64 – APK podpisany kluczem debug."
+          fi
+          (cd android && ./gradlew assembleRelease --no-daemon --console=plain) 2>&1 | tee -a "$RUNNER_TEMP/build.log"
           V=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
           mkdir -p dist
-          cp target/release/apk/AsOne.apk "dist/AsOne-$V-android-arm64.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/AsOne-$V-android.apk"
       - name: Końcówka logu (przy błędzie)
         if: failure()
         shell: bash
@@ -286,7 +293,7 @@ jobs:
           echo "::error title=Dysk::$(df -h . | tail -n 1)"
       - uses: actions/upload-artifact@v5
         with:
-          name: android-arm64
+          name: android
           path: dist/*.apk
           if-no-files-found: error
 
@@ -367,7 +374,7 @@ jobs:
             | Windows x86_64 / ARM64 | `.zip` – rozpakuj i uruchom `asone.exe` |
             | macOS Apple Silicon / Intel | `.zip` z `AsOne.app` |
             | FreeBSD x86_64 | `.tar.gz` (bez usuwania tła AI) |
-            | Android arm64 | `.apk` (wersja próbna); aktualizacje także z repozytorium F-Droid: https://lucasterg.github.io/AsOne/ |
+            | Android (arm64, x86_64) | `-android.apk` – wybór zdjęć z Galerii, zapis do Galerii (Pictures/AsOne); aktualizacje także z repozytorium F-Droid: https://lucasterg.github.io/AsOne/ |
             | Przeglądarka | `-web.zip` – pliki do wrzucenia na serwer (WebGPU / WebGL2) |
 
             Programy nie są podpisane certyfikatami Microsoft ani Apple:
@@ -405,7 +412,7 @@ jobs:
       - uses: actions/download-artifact@v5
         if: steps.keys.outputs.skip != '1'
         with:
-          name: android-arm64
+          name: android
           path: apk
       - name: fdroidserver i JDK 21
         if: steps.keys.outputs.skip != '1'

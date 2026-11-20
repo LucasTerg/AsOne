@@ -122,20 +122,14 @@ pub struct AsOneApp {
     toast: Option<(String, bool, Instant)>,
     /// Prawy panel: „Narzędzia” albo „Metadane”.
     inspector_tab: InspectorTab,
-    /// Android: ostatnio odczytane marginesy pasków systemowych.
+    /// Android: zdjęcia z okna wyboru, zanim przyjdzie koniec wyboru.
     #[cfg(target_os = "android")]
-    insets: AndroidInsets,
+    android_picked: Vec<ImageSource>,
+    /// Android: ostatnio ustawiony kolor ikon paska stanu (jasny motyw = ciemne ikony).
+    #[cfg(target_os = "android")]
+    android_light_bars: Option<bool>,
     meta: HashMap<DocId, metadata::MetaState>,
     meta_channel: metadata::MetaChannel,
-}
-
-/// Android: marginesy pasków systemowych (px) – odczyt co sekundę albo po zmianie rozmiaru okna.
-#[cfg(target_os = "android")]
-#[derive(Default)]
-struct AndroidInsets {
-    px: [i32; 4],
-    size: Option<egui::Vec2>,
-    checked: Option<Instant>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -194,6 +188,8 @@ impl AsOneApp {
         ctx.options_mut(|o| o.zoom_with_keyboard = false);
 
         let gpu = cc.wgpu_render_state.as_ref().map(GpuShared::new);
+        #[cfg(target_os = "android")]
+        crate::android::set_context(ctx);
         let remover = Arc::new(OnnxBackgroundRemover::default());
         let (ops_tx, ops_rx) = crossbeam_channel::unbounded();
         let mut app = Self {
@@ -231,7 +227,9 @@ impl AsOneApp {
             toast: None,
             inspector_tab: InspectorTab::default(),
             #[cfg(target_os = "android")]
-            insets: AndroidInsets::default(),
+            android_picked: Vec::new(),
+            #[cfg(target_os = "android")]
+            android_light_bars: None,
             meta: HashMap::new(),
             meta_channel: metadata::MetaChannel::default(),
             settings,
@@ -252,6 +250,28 @@ impl AsOneApp {
             }
         }
         self
+    }
+
+    /// Android: zdarzenia z powłoki Kotlin (zdjęcia, schowek, tekst) i kolor ikon paska stanu.
+    #[cfg(target_os = "android")]
+    fn poll_android(&mut self) {
+        use crate::android::Event;
+        for event in crate::android::take_events() {
+            match event {
+                Event::Picked(name, bytes) => self.android_picked.push(ImageSource::Bytes { name, bytes: bytes.into() }),
+                Event::PickFinished { failed, .. } => {
+                    let picked = std::mem::take(&mut self.android_picked);
+                    self.pickers.inject(PickerEvent::Files(picked, failed));
+                }
+                Event::Clipboard(text) => self.pickers.inject(PickerEvent::Pasted(text)),
+                Event::Text(text) => self.base_name = text.trim().to_string(),
+            }
+        }
+        let light = !theme::p().is_dark();
+        if self.android_light_bars != Some(light) {
+            crate::android::set_light_system_bars(light);
+            self.android_light_bars = Some(light);
+        }
     }
 
     fn toast(&mut self, text: impl Into<String>, error: bool) {
@@ -384,6 +404,8 @@ impl AsOneApp {
 
         self.ai.release_when_idle();
         self.poll_metadata();
+        #[cfg(target_os = "android")]
+        self.poll_android();
 
         for event in self.pickers.rx.try_iter().collect::<Vec<_>>() {
             match event {
@@ -666,20 +688,22 @@ impl eframe::App for AsOneApp {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         #[cfg(target_os = "android")]
         {
-            let size = raw_input.screen_rect.map(|r| r.size());
-            let stale = self.insets.checked.is_none_or(|t| t.elapsed() > Duration::from_secs(1));
-            if stale || size != self.insets.size {
-                if let Some(px) = platform::android_system_insets() {
-                    self.insets.px = px;
-                }
-                self.insets.size = size;
-                self.insets.checked = Some(Instant::now());
-            }
+            // Marginesy liczy powłoka Kotlin (WindowInsets) i przysyła przez JNI.
             let ppp = ctx.pixels_per_point().max(0.1);
-            let [left, top, right, bottom] = self.insets.px.map(|v| v.max(0) as f32 / ppp);
+            let [left, top, right, bottom] = crate::android::insets_px().map(|v| v.max(0) as f32 / ppp);
             raw_input.safe_area_insets = Some(egui::SafeAreaInsets(egui::epaint::MarginF32 { left, right, top, bottom }));
         }
         let _ = (ctx, raw_input);
+    }
+
+    /// Android: tło pod paskiem stanu i paskiem gestów w kolorze belki tytułu.
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        if cfg!(target_os = "android") {
+            theme::p().chrome.to_normalized_gamma_f32()
+        } else {
+            // Domyślny kolor eframe.
+            egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).to_normalized_gamma_f32()
+        }
     }
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {

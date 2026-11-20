@@ -148,21 +148,21 @@ pub fn spawn_detached(name: &str, job: impl FnOnce() + Send + 'static) {
 
 // --- Wejście / wyjście ---------------------------------------------------------------------
 
-/// Czy platforma ma systemowe okno wyboru plików / folderów.
-pub const CAN_PICK_FILES: bool = !cfg!(target_os = "android");
+/// Czy platforma ma systemowe okno wyboru plików / folderów (Android: przez powłokę Kotlin).
+pub const CAN_PICK_FILES: bool = true;
 pub const CAN_PICK_FOLDER: bool = !cfg!(any(target_os = "android", target_arch = "wasm32"));
 /// Eksport trafia do folderu (desktop/Android) czy do pobranych plików (przeglądarka).
 pub const EXPORT_TO_FOLDER: bool = !cfg!(target_arch = "wasm32");
 
-/// Domyślny folder, z którego Android proponuje wczytać zdjęcia.
+/// Domyślny folder, z którego Android proponuje wczytać zdjęcia (tylko gdy brak okna wyboru).
 pub const ANDROID_DEFAULT_INPUT: &str = "/storage/emulated/0/DCIM/Camera";
-/// Domyślny folder eksportu na Androidzie.
+/// Folder eksportu na Androidzie – Galeria (MediaStore, Pictures/AsOne).
 pub const ANDROID_DEFAULT_OUTPUT: &str = "/storage/emulated/0/Pictures/AsOne";
 
 /// Operacje na plikach z Asystenta PIM (otwórz, GIMP, kosz, ZIP, PDF) – tam, gdzie są ścieżki.
 pub const FILE_OPS: bool = !cfg!(any(target_os = "android", target_arch = "wasm32"));
 /// Czy można odczytać schowek przyciskiem „Wklej”.
-pub const CAN_PASTE: bool = !cfg!(target_os = "android");
+pub const CAN_PASTE: bool = true;
 
 /// Do czego służy plik wybrany w oknie „Zapisz jako”.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -185,10 +185,8 @@ pub enum PickerEvent {
 
 /// Okna wyboru plików działające bez blokowania UI (wynik przychodzi kanałem).
 pub struct Pickers {
-    #[cfg_attr(target_os = "android", allow(dead_code))]
     tx: Sender<PickerEvent>,
     pub rx: Receiver<PickerEvent>,
-    #[cfg_attr(target_os = "android", allow(dead_code))]
     ctx: egui::Context,
 }
 
@@ -198,8 +196,17 @@ impl Pickers {
         Self { tx, rx, ctx }
     }
 
+    /// Zdarzenie z innego źródła (Android: powłoka Kotlin) – obsłużone jak wynik okna.
+    #[cfg_attr(not(target_os = "android"), allow(dead_code))]
+    pub fn inject(&self, event: PickerEvent) {
+        let _ = self.tx.send(event);
+        self.ctx.request_repaint();
+    }
+
     /// Okno „Dodaj zdjęcia…”.
     pub fn pick_images(&self) {
+        #[cfg(target_os = "android")]
+        crate::android::pick_images();
         #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
         {
             let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
@@ -322,6 +329,8 @@ impl Pickers {
 
     /// Odczyt tekstu ze schowka systemowego (desktop: arboard, także Wayland; przeglądarka: Clipboard API).
     pub fn paste_text(&self) {
+        #[cfg(target_os = "android")]
+        crate::android::request_clipboard();
         #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
         {
             let text = arboard::Clipboard::new().and_then(|mut c| c.get_text());
@@ -479,54 +488,6 @@ pub fn open_in_file_manager(dir: &Path) {
     }
     #[cfg(any(target_os = "android", target_arch = "wasm32"))]
     let _ = dir;
-}
-
-/// Android: marginesy pasków systemowych i wycięcia aparatu w pikselach `[lewo, góra, prawo, dół]`
-/// (`WindowInsets`: `systemBars | displayCutout` od API 30, starsze – `getSystemWindowInset*`).
-/// Aplikacja NativeActivity rysuje także pod zegarem i paskiem gestów – stąd ręczne odsunięcie.
-#[cfg(target_os = "android")]
-pub fn android_system_insets() -> Option<[i32; 4]> {
-    use jni::JavaVM;
-    use jni::objects::{JObject, JValue};
-    let app = crate::ANDROID_APP.get()?;
-    // SAFETY: wskaźniki VM i aktywności pochodzą od android-activity i żyją tyle co aplikacja.
-    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) }.ok()?;
-    let mut env = vm.attach_current_thread_permanently().ok()?;
-    let sdk = app.config().sdk_version();
-    // Ramka lokalnych referencji: bez niej wywołania co klatkę zapełniłyby tablicę referencji.
-    let result = env.with_local_frame(16, |env| -> jni::errors::Result<[i32; 4]> {
-        // SAFETY: globalna referencja do aktywności – nie usuwamy jej.
-        let activity = unsafe { JObject::from_raw(app.activity_as_ptr().cast()) };
-        let window = env.call_method(&activity, "getWindow", "()Landroid/view/Window;", &[])?.l()?;
-        let decor = env.call_method(&window, "getDecorView", "()Landroid/view/View;", &[])?.l()?;
-        let insets = env.call_method(&decor, "getRootWindowInsets", "()Landroid/view/WindowInsets;", &[])?.l()?;
-        if insets.is_null() {
-            return Err(jni::errors::Error::NullPtr("getRootWindowInsets"));
-        }
-        if sdk >= 30 {
-            let types = "android/view/WindowInsets$Type";
-            let bars = env.call_static_method(types, "systemBars", "()I", &[])?.i()?;
-            let cutout = env.call_static_method(types, "displayCutout", "()I", &[])?.i()?;
-            let ins = env
-                .call_method(&insets, "getInsets", "(I)Landroid/graphics/Insets;", &[JValue::Int(bars | cutout)])?
-                .l()?;
-            let left = env.get_field(&ins, "left", "I")?.i()?;
-            let top = env.get_field(&ins, "top", "I")?.i()?;
-            let right = env.get_field(&ins, "right", "I")?.i()?;
-            let bottom = env.get_field(&ins, "bottom", "I")?.i()?;
-            Ok([left, top, right, bottom])
-        } else {
-            let left = env.call_method(&insets, "getSystemWindowInsetLeft", "()I", &[])?.i()?;
-            let top = env.call_method(&insets, "getSystemWindowInsetTop", "()I", &[])?.i()?;
-            let right = env.call_method(&insets, "getSystemWindowInsetRight", "()I", &[])?.i()?;
-            let bottom = env.call_method(&insets, "getSystemWindowInsetBottom", "()I", &[])?.i()?;
-            Ok([left, top, right, bottom])
-        }
-    });
-    if result.is_err() {
-        let _ = env.exception_clear();
-    }
-    result.ok()
 }
 
 /// Skąd pobrano plik – adresy, które przeglądarki zapisują przy pobieraniu:

@@ -62,6 +62,12 @@ impl AsOneApp {
                         .hint_text("np. 123-marka model")
                         .desired_width(210.0),
                 );
+                // Android: klawiatura systemowa w oknie edycji (GameActivity nie podaje tekstu do egui).
+                #[cfg(target_os = "android")]
+                if field.gained_focus() {
+                    crate::android::edit_text("Wklej nazwę", &self.base_name);
+                    ui.memory_mut(|m| m.surrender_focus(field.id));
+                }
                 field.context_menu(|ui| {
                     if platform::CAN_PASTE && ui.button("Wklej").clicked() {
                         self.pickers.paste_text();
@@ -180,6 +186,8 @@ impl AsOneApp {
                         if ui.button(label).on_hover_text(hover).clicked() {
                             self.pickers.pick_output_folder(dir);
                         }
+                    } else if cfg!(target_os = "android") {
+                        ui.colored_label(pal.text_dim, "Zapis: Galeria › Pictures/AsOne");
                     } else if platform::EXPORT_TO_FOLDER {
                         let dir = self.out_dir.clone().unwrap_or_default();
                         ui.colored_label(pal.text_dim, format!("Zapis: {}", dir.display()));

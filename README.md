@@ -13,11 +13,20 @@ FreeBSD, Android (APK) i wersja web. Buduje je GitHub Actions (`.github/workflow
 po wypchnięciu tagu: `git tag v0.1.1 && git push origin v0.1.1`.
 
 Android: własne repozytorium F-Droid na GitHub Pages – <https://lucasterg.github.io/AsOne/>
-(w aplikacji F-Droid: Ustawienia › Repozytoria › +). Workflow dokłada do niego APK przy każdym
+(w aplikacji F-Droid: Ustawienia › Repozytoria › + › zeskanuj kod QR).
+
+<img src="packaging/fdroid/qr.svg" width="200" alt="Kod QR repozytorium F-Droid AsOne">
+
+`https://lucasterg.github.io/AsOne/fdroid/repo?fingerprint=74B23E2A2688B820B1CB70B47D702F16BC7CFB1F129AF377D7FD11A92BF33E3E`
+
+Workflow dokłada do niego APK przy każdym
 wydaniu (`packaging/fdroid/update-repo.sh`, gałąź `gh-pages`), jeśli są ustawione sekrety
 `ANDROID_KEYSTORE_BASE64` i `ANDROID_KEYSTORE_PASSWORD` (stały klucz podpisu – inaczej aktualizacje
 się nie zainstalują). Bez F-Droid: [Obtainium](https://github.com/ImranR98/Obtainium) z adresem
 tego repozytorium pobiera APK prosto z Releases.
+
+APK lokalnie (Podman, Android SDK/NDK, Java z Android Studio – jak w word-apk):
+`packaging/android/build-local.sh` → `dist/AsOne-<wersja>-android.apk`, instalacja `adb install -r …`.
 
 ## Struktura (workspace jak w programach Craft)
 
@@ -124,7 +133,7 @@ Funkcja `nasm` włącza wstawki SIMD (szybsza kompresja), jeśli `nasm` jest zai
 | **FreeBSD** | jak Linux | Vulkan (Mesa), X11/Wayland. |
 | **Windows** (x86_64, ARM64) | jak wyżej (MSVC) | DirectX 12 / Vulkan; ARM64 = laptopy ze Snapdragonem. |
 | **macOS** (Apple Silicon, Intel) | jak wyżej (Xcode CLT) | Metal. |
-| **Android** | `xbuild` lub `cargo-apk`, biblioteka `cdylib` z `android_main` | Bez systemowego okna wyboru: folder wpisuje się w liście plików (domyślnie `DCIM/Camera`), zapis do `Pictures/AsOne`. Aplikacja potrzebuje uprawnienia do zdjęć (`READ_MEDIA_IMAGES`). |
+| **Android** | `android/` (Gradle, powłoka Kotlin na GameActivity) + `libasone_app.so` z `cargo ndk`; lokalnie `packaging/android/build-local.sh` (Podman) | Zdjęcia z systemowego okna wyboru (Galeria, Pliki), zapis do Galerii (`Pictures/AsOne`), nazwa przez okno z klawiaturą systemową, „Wklej” ze schowka; interfejs omija zegar, pasek gestów i wycięcie aparatu. Usuwanie tła AI – niedostępne. |
 | **Przeglądarka (wasm)** | `cd apps/asone && trunk serve --release` | WebGPU lub WebGL2. Pliki wrzuca się przeciąganiem / przyciskiem, wyniki trafiają do „Pobranych”. Kompresja: `jpeg-encoder` (MozJPEG to kod C). |
 | **ChromeOS** | wersja **Linux** w „Środowisku programistycznym Linux” (Crostini) albo wersja przeglądarkowa | Osobny build nie jest potrzebny. W Crostini działa pełna wersja (D&D, foldery); bez akceleracji Vulkan `wgpu` przełącza się na OpenGL. Na Chromebookach ARM – target `aarch64-unknown-linux-gnu`. APK z Androida też zadziała, ale wersja Linux jest wygodniejsza. |
 

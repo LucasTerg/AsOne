@@ -159,6 +159,7 @@ dependencies = [
  "ndk-context",
  "ndk-sys",
  "num_enum",
+ "simd_cesu8",
  "thiserror 2.0.21",
 ]
 
@@ -277,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "asone"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "arboard",
  "asone-core",
@@ -309,7 +310,7 @@ dependencies = [
 
 [[package]]
 name = "asone-cli"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "asone-core",
  "base64 0.22.1",
@@ -324,7 +325,7 @@ dependencies = [
 
 [[package]]
 name = "asone-core"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "avif-decode",
  "deunicode",

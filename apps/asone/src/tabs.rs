@@ -310,7 +310,7 @@ impl Viewer<'_> {
         if self.order.is_empty() {
             ui.centered_and_justified(|ui| {
                 let hint = if cfg!(target_os = "android") {
-                    "Wpisz folder ze zdjęciami i naciśnij „Wczytaj”"
+                    "Dodaj zdjęcia z Galerii albo Plików – „Dodaj zdjęcia…”"
                 } else {
                     "Przeciągnij tutaj zdjęcia (JPG, PNG, WebP, AVIF, TIFF, BMP)\nlub użyj „Dodaj zdjęcia…”"
                 };
