@@ -1,6 +1,8 @@
 package io.github.lucasterg.asone
 
 import android.content.ClipboardManager
+import android.content.res.Configuration
+import android.graphics.Color
 import android.content.ContentUris
 import android.content.ContentValues
 import android.net.Uri
@@ -43,6 +45,13 @@ class AsOneActivity : GameActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // Rysujemy na całym ekranie; Rust odsuwa interfejs o marginesy z nativeOnInsets.
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            // Przed Androidem 15 paski mają własne tło – przezroczyste, pod spodem kolor belki z Rusta.
+            @Suppress("DEPRECATION")
+            window.statusBarColor = Color.TRANSPARENT
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = Color.TRANSPARENT
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val attrs = window.attributes
             attrs.layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -59,17 +68,47 @@ class AsOneActivity : GameActivity() {
     private fun installInsetsListener() {
         val host: View = window.decorView.findViewById<ViewGroup>(android.R.id.content) ?: window.decorView
         ViewCompat.setOnApplyWindowInsetsListener(host) { view, insets ->
-            val bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-            )
-            val now = intArrayOf(bars.left, bars.top, bars.right, bars.bottom)
-            if (!now.contentEquals(lastInsets)) {
-                lastInsets = now
-                nativeOnInsets(bars.left, bars.top, bars.right, bars.bottom)
-            }
+            sendInsets(insets)
             ViewCompat.onApplyWindowInsets(view, insets)
         }
         ViewCompat.requestApplyInsets(host)
+        // Na wypadek, gdyby pierwsze rozesłanie marginesów minęło nasz widok – po ułożeniu okna.
+        host.post { pushRootInsets() }
+    }
+
+    // Marginesy zmieniają się przy obrocie, trybie wielu okien, zmianie wyświetlacza – odświeżamy.
+    override fun onResume() {
+        super.onResume()
+        window.decorView.post { pushRootInsets() }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        window.decorView.post { pushRootInsets() }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) window.decorView.post { pushRootInsets() }
+    }
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        window.decorView.post { pushRootInsets() }
+    }
+
+    private fun pushRootInsets() {
+        ViewCompat.getRootWindowInsets(window.decorView)?.let { sendInsets(it) }
+    }
+
+    /** Paski systemowe + wycięcie aparatu → Rust (tylko gdy się zmieniły). */
+    private fun sendInsets(insets: WindowInsetsCompat) {
+        val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+        val now = intArrayOf(bars.left, bars.top, bars.right, bars.bottom)
+        if (!now.contentEquals(lastInsets)) {
+            lastInsets = now
+            nativeOnInsets(bars.left, bars.top, bars.right, bars.bottom)
+        }
     }
 
     // ---- Wywoływane z Rusta ----------------------------------------------------------------

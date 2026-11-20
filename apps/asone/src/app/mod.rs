@@ -682,45 +682,9 @@ impl AsOneApp {
     }
 }
 
-impl eframe::App for AsOneApp {
-    /// Android: odsuwa cały interfejs od zegara, paska gestów i wycięcia aparatu
-    /// (`safe_area_insets` – egui wtedy rysuje tylko w bezpiecznym obszarze).
-    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        #[cfg(target_os = "android")]
-        {
-            // Marginesy liczy powłoka Kotlin (WindowInsets) i przysyła przez JNI.
-            let ppp = ctx.pixels_per_point().max(0.1);
-            let [left, top, right, bottom] = crate::android::insets_px().map(|v| v.max(0) as f32 / ppp);
-            raw_input.safe_area_insets = Some(egui::SafeAreaInsets(egui::epaint::MarginF32 { left, right, top, bottom }));
-        }
-        let _ = (ctx, raw_input);
-    }
-
-    /// Android: tło pod paskiem stanu i paskiem gestów w kolorze belki tytułu.
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        if cfg!(target_os = "android") {
-            theme::p().chrome.to_normalized_gamma_f32()
-        } else {
-            // Domyślny kolor eframe.
-            egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).to_normalized_gamma_f32()
-        }
-    }
-
-    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // W przeglądarce zadania „w tle” wykonujemy między klatkami.
-        if platform::run_pending_tasks(12.0) {
-            ctx.request_repaint();
-        }
-        self.poll_background(ctx);
-        #[cfg(target_arch = "wasm32")]
-        self.poll_web_files();
-    }
-
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, STORAGE_KEY, &self.settings);
-    }
-
-    fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+impl AsOneApp {
+    /// Cały interfejs (pasek tytułu, panele, dok, okna).
+    fn draw(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
         self.handle_dropped_files(&ctx);
         self.sync_order();
@@ -813,5 +777,58 @@ impl eframe::App for AsOneApp {
                 }
             }
         });
+    }
+}
+
+impl eframe::App for AsOneApp {
+    /// Android: odsuwa cały interfejs od zegara, paska gestów i wycięcia aparatu
+    /// (`safe_area_insets` – egui wtedy rysuje tylko w bezpiecznym obszarze).
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        #[cfg(target_os = "android")]
+        {
+            // Marginesy liczy powłoka Kotlin (WindowInsets) i przysyła przez JNI.
+            let ppp = ctx.pixels_per_point().max(0.1);
+            let [left, top, right, bottom] = crate::android::insets_px().map(|v| v.max(0) as f32 / ppp);
+            raw_input.safe_area_insets = Some(egui::SafeAreaInsets(egui::epaint::MarginF32 { left, right, top, bottom }));
+        }
+        let _ = (ctx, raw_input);
+    }
+
+    /// Android: tło pod paskiem stanu i paskiem gestów w kolorze belki tytułu.
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        if cfg!(target_os = "android") {
+            theme::p().chrome.to_normalized_gamma_f32()
+        } else {
+            // Domyślny kolor eframe.
+            egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).to_normalized_gamma_f32()
+        }
+    }
+
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // W przeglądarce zadania „w tle” wykonujemy między klatkami.
+        if platform::run_pending_tasks(12.0) {
+            ctx.request_repaint();
+        }
+        self.poll_background(ctx);
+        #[cfg(target_arch = "wasm32")]
+        self.poll_web_files();
+    }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, STORAGE_KEY, &self.settings);
+    }
+
+    fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+        // egui 0.36 daje główny Ui na cały ekran (viewport_rect), mimo `safe_area_insets` –
+        // na Androidzie rysujemy więc w obszarze bez pasków systemowych i wycięcia aparatu.
+        if cfg!(target_os = "android") {
+            let safe = ui.ctx().content_rect();
+            ui.scope_builder(egui::UiBuilder::new().max_rect(safe), |ui| self.draw(ui));
+            // Tekst wpisuje się w oknie systemowym (Kotlin) – egui nie może włączać klawiatury
+            // GameActivity: ta przejmuje fokus SurfaceView i gryzie się z oknem edycji.
+            ui.ctx().output_mut(|o| o.ime = None);
+        } else {
+            self.draw(ui);
+        }
     }
 }
