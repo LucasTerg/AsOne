@@ -21,6 +21,16 @@ pub struct PrefsResult {
     pub download: Option<(AiModel, std::path::PathBuf, String)>,
     /// „Wybierz…” plik modelu (okno systemowe).
     pub pick_model: bool,
+    /// Android: pole tekstowe do edycji w systemowym oknie (cel, bieżąca wartość).
+    pub edit_text: Option<(crate::platform::TextTarget, String)>,
+}
+
+/// Android: pole klucza otwiera systemowe okno z klawiaturą (pola egui jej tam nie dostają).
+fn native_text(ui: &Ui, field: &egui::Response, target: crate::platform::TextTarget, current: &str, result: &mut PrefsResult) {
+    if cfg!(target_os = "android") && field.gained_focus() {
+        result.edit_text = Some((target, current.to_string()));
+        ui.memory_mut(|m| m.surrender_focus(field.id));
+    }
 }
 
 /// Stan pobierania modelu pokazywany w Preferencjach.
@@ -35,6 +45,15 @@ impl PrefsDialog {
         self.open = true;
         self.section = section;
         self.draft = current.clone();
+    }
+
+    /// Android: tekst z systemowego okna edycji trafia do szkicu ustawień.
+    pub fn set_text(&mut self, target: crate::platform::TextTarget, text: String) {
+        match target {
+            crate::platform::TextTarget::FalKey => self.draft.fal_key = text.trim().to_string(),
+            crate::platform::TextTarget::ReplicateKey => self.draft.replicate_key = text.trim().to_string(),
+            _ => {}
+        }
     }
 
     /// Plik wybrany w oknie „Wybierz…” trafia do szkicu ustawień.
@@ -114,7 +133,7 @@ impl PrefsDialog {
                                 PrefsSection::Interface => interface_page(ui, &mut self.draft),
                                 PrefsSection::Export => export_page(ui, &mut self.draft),
                                 PrefsSection::Ai => ai_page(ui, &mut self.draft, download, &mut result),
-                                PrefsSection::Replicate => replicate_page(ui, &mut self.draft),
+                                PrefsSection::Replicate => replicate_page(ui, &mut self.draft, &mut result),
                             }
                         });
                     });
@@ -289,7 +308,7 @@ fn export_page(ui: &mut Ui, s: &mut Settings) {
 }
 
 /// Replicate: jeden przełącznik dla wszystkich płatnych funkcji, klucz i model edycji.
-fn replicate_page(ui: &mut Ui, s: &mut Settings) {
+fn replicate_page(ui: &mut Ui, s: &mut Settings, result: &mut PrefsResult) {
     let pal = theme::p();
     ui.heading("Replicate (edycja AI online)");
     ui.colored_label(
@@ -300,20 +319,24 @@ fn replicate_page(ui: &mut Ui, s: &mut Settings) {
     ui.add_space(8.0);
     ui.checkbox(&mut s.replicate_enabled, egui::RichText::new("Włącz funkcje Replicate").strong())
         .on_hover_text("Wyłączone: znikają wszystkie płatne przyciski Replicate (panel „Edycja AI” i menu zdjęcia).");
-    if !crate::ai::AVAILABLE {
-        ui.colored_label(pal.warning, "W tej wersji (przeglądarka, Android, FreeBSD) edycja AI jest niedostępna.");
+    if !crate::ai::REPLICATE_AVAILABLE {
+        ui.colored_label(
+            pal.warning,
+            "W przeglądarce Replicate nie działa – blokuje zapytania ze stron WWW. Użyj wersji na komputer albo Androida.",
+        );
     }
     ui.add_space(6.0);
     ui.add_enabled_ui(s.replicate_enabled, |ui| {
         egui::Grid::new("prefs_replicate").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
             row(ui, "Klucz API", |ui| {
                 ui.vertical(|ui| {
-                    ui.add(
+                    let field = ui.add(
                         egui::TextEdit::singleline(&mut s.replicate_key)
                             .password(true)
                             .hint_text("r8_…")
                             .desired_width(300.0),
                     );
+                    native_text(ui, &field, crate::platform::TextTarget::ReplicateKey, &s.replicate_key, result);
                     ui.horizontal_wrapped(|ui| {
                         ui.hyperlink_to(egui::RichText::new("utwórz klucz").small(), "https://replicate.com/account/api-tokens");
                         ui.small("·");
@@ -355,7 +378,7 @@ fn replicate_page(ui: &mut Ui, s: &mut Settings) {
 }
 
 /// RMBG-3.0 online (fal.ai): koszt, klucz API, co jest wysyłane.
-fn online_rows(ui: &mut Ui, s: &mut Settings) {
+fn online_rows(ui: &mut Ui, s: &mut Settings, result: &mut PrefsResult) {
     let pal = theme::p();
     row(ui, "Wymagania", |ui| {
         ui.vertical(|ui| {
@@ -369,12 +392,13 @@ fn online_rows(ui: &mut Ui, s: &mut Settings) {
     });
     row(ui, "Klucz fal.ai", |ui| {
         ui.vertical(|ui| {
-            ui.add(
+            let field = ui.add(
                 egui::TextEdit::singleline(&mut s.fal_key)
                     .password(true)
                     .hint_text("klucz API fal.ai (albo zmienna FAL_KEY)")
                     .desired_width(300.0),
             );
+            native_text(ui, &field, crate::platform::TextTarget::FalKey, &s.fal_key, result);
             ui.horizontal_wrapped(|ui| {
                 ui.hyperlink_to(egui::RichText::new("utwórz klucz").small(), "https://fal.ai/dashboard/keys");
                 ui.small("·");
@@ -417,7 +441,14 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
         ui.colored_label(pal.text_dim, "Modele BRIA RMBG-1.4 i 2.0 działają lokalnie – zdjęcia nie są nigdzie wysyłane.");
     }
     if !crate::ai::AVAILABLE {
-        ui.colored_label(pal.warning, "W tej wersji (przeglądarka, Android, FreeBSD) usuwanie tła AI jest niedostępne.");
+        ui.colored_label(
+            pal.warning,
+            "Na tej platformie działa model online RMBG-3.0 (fal.ai); modele lokalne – tylko na Linux, Windows i macOS.",
+        );
+        // Model lokalny i tak by tu nie zadziałał – w szkicu od razu model online (zapis dopiero po OK).
+        if !s.ai_model.is_online() {
+            s.ai_model = AiModel::Rmbg30Fal;
+        }
     }
     ui.add_space(6.0);
     egui::Grid::new("prefs_ai").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
@@ -427,7 +458,7 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                     .width(220.0)
                     .selected_text(s.ai_model.label())
                     .show_ui(ui, |ui| {
-                        for m in AiModel::ALL {
+                        for m in AiModel::ALL.into_iter().filter(|m| m.is_online() || crate::ai::AVAILABLE) {
                             ui.selectable_value(&mut s.ai_model, m, m.label());
                         }
                     });
@@ -435,7 +466,7 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
             });
         });
         if s.ai_model.is_online() {
-            online_rows(ui, s);
+            online_rows(ui, s, result);
             return;
         }
         row(ui, "Wymagania", |ui| {

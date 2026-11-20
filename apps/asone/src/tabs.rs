@@ -150,6 +150,8 @@ pub enum Action {
     SetVersion(Vec<DocId>, Option<u8>),
     /// Polecenie z menu kontekstowego zdjęcia (płótna).
     Canvas(DocId, crate::canvas::CanvasAction),
+    /// Gumka: Ctrl + kółko – mnożnik promienia pędzla.
+    ScaleBrush(f32),
     /// „Dodaj folder…”.
     AddFolder,
     /// Ekran startowy: wczytaj folder z „Ostatnich”.
@@ -252,6 +254,9 @@ impl egui_dock::TabViewer for Viewer<'_> {
                         self.actions.push(Action::SwitchTool(t));
                     }
                     self.actions.extend(out.actions.into_iter().map(|a| Action::Canvas(id, a)));
+                    if let Some(f) = out.brush_factor {
+                        self.actions.push(Action::ScaleBrush(f));
+                    }
                 }
             }
         }

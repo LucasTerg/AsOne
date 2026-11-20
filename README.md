@@ -116,7 +116,7 @@ kosza lub trwale, usuń z listy / wszystkie z listy).
 | kółko myszy | zoom w punkt kursora |
 | `Spacja`+LPM, środkowy przycisk | przesuwanie widoku |
 | `Ctrl+0` / `Ctrl+1` | dopasuj do okna / 100 % |
-| `[` `]` | rozmiar pędzla |
+| `[` `]`, `Ctrl`+kółko (gumka) | rozmiar pędzla |
 | LPM / PPM (lub `Alt`+LPM) | gumka: usuń / przywróć |
 | PPM na zdjęciu | menu zdjęcia (poza gumką) |
 | `Delete` / `Shift+Delete` / `Esc` | wytnij / przywróć zaznaczenie, odznacz |
@@ -238,8 +238,14 @@ RMBG-1.4. Model jest zwalniany z pamięci po 2 minutach bezczynności.
 
 Domyślne miejsce: `~/.local/share/asone/models/`. Lokalne modele BRIA (RMBG-1.4, 2.0) są darmowe
 do użytku niekomercyjnego; do zastosowań komercyjnych – umowa z BRIA albo RMBG-3.0 przez fal.ai
-(na stronie modelu: „Commercial use”, trenowany wyłącznie na licencjonowanych danych). AI działa w wersjach desktopowych (Linux, Windows, macOS); w przeglądarce,
-na Androidzie i FreeBSD przycisk zgłasza, że funkcja jest niedostępna.
+(na stronie modelu: „Commercial use”, trenowany wyłącznie na licencjonowanych danych). 
+
+| Gdzie działa | RMBG-1.4 / 2.0 (lokalnie) | RMBG-3.0 (fal.ai) | Edycja AI (Replicate) |
+|---|---|---|---|
+| Linux, Windows, macOS | tak | tak | tak |
+| FreeBSD | nie (brak ONNX Runtime) | tak | tak |
+| Android | nie | tak (klucz i polecenie w oknie systemowym) | tak |
+| Przeglądarka | nie | tak (klucz zostaje w przeglądarce) | nie – Replicate blokuje zapytania ze stron WWW |
 Test na prawdziwym modelu: `cargo test -p asone rmbg14 -- --ignored`; pomiar pamięci:
 `ASONE_RMBG_MODEL=…/rmbg-2.0.onnx ASONE_RMBG_KIND=20 cargo test -p asone --release rmbg_pamiec -- --ignored --nocapture`.
 

@@ -375,7 +375,7 @@ jobs:
             | Linux x86_64 / aarch64 | `.AppImage` (uruchom), `.flatpak` (`flatpak install --user AsOne-….flatpak`), `.tar.gz` (same binarki `asone` + `asone-cli`) |
             | Windows x86_64 / ARM64 | `.zip` – rozpakuj i uruchom `asone.exe` |
             | macOS Apple Silicon / Intel | `.zip` z `AsOne.app` |
-            | FreeBSD x86_64 | `.tar.gz` (bez usuwania tła AI) |
+            | FreeBSD x86_64 | `.tar.gz` (usuwanie tła tylko online – RMBG-3.0 przez fal.ai; edycja AI przez Replicate) |
             | Android (arm64, x86_64) | `-android.apk` – wybór zdjęć z Galerii, zapis do Galerii (Pictures/AsOne); aktualizacje także z repozytorium F-Droid: https://lucasterg.github.io/AsOne/ |
             | Przeglądarka | online: https://lucasterg.github.io/AsOne/app/ albo `-web.zip` – pliki do wrzucenia na serwer WWW (WebGPU / WebGL2; nie działa otwarte prosto z dysku) |
 

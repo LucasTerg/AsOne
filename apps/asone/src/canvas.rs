@@ -46,7 +46,7 @@ impl Tool {
         match self {
             Tool::Move => "LPM / Spacja / środkowy – przesuwanie · kółko – zoom · PPM – menu · Ctrl+0 dopasuj · Ctrl+1 100%",
             Tool::Crop => "Przeciągaj uchwyty lub ramkę · poza kadrem – nowy kadr · Enter / dwuklik – zatwierdź",
-            Tool::Eraser => "LPM – usuń · PPM lub Alt+LPM – przywróć · [ ] – rozmiar pędzla",
+            Tool::Eraser => "LPM – usuń · PPM lub Alt+LPM – przywróć · [ ] albo Ctrl+kółko – rozmiar pędzla",
             Tool::RectCut => "Przeciągnij, aby zaznaczyć · Delete – wytnij · Shift+Delete – przywróć · Esc – odznacz",
         }
     }
@@ -190,7 +190,7 @@ fn canvas_menu(
             item(ui, true, "Polecenie z panelu", CanvasAction::AiEdit);
         });
     }
-    item(ui, crate::ai::AVAILABLE, "Usuń tło", CanvasAction::RemoveBackground);
+    item(ui, crate::ai::AVAILABLE || crate::ai::FAL_AVAILABLE, "Usuń tło", CanvasAction::RemoveBackground);
     item(ui, true, "Kadruj (auto)", CanvasAction::AutoCrop);
     item(ui, true, "Dopasuj do kwadratu 1:1", CanvasAction::FitSquare);
     item(ui, true, "Ramka 5 px", CanvasAction::Frame5);
@@ -223,6 +223,8 @@ pub struct CanvasOutput {
     pub switch_tool: Option<Tool>,
     /// Polecenia z menu kontekstowego.
     pub actions: Vec<CanvasAction>,
+    /// Gumka + Ctrl + kółko: mnożnik promienia pędzla.
+    pub brush_factor: Option<f32>,
 }
 
 /// Dopasowuje widok tak, by `size` (od `origin`, w px źródła) zmieścił się w oknie.
@@ -404,10 +406,15 @@ pub fn photo_ui(
         if scroll.y != 0.0 {
             factor *= (scroll.y * 0.0025).exp();
         }
-        if factor != 1.0
-            && let Some(p) = response.hover_pos() {
-                zoom_at(&mut doc.camera, p - canvas_rect.min, factor);
-            }
+        // Gumka: Ctrl (Cmd) + kółko zmienia rozmiar pędzla zamiast przybliżać.
+        let ctrl = ui.input(|i| i.modifiers.ctrl || i.modifiers.command);
+        if factor != 1.0 && tool == Tool::Eraser && ctrl {
+            out.brush_factor = Some(factor);
+        } else if factor != 1.0
+            && let Some(p) = response.hover_pos()
+        {
+            zoom_at(&mut doc.camera, p - canvas_rect.min, factor);
+        }
     }
 
     // --- Warstwa (smartfon): przesuwanie i skalowanie narzędziem „Przesuwanie” ---------------

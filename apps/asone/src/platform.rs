@@ -14,6 +14,36 @@ use image::RgbaImage;
 
 pub use web_time::Instant;
 
+/// Android: dokąd trafia tekst z systemowego okna edycji (pola egui nie dostają tam klawiatury).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextTarget {
+    /// „Wklej nazwę” w górnym pasku.
+    #[default]
+    Name,
+    /// Preferencje: klucz fal.ai.
+    FalKey,
+    /// Preferencje: klucz Replicate.
+    ReplicateKey,
+    /// Panel „Edycja AI”: polecenie.
+    AiPrompt,
+}
+
+impl TextTarget {
+    pub fn title(self) -> &'static str {
+        match self {
+            TextTarget::Name => "Wklej nazwę",
+            TextTarget::FalKey => "Klucz API fal.ai",
+            TextTarget::ReplicateKey => "Klucz API Replicate (r8_…)",
+            TextTarget::AiPrompt => "Polecenie dla AI",
+        }
+    }
+
+    /// Klucze: bez podpowiedzi i autokorekty klawiatury.
+    pub fn secret(self) -> bool {
+        matches!(self, TextTarget::FalKey | TextTarget::ReplicateKey)
+    }
+}
+
 /// Skąd pochodzi zdjęcie.
 #[derive(Clone)]
 pub enum ImageSource {

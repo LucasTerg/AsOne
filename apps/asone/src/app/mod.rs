@@ -108,6 +108,9 @@ pub struct AsOneApp {
     recent_previews: HashMap<String, RecentPreview>,
     /// Polecenie dla edycji AI (Replicate) z panelu.
     ai_prompt: String,
+    /// Android: dokąd trafi tekst z systemowego okna edycji.
+    #[cfg(target_os = "android")]
+    text_target: platform::TextTarget,
 
     gpu: Option<Arc<GpuShared>>,
     loader: Loader,
@@ -245,6 +248,8 @@ impl AsOneApp {
             meta: HashMap::new(),
             recent_previews: HashMap::new(),
             ai_prompt: String::new(),
+            #[cfg(target_os = "android")]
+            text_target: platform::TextTarget::Name,
             meta_channel: metadata::MetaChannel::default(),
             settings,
         };
@@ -278,7 +283,11 @@ impl AsOneApp {
                     self.pickers.inject(PickerEvent::Files(picked, failed));
                 }
                 Event::Clipboard(text) => self.pickers.inject(PickerEvent::Pasted(text)),
-                Event::Text(text) => self.base_name = text.trim().to_string(),
+                Event::Text(text) => match self.text_target {
+                    platform::TextTarget::Name => self.base_name = text.trim().to_string(),
+                    platform::TextTarget::AiPrompt => self.ai_prompt = text.trim().to_string(),
+                    target => self.prefs.set_text(target, text),
+                },
             }
         }
         let light = !theme::p().is_dark();
@@ -843,6 +852,11 @@ impl AsOneApp {
         }
         if let Some((model, path, token)) = prefs.download {
             self.start_model_download(&ctx, model, path, token);
+        }
+        #[cfg(target_os = "android")]
+        if let Some((target, current)) = prefs.edit_text {
+            self.text_target = target;
+            crate::android::edit_text(target.title(), &current, target.secret());
         }
         if self.settings.hide_inspection {
             self.inspection = false;

@@ -132,13 +132,21 @@ class AsOneActivity : GameActivity() {
         }
     }
 
-    /** Okno edycji tekstu z klawiaturą systemową – odpowiedź przez [nativeOnTextEntered]. */
-    fun editText(title: String, current: String) {
+    /**
+     * Okno edycji tekstu z klawiaturą systemową – odpowiedź przez [nativeOnTextEntered].
+     * `secret`: klucz API – bez podpowiedzi i autokorekty (klawiatura nie zmienia znaków).
+     */
+    fun editText(title: String, current: String, secret: Boolean) {
         runOnUiThread {
             val input = EditText(this).apply {
                 setText(current)
                 setSelection(current.length)
-                inputType = InputType.TYPE_CLASS_TEXT
+                inputType = if (secret) {
+                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
+                        InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                } else {
+                    InputType.TYPE_CLASS_TEXT
+                }
                 isSingleLine = true
             }
             val pad = (20 * resources.displayMetrics.density).toInt()

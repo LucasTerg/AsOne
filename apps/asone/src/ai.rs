@@ -20,8 +20,12 @@ use crate::document::DocId;
 use crate::platform::{ImageSource, Tasks};
 pub use crate::settings::AiModel;
 
-/// Czy ta kompilacja potrafi uruchomić model lokalnie.
+/// Czy ta kompilacja potrafi uruchomić model lokalnie (ONNX Runtime: Linux, Windows, macOS).
 pub const AVAILABLE: bool = cfg!(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")));
+/// RMBG-3.0 online (fal.ai) – wszędzie, także w przeglądarce (fal.ai pozwala na zapytania z przeglądarek).
+pub const FAL_AVAILABLE: bool = true;
+/// Edycja przez Replicate – wszędzie poza przeglądarką (Replicate blokuje zapytania z przeglądarek).
+pub const REPLICATE_AVAILABLE: bool = !cfg!(target_arch = "wasm32");
 
 #[derive(Debug, Clone)]
 pub enum AiError {
@@ -186,7 +190,11 @@ impl BackgroundRemover for OnnxBackgroundRemover {
     fn predict_mask(&self, model: AiModel, path: &Path, image: &RgbaImage) -> Result<GrayImage, AiError> {
         if !AVAILABLE {
             let _ = (model, image);
-            return Err(AiError::BackendUnavailable("działa w wersji desktopowej (Linux, Windows, macOS)".into()));
+            return Err(AiError::BackendUnavailable(
+                "modele lokalne działają na Linux, Windows i macOS – tutaj wybierz RMBG-3.0 online (fal.ai) \
+                 w Ustawienia › Preferencje › Usuwanie tła (AI)"
+                    .into(),
+            ));
         }
         if !path.is_file() {
             return Err(AiError::ModelMissing(path.to_path_buf()));
@@ -312,6 +320,28 @@ impl AiWorker {
         if !job.model.is_online() {
             self.loaded = true;
         }
+        // Przeglądarka: fal.ai przez `fetch` – asynchronicznie, bez blokowania strony.
+        #[cfg(target_arch = "wasm32")]
+        if job.model.is_online() {
+            let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
+            wasm_bindgen_futures::spawn_local(async move {
+                let result = async {
+                    let full = job.source.decode().ok();
+                    let image = full.as_ref().unwrap_or(job.image.as_ref());
+                    let small = crate::fal::remove_background_async(image, &job.fal_key).await.map_err(AiError::Online)?;
+                    let (w, h) = small.dimensions();
+                    resize_gray(small.as_raw(), [w, h], job.full_size).map_err(AiError::Inference)
+                }
+                .await;
+                let msg = match result {
+                    Ok(mask) => AiResult::Done { id: job.id, mask },
+                    Err(e) => AiResult::Failed { id: job.id, error: e.to_string() },
+                };
+                let _ = tx.send(msg);
+                ctx.request_repaint();
+            });
+            return;
+        }
         self.idle_since = None;
         let (remover, tx, ctx) = (self.remover.clone(), self.tx.clone(), self.ctx.clone());
         self.tasks.spawn(move || {
@@ -336,17 +366,18 @@ fn run_job(remover: &dyn BackgroundRemover, job: &AiJob) -> Result<Vec<u8>, AiEr
 }
 
 /// RMBG-3.0 przez fal.ai: oryginał (albo, gdy się nie wczyta, pomniejszona kopia).
+/// W przeglądarce obsługuje to [`AiWorker::submit`] (asynchronicznie).
 fn predict_online(job: &AiJob) -> Result<GrayImage, AiError> {
-    #[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+    #[cfg(not(target_arch = "wasm32"))]
     {
         let full = job.source.decode().ok();
         let image = full.as_ref().unwrap_or(job.image.as_ref());
         crate::fal::remove_background(image, &job.fal_key).map_err(AiError::Online)
     }
-    #[cfg(not(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos"))))]
+    #[cfg(target_arch = "wasm32")]
     {
         let _ = job;
-        Err(AiError::BackendUnavailable("działa w wersji desktopowej (Linux, Windows, macOS)".into()))
+        Err(AiError::BackendUnavailable("w przeglądarce zadanie online idzie osobną ścieżką".into()))
     }
 }
 

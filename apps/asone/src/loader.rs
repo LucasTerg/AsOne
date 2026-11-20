@@ -126,12 +126,12 @@ impl Loader {
             let result = (|| -> Result<LoadResult, String> {
                 let gpu = gpu.ok_or("Brak GPU (wgpu)")?;
                 let input = compose_output(&source, &mask, &edits, overlay.as_deref(), gpu.max_texture_dim)?;
-                #[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+                #[cfg(not(target_arch = "wasm32"))]
                 let image = crate::replicate::edit_image(&input, &prompt, model, &key);
-                #[cfg(not(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos"))))]
+                #[cfg(target_arch = "wasm32")]
                 let image: Result<RgbaImage, String> = {
                     let _ = (&input, &prompt, model, &key);
-                    Err("Edycja AI działa w wersji desktopowej (Linux, Windows, macOS)".to_string())
+                    Err("Edycja przez Replicate nie działa w przeglądarce (Replicate blokuje takie zapytania)".to_string())
                 };
                 new_content(&gpu, id, image?, true)
             })();

@@ -444,7 +444,7 @@ impl Settings {
 
     /// Funkcje Replicate widoczne: włączone, ta wersja je obsługuje i jest klucz.
     pub fn replicate_active(&self) -> bool {
-        self.replicate_enabled && crate::ai::AVAILABLE && !self.replicate_api_key().is_empty()
+        self.replicate_enabled && crate::ai::REPLICATE_AVAILABLE && !self.replicate_api_key().is_empty()
     }
 
     /// Klucz fal.ai: wpisany w Ustawieniach albo ze zmiennej środowiskowej `FAL_KEY`.

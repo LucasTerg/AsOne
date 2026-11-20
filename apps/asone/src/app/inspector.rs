@@ -370,12 +370,21 @@ impl AsOneApp {
 
             if replicate {
                 section(ui, "Edycja AI (Replicate)");
-                ui.add(
+                let field = ui.add(
                     egui::TextEdit::multiline(&mut self.ai_prompt)
                         .hint_text("Co zrobić ze zdjęciem – najlepiej po angielsku, np. „place the product on a white background”")
                         .desired_rows(2)
                         .desired_width(f32::INFINITY),
                 );
+                // Android: klawiatura systemowa w oknie edycji (GameActivity nie podaje tekstu do egui).
+                #[cfg(target_os = "android")]
+                if field.gained_focus() {
+                    self.text_target = crate::platform::TextTarget::AiPrompt;
+                    crate::android::edit_text("Polecenie dla AI", &self.ai_prompt, false);
+                    ui.memory_mut(|m| m.surrender_focus(field.id));
+                }
+                #[cfg(not(target_os = "android"))]
+                let _ = field;
                 let busy = matches!(doc.load, LoadState::Loading);
                 ui.horizontal_wrapped(|ui| {
                     ui.menu_button("Gotowe polecenia", |ui| {
@@ -410,7 +419,7 @@ impl AsOneApp {
                 Tool::Eraser => {
                     section(ui, "Gumka");
                     ui.add(egui::Slider::new(&mut self.brush.radius, 1.0..=1000.0).logarithmic(true).text("promień px"));
-                    ui.colored_label(pal.text_dim, "LPM usuwa, PPM / Alt+LPM przywraca · [ ] zmienia rozmiar");
+                    ui.colored_label(pal.text_dim, "LPM usuwa, PPM / Alt+LPM przywraca · [ ] albo Ctrl+kółko – rozmiar");
                     ui.separator();
                 }
                 Tool::RectCut => {

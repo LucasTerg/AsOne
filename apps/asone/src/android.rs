@@ -146,12 +146,18 @@ pub fn request_clipboard() {
 }
 
 /// Okno edycji tekstu z klawiaturą systemową – wynik przychodzi jako [`Event::Text`].
-pub fn edit_text(title: &str, current: &str) {
+/// `secret`: klucz API – klawiatura bez podpowiedzi i autokorekty.
+pub fn edit_text(title: &str, current: &str, secret: bool) {
     with_activity(|env, a| {
         let t = env.new_string(title)?;
         let c = env.new_string(current)?;
-        env.call_method(a, "editText", "(Ljava/lang/String;Ljava/lang/String;)V", &[JValue::Object(&t), JValue::Object(&c)])
-            .map(drop)
+        env.call_method(
+            a,
+            "editText",
+            "(Ljava/lang/String;Ljava/lang/String;Z)V",
+            &[JValue::Object(&t), JValue::Object(&c), JValue::Bool(u8::from(secret))],
+        )
+        .map(drop)
     });
 }
 

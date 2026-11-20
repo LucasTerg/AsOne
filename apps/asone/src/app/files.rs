@@ -239,6 +239,7 @@ impl AsOneApp {
                     }
                 }
                 Action::Canvas(id, action) => self.canvas_action(id, action),
+                Action::ScaleBrush(f) => self.brush.radius = (self.brush.radius * f).clamp(1.0, 1000.0),
                 Action::AddFolder => self.pickers.pick_image_folder(),
                 Action::OpenRecent(dir) => {
                     let path = PathBuf::from(&dir);

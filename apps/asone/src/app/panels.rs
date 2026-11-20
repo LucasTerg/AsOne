@@ -65,7 +65,8 @@ impl AsOneApp {
                 // Android: klawiatura systemowa w oknie edycji (GameActivity nie podaje tekstu do egui).
                 #[cfg(target_os = "android")]
                 if field.gained_focus() {
-                    crate::android::edit_text("Wklej nazwę", &self.base_name);
+                    self.text_target = platform::TextTarget::Name;
+                    crate::android::edit_text("Wklej nazwę", &self.base_name, false);
                     ui.memory_mut(|m| m.surrender_focus(field.id));
                 }
                 field.context_menu(|ui| {
@@ -492,7 +493,7 @@ impl AsOneApp {
                             ("Spacja + LPM, środkowy", "Przesuwanie widoku"),
                             ("Ctrl+0 / Ctrl+1", "Dopasuj zdjęcie / 100 %"),
                             ("Ctrl++ / Ctrl+−", "Skala interfejsu"),
-                            ("[ ]", "Rozmiar pędzla"),
+                            ("[ ]  ·  Ctrl+kółko", "Rozmiar pędzla (gumka)"),
                             ("LPM / PPM (Alt+LPM)", "Gumka: usuń / przywróć"),
                             ("Delete / Shift+Delete / Esc", "Wytnij / przywróć zaznaczenie, odznacz"),
                             ("Enter, dwuklik", "Zatwierdź kadr"),
