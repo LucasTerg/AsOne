@@ -1,4 +1,4 @@
-//! Pliki: dodawanie, zakładki, kolejność, operacje z Asystenta PIM (ZIP, PDF, kosz, GIMP) i eksport.
+//! Pliki: dodawanie, zakładki, kolejność, operacje na plikach (ZIP, PDF, kosz, GIMP) i eksport.
 
 use std::collections::HashSet;
 use std::path::PathBuf;

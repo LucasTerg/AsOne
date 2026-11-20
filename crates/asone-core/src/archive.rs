@@ -1,4 +1,4 @@
-//! „Zapisz do ZIP” i „Eksportuj do PDF” (z Asystenta PIM).
+//! „Zapisz do ZIP” i „Eksportuj do PDF”.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};

@@ -3,7 +3,7 @@
 //! Limity z Ustawień działają nawet wtedy, gdy ktoś zapomni o nich przy pojedynczym zdjęciu:
 //! 1. obraz nie może przekroczyć `max_width × max_height` (domyślnie 3000 × 3600) – zmniejszenie Lanczos3,
 //! 2. bok mniejszy niż `min_side` (domyślnie 500 px) dopełniamy tłem – białym – bez powiększania
-//!    pikseli (jak „Zwiększ do 500 px” w Asystencie PIM),
+//!    pikseli,
 //! 3. plik nie może przekroczyć `max_bytes` (domyślnie 3 MB) – najpierw obniżamy jakość
 //!    (szukając najwyższej mieszczącej się, nie niżej niż `min_quality`), a gdy to nie wystarczy,
 //!    zmniejszamy obraz o 10 % na krok.

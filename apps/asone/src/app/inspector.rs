@@ -1,4 +1,4 @@
-//! Prawy inspektor aktywnego zdjęcia: tło, kadr, marginesy (−/+), szybkie operacje z Asystenta PIM.
+//! Prawy inspektor aktywnego zdjęcia: tło, kadr, marginesy (−/+), szybkie operacje.
 
 use std::collections::HashMap;
 

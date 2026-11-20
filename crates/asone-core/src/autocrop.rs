@@ -1,4 +1,4 @@
-//! „Kadruj (auto)” z Asystenta PIM: kadr do obiektu na jasnym, jednolitym tle.
+//! „Kadruj (auto)”: kadr do obiektu na jasnym, jednolitym tle.
 //!
 //! Piksel należy do obiektu, gdy jego jasność (jak `L` w PIL) jest poniżej progu (domyślnie 240)
 //! i nie jest przezroczysty. Jeśli maska jest aktywna (usunięte tło), liczy się sama maska.

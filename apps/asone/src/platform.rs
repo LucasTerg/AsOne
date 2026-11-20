@@ -159,7 +159,7 @@ pub const ANDROID_DEFAULT_INPUT: &str = "/storage/emulated/0/DCIM/Camera";
 /// Folder eksportu na Androidzie – Galeria (MediaStore, Pictures/AsOne).
 pub const ANDROID_DEFAULT_OUTPUT: &str = "/storage/emulated/0/Pictures/AsOne";
 
-/// Operacje na plikach z Asystenta PIM (otwórz, GIMP, kosz, ZIP, PDF) – tam, gdzie są ścieżki.
+/// Operacje na plikach (otwórz, GIMP, kosz, ZIP, PDF) – tam, gdzie są ścieżki.
 pub const FILE_OPS: bool = !cfg!(any(target_os = "android", target_arch = "wasm32"));
 /// Czy można odczytać schowek przyciskiem „Wklej”.
 pub const CAN_PASTE: bool = true;

@@ -51,7 +51,7 @@ APK lokalnie (Podman, Android SDK/NDK, Java 17+; ustawienia w nagłówku skryptu
 5. Kadruj (C), dodaj marginesy, białe tło, „Dopasuj do kwadratu 1:1”, usuń tło gumką (E) lub prostokątem (M).
 6. **Zapisz z zakładek (N)** albo `Ctrl+S` – eksport tylko otwartych zakładek, w ich kolejności.
    Albo **Zmień tylko nazwę** – bez nowych JPG: pliki otwartych zakładek dostają na dysku nowe
-   nazwy (w swoich folderach, rozszerzenie zostaje), po podglądzie zmian (jak w Asystencie PIM).
+   nazwy (w swoich folderach, rozszerzenie zostaje), po podglądzie zmian.
 
 Domyślny folder zapisu to `web/` obok zdjęć (zmiana: przycisk „Folder” w górnym pasku).
 Eksport nigdy nie modyfikuje ani nie nadpisuje oryginałów; „Zmień tylko nazwę” zmienia wyłącznie
@@ -74,7 +74,7 @@ usuwa wszystkie metadane.
 kadr, marginesy, tło, gumka, wycinanie prostokątem, usunięcie tła AI. Jeden krok = jedna czynność
 (np. całe pociągnięcie gumką); z maski zapamiętywany jest tylko zmieniony fragment.
 
-Z Asystenta PIM: Kadruj (auto), Ramka / Paski 5 px, Min. 500 px, Inspekcja tła (`I`), Start nr,
+Szybkie operacje: Kadruj (auto), Ramka / Paski 5 px, Min. 500 px, Inspekcja tła (`I`), Start nr,
 menu kontekstowe listy (otwórz plik/folder, GIMP, ZIP, PDF, wczytaj ponownie, usuń z dysku do
 kosza lub trwale, usuń z listy / wszystkie z listy).
 

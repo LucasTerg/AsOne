@@ -98,7 +98,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         a = alpha;
     }
 
-    // Inspekcja tła (jak „Sprawdź obraz” w Asystencie PIM): ekstremalny kontrast przy bieli.
+    // Inspekcja tła: ekstremalny kontrast przy bieli (widać resztki tła i nierówną biel).
     // Czysta biel zostaje biała, każdy „prawie biały” piksel (cień, kurz, obwódka po wycięciu)
     // staje się wyraźnie szary, a obiekt – czarną sylwetką.
     if (preview && p.extra.x > 0.5) {

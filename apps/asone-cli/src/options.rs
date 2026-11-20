@@ -40,7 +40,7 @@ pub struct EditOptions {
     /// Kadr w ułamkach oryginału: lewo, góra, prawo, dół (0–1), np. `0.1,0,0.9,1`.
     #[arg(long, value_name = "L,T,R,B", value_delimiter = ',', num_args = 4)]
     pub crop: Option<Vec<f32>>,
-    /// Kadruj (auto): kadr do obiektu na jasnym tle (jak w Asystencie PIM).
+    /// Kadruj (auto): kadr do obiektu na jasnym tle.
     #[arg(long, num_args = 0..=1, default_missing_value = "true", value_name = "BOOL")]
     pub auto_crop: Option<bool>,
     /// Numer pierwszego pliku (domyślnie 1), np. 4 → `nazwa-4.jpg`, `nazwa-5.jpg`…

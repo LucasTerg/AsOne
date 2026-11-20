@@ -1,5 +1,5 @@
 //! „Zmień tylko nazwę”: nowe nazwy plików na dysku według wklejonej nazwy, bez ruszania
-//! zawartości (jak „Zmień nazwy” w Asystencie PIM).
+//! zawartości.
 //!
 //! Plik zostaje w swoim folderze i zachowuje rozszerzenie (małymi literami):
 //! `IMG_0042.JPG` → `123-marka-model-3.jpg` (albo `…-3-ver2.jpg` z dopiskiem wersji).
