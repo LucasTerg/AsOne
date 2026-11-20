@@ -25,7 +25,7 @@ wydaniu (`packaging/fdroid/update-repo.sh`, gałąź `gh-pages`), jeśli są ust
 się nie zainstalują). Bez F-Droid: [Obtainium](https://github.com/ImranR98/Obtainium) z adresem
 tego repozytorium pobiera APK prosto z Releases.
 
-APK lokalnie (Podman, Android SDK/NDK, Java z Android Studio – jak w word-apk):
+APK lokalnie (Podman, Android SDK/NDK, Java 17+; ustawienia w nagłówku skryptu):
 `packaging/android/build-local.sh` → `dist/AsOne-<wersja>-android.apk`, instalacja `adb install -r …`.
 
 ## Struktura (workspace jak w programach Craft)

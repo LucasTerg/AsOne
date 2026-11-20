@@ -1,25 +1,33 @@
 #!/usr/bin/env bash
-# APK AsOne lokalnie, w kontenerach Podman (jak w word-apk): cargo ndk → android/app/src/main/jniLibs,
+# APK AsOne lokalnie, w kontenerach Podman: cargo ndk → android/app/src/main/jniLibs,
 # potem Gradle → dist/AsOne-<wersja>-android.apk.
 #
 #   packaging/android/build-local.sh
 #
-# Domyślne ścieżki odpowiadają układowi na SteamOS; każdą można nadpisać zmienną:
-#   ANDROID_SDK (~/Android/Sdk), NDK ($ANDROID_SDK/ndk/27.2.12479018),
-#   JBR (Java z Android Studio z Flatpaka), BUILDER_IMAGE (localhost/wordcraft-builder-image:latest),
-#   RUSTUP_DIR (~/.cache/wordcraft-rustup – Rust z celami Androida), CARGO_BIN (~/.cache/wordcraft-cargo-bin – cargo-ndk),
-#   TARGET_DIR (~/.cache/asone-android-target), SIGNING_DIR (~/.local/share/asone-signing).
+# Ustawienia (zmienne środowiskowe albo plik packaging/android/local.env – nieśledzony przez git):
+#   BUILDER_IMAGE  obraz Podman z Rustem (bash, cargo)                          – wymagane
+#   RUSTUP_DIR     RUSTUP_HOME z celami aarch64-linux-android i x86_64-linux-android – wymagane
+#   CARGO_BIN      katalog z bin/cargo-ndk                                         – wymagane
+#   ANDROID_SDK    (~/Android/Sdk), NDK ($ANDROID_SDK/ndk/27.2.12479018),
+#   JBR            Java 17+ dla Gradle (domyślnie JBR z Android Studio z Flatpaka),
+#   TARGET_DIR     (~/.cache/asone-android-target), SIGNING_DIR (~/.local/share/asone-signing).
 # Gdy w SIGNING_DIR jest android-release.p12 (+ ANDROID_KEYSTORE_PASSWORD.txt), APK ma ten sam podpis co
 # wydania z GitHub Actions i F-Droid (instaluje się jako aktualizacja); bez niego – klucz debug.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+LOCAL_ENV="$ROOT/packaging/android/local.env"
+if [ -f "$LOCAL_ENV" ]; then
+  # shellcheck source=/dev/null
+  . "$LOCAL_ENV"
+fi
+: "${BUILDER_IMAGE:?ustaw BUILDER_IMAGE (obraz Podman z Rustem) – w $LOCAL_ENV albo w środowisku}"
+: "${RUSTUP_DIR:?ustaw RUSTUP_DIR (Rust z celami Androida)}"
+: "${CARGO_BIN:?ustaw CARGO_BIN (katalog z bin/cargo-ndk)}"
 SDK="${ANDROID_SDK:-$HOME/Android/Sdk}"
 NDK="${NDK:-$SDK/ndk/27.2.12479018}"
 JBR="${JBR:-/var/lib/flatpak/app/com.google.AndroidStudio/current/active/files/extra/jbr}"
-IMAGE="${BUILDER_IMAGE:-localhost/wordcraft-builder-image:latest}"
-RUSTUP_DIR="${RUSTUP_DIR:-$HOME/.cache/wordcraft-rustup}"
-CARGO_BIN="${CARGO_BIN:-$HOME/.cache/wordcraft-cargo-bin}"
+IMAGE="$BUILDER_IMAGE"
 TARGET_DIR="${TARGET_DIR:-$HOME/.cache/asone-android-target}"
 SIGNING_DIR="${SIGNING_DIR:-$HOME/.local/share/asone-signing}"
 mkdir -p "$TARGET_DIR"

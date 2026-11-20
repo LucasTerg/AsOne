@@ -12,3 +12,6 @@ config.ini
 /android/local.properties
 *.keystore
 *.p12
+# Notatki robocze i lokalne ustawienia (nie do repozytorium)
+/1.md
+/packaging/android/local.env
