@@ -19,6 +19,9 @@ pub struct EditParams {
     pub bg_color: Option<[f32; 4]>,
     /// Czy maska (usunięte tło / gumka) jest stosowana.
     pub use_bg_removal: bool,
+    /// Warstwa (np. wklejony smartfon): `[x, y, szer., wys.]` w pikselach obrazu wynikowego
+    /// (kadr + marginesy, przed zmniejszeniem). Sam obraz warstwy trzyma dokument.
+    pub overlay: Option<[f32; 4]>,
 }
 
 impl Default for EditParams {
@@ -28,6 +31,7 @@ impl Default for EditParams {
             margins: [0; 4],
             bg_color: Some(WHITE),
             use_bg_removal: false,
+            overlay: None,
         }
     }
 }

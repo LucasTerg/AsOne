@@ -7,6 +7,7 @@ use egui::{RichText, Ui, vec2};
 
 use super::{AsOneApp, InspectorTab};
 use crate::ai::AiJob;
+use crate::canvas::CanvasAction;
 use crate::canvas::Tool;
 use crate::document::{AiState, BOTTOM, DocId, LEFT, LoadState, PxRect, RIGHT, TOP, WHITE, fill_rect, union_opt};
 use crate::theme;
@@ -55,12 +56,12 @@ impl AsOneApp {
         let tool = self.tool;
         let ai_model = self.settings.ai_model;
         let ai_path = self.settings.ai_model_path();
-        let fal_key = if ai_model.is_online() { self.settings.fal_api_key() } else { String::new() };
         let hide_mask = self.settings.hide_mask_toggle;
         let hide_inspection = self.settings.hide_inspection;
         let mut open_ai_prefs = false;
         let mut switch_tool = None;
-        let mut ai_job = None;
+        let mut remove_bg = false;
+        let mut phone = None;
         let mut apply_all = false;
         let mut auto_crop = false;
         {
@@ -129,19 +130,8 @@ impl AsOneApp {
                         } else {
                             format!("{} · {}", ai_model.label(), ai_path.display())
                         };
-                        if ui.button("Usuń tło").on_hover_text(tip).clicked()
-                            && let Some(image) = doc.ai_proxy.clone()
-                        {
-                            ai_job = Some(AiJob {
-                                id,
-                                image,
-                                full_size: src,
-                                model: ai_model,
-                                path: ai_path.clone(),
-                                source: doc.source.clone(),
-                                fal_key: fal_key.clone(),
-                            });
-                            doc.ai = AiState::Running;
+                        if ui.button("Usuń tło").on_hover_text(tip).clicked() {
+                            remove_bg = true;
                         }
                         if ui.small_button("⚙").on_hover_text("Model i plik: Ustawienia › Preferencje › Usuwanie tła (AI)").clicked() {
                             open_ai_prefs = true;
@@ -287,8 +277,66 @@ impl AsOneApp {
                         doc.margins_linked = false;
                     }
                 }
+                if doc.edits.overlay.is_none() {
+                    if ui
+                        .add_enabled(crate::platform::CAN_PASTE_IMAGE, egui::Button::new("Wklej smartfon"))
+                        .on_hover_text(format!(
+                            "Dokłada {} px białego tła z lewej i wkleja tam zdjęcie smartfona ze schowka \
+                             (do przesunięcia i skalowania na zdjęciu)",
+                            crate::document::PHONE_STRIP
+                        ))
+                        .clicked()
+                    {
+                        phone = Some(CanvasAction::PastePhone);
+                    }
+                    if ui.add_enabled(crate::platform::CAN_PICK_OVERLAY, egui::Button::new("Smartfon z pliku…")).clicked() {
+                        phone = Some(CanvasAction::PickPhone);
+                    }
+                }
             });
             ui.separator();
+
+            if doc.overlay_image.is_some()
+                && let Some([x, y, w, h]) = doc.edits.overlay
+            {
+                section(ui, "Smartfon (warstwa)");
+                let aspect = w / h.max(1.0);
+                let (mut nx, mut ny, mut nw) = (x, y, w);
+                egui::Grid::new("phone_layer").num_columns(2).spacing(vec2(10.0, 4.0)).show(ui, |ui| {
+                    ui.label("Szerokość");
+                    ui.add(egui::DragValue::new(&mut nw).range(16.0..=20000.0).speed(1.0).max_decimals(0).suffix(" px"));
+                    ui.end_row();
+                    ui.label("Od lewej");
+                    ui.add(egui::DragValue::new(&mut nx).speed(1.0).max_decimals(0).suffix(" px"));
+                    ui.end_row();
+                    ui.label("Od góry");
+                    ui.add(egui::DragValue::new(&mut ny).speed(1.0).max_decimals(0).suffix(" px"));
+                    ui.end_row();
+                });
+                if nw != w {
+                    // Rozmiar zmienia się względem środka warstwy.
+                    let nh = nw / aspect.max(1e-3);
+                    doc.edits.overlay = Some([x + (w - nw) / 2.0, y + (h - nh) / 2.0, nw, nh]);
+                } else if (nx, ny) != (x, y) {
+                    doc.edits.overlay = Some([nx, ny, w, h]);
+                }
+                ui.horizontal_wrapped(|ui| {
+                    if ui.add_enabled(crate::platform::CAN_PASTE_IMAGE, egui::Button::new("Podmień ze schowka")).clicked() {
+                        phone = Some(CanvasAction::PastePhone);
+                    }
+                    if ui.add_enabled(crate::platform::CAN_PICK_OVERLAY, egui::Button::new("Z pliku…")).clicked() {
+                        phone = Some(CanvasAction::PickPhone);
+                    }
+                    if ui.button("Dopasuj do pasa").clicked() {
+                        doc.fit_overlay_to_strip();
+                    }
+                    if ui.button("Usuń smartfon").on_hover_text(format!("Usuwa warstwę i pas {} px", crate::document::PHONE_STRIP)).clicked() {
+                        doc.remove_overlay();
+                    }
+                });
+                ui.colored_label(pal.text_dim, "Na zdjęciu (Przesuwanie): przeciągnij, aby przesunąć; rogi – rozmiar.");
+                ui.separator();
+            }
 
             match tool {
                 Tool::Eraser => {
@@ -337,8 +385,11 @@ impl AsOneApp {
             ui.checkbox(&mut self.copy_crop_too, "razem z kadrowaniem");
         }
 
-        if let Some(job) = ai_job {
-            self.ai.submit(job);
+        if remove_bg {
+            self.start_remove_background(id);
+        }
+        if let Some(action) = phone {
+            self.canvas_action(id, action);
         }
         if open_ai_prefs {
             self.prefs.open(crate::settings::PrefsSection::Ai, &self.settings);
@@ -363,6 +414,54 @@ impl AsOneApp {
                 }
             }
             self.toast(format!("Skopiowano ustawienia na {} zdjęć", open.len() - 1), false);
+        }
+    }
+
+    /// „Usuń tło”: zadanie dla modelu z Ustawień (lokalnie albo online).
+    pub(super) fn start_remove_background(&mut self, id: DocId) {
+        let model = self.settings.ai_model;
+        let path = self.settings.ai_model_path();
+        let fal_key = if model.is_online() { self.settings.fal_api_key() } else { String::new() };
+        let Some(doc) = self.docs.get_mut(&id) else { return };
+        let (Some(image), Some(full_size)) = (doc.ai_proxy.clone(), doc.src_size()) else { return };
+        if matches!(doc.ai, AiState::Running) {
+            return;
+        }
+        doc.ai = AiState::Running;
+        let job = AiJob { id, image, full_size, model, path, source: doc.source.clone(), fal_key };
+        self.ai.submit(job);
+    }
+
+    /// Polecenia z menu kontekstowego zdjęcia i przycisków „Smartfon”.
+    pub(super) fn canvas_action(&mut self, id: DocId, action: CanvasAction) {
+        match action {
+            CanvasAction::PastePhone => self.pickers.paste_image(id),
+            CanvasAction::PickPhone => self.pickers.pick_overlay_image(id),
+            CanvasAction::RemoveBackground => self.start_remove_background(id),
+            CanvasAction::AutoCrop => self.auto_crop(id),
+            _ => {
+                let Some(doc) = self.docs.get_mut(&id) else { return };
+                let Some(src) = doc.src_size() else { return };
+                match action {
+                    CanvasAction::FitPhone => doc.fit_overlay_to_strip(),
+                    CanvasAction::RemovePhone => doc.remove_overlay(),
+                    CanvasAction::FitSquare => doc.edits.fit_square(src),
+                    CanvasAction::Frame5 => doc.edits.margins.iter_mut().for_each(|m| *m += 5),
+                    CanvasAction::ResetMargins => doc.edits.margins = [0; 4],
+                    CanvasAction::FitView => doc.camera.needs_fit = true,
+                    CanvasAction::Undo => {
+                        doc.step_history(false);
+                    }
+                    CanvasAction::Redo => {
+                        doc.step_history(true);
+                    }
+                    _ => {}
+                }
+                let m = doc.edits.margins;
+                if m.iter().any(|&v| v != m[0]) {
+                    doc.margins_linked = false;
+                }
+            }
         }
     }
 }

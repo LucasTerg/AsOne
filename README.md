@@ -56,15 +56,18 @@ APK lokalnie (Podman, Android SDK/NDK, Java 17+; ustawienia w nagłówku skryptu
    Albo **Zmień tylko nazwę** – bez nowych JPG: pliki otwartych zakładek dostają na dysku nowe
    nazwy (w swoich folderach, rozszerzenie zostaje), po podglądzie zmian.
 
-Domyślny folder zapisu to `web/` obok zdjęć (zmiana: przycisk „Folder” w górnym pasku).
+Domyślny folder zapisu to `web/` obok zdjęć (zmiana: przycisk „Folder” w górnym pasku; ikonka obok
+wraca do domyślnego, a jego nazwę zmienia się w Preferencjach › Eksport i limity).
 Eksport nigdy nie modyfikuje ani nie nadpisuje oryginałów; „Zmień tylko nazwę” zmienia wyłącznie
 ich nazwy i nie nadpisuje istniejących plików.
 
 **Ustawienia › Preferencje** (jak w PhotoCrafcie): *Interfejs* (16 motywów, w tym Sepia, kolor
 płótna, skala interfejsu − / +, zakładki zdjęć na górze lub na dole, na zakładce pełna nazwa albo
-tylko numer `#1`, systemowy pasek tytułu, „Ukryj”), *Eksport i limity* (maks. 3000 ×
+tylko numer `#1`, połysk paska menu, systemowy pasek tytułu, „Ukryj”), *Eksport i limity* (maks. 3000 ×
 3600 px i 3 MB, pilnowane przy każdym zapisie – najpierw spada jakość, potem wymiary; min. bok
-500 px – mniejsze zdjęcia są dopełniane białym tłem, nie da się ustawić mniej),
+500 px – mniejsze zdjęcia są dopełniane białym tłem, nie da się ustawić mniej; ramka przy
+zmniejszaniu – gdy duże zdjęcie trzeba zmniejszyć do limitu, ramka / marginesy do 100 px zostają
+w pliku w pełnych pikselach, np. 5 px, a zmniejsza się samo zdjęcie; domyślnie włączona),
 *Usuwanie tła (AI)*. **Ustawienia › Ukryj** chowa: Edytuj w GIMP, Usuń z dysku, Inspekcja tła,
 Maska aktywna (ta i tak pokazuje się tylko dla PNG z przezroczystością albo po edycji maski).
 
@@ -76,6 +79,14 @@ usuwa wszystkie metadane.
 **Edycja › Cofnij / Ponów** (też przyciski na pasku narzędzi): osobna historia każdego zdjęcia –
 kadr, marginesy, tło, gumka, wycinanie prostokątem, usunięcie tła AI. Jeden krok = jedna czynność
 (np. całe pociągnięcie gumką); z maski zapamiętywany jest tylko zmieniony fragment.
+
+**Wklej smartfon** (Szybkie operacje albo prawy przycisk na zdjęciu): z lewej dochodzi 500 px
+białego tła, a w nim zdjęcie smartfona ze schowka (obraz albo skopiowany plik) lub z pliku –
+warstwa do przesunięcia i skalowania myszką (narzędzie Przesuwanie, rogi = rozmiar) albo polami
+w sekcji „Smartfon (warstwa)”; trafia do zapisanego JPG.
+
+**Prawy przycisk na zdjęciu**: smartfon (wklej / podmień / dopasuj / usuń), Usuń tło, Kadruj (auto),
+Dopasuj do kwadratu, Ramka 5 px, Zeruj marginesy, Dopasuj widok, Cofnij / Ponów.
 
 Szybkie operacje: Kadruj (auto), Ramka / Paski 5 px, Min. 500 px, Inspekcja tła (`I`), Start nr,
 menu kontekstowe listy (otwórz plik/folder, GIMP, ZIP, PDF, wczytaj ponownie, usuń z dysku do
@@ -91,6 +102,7 @@ kosza lub trwale, usuń z listy / wszystkie z listy).
 | `Ctrl+0` / `Ctrl+1` | dopasuj do okna / 100 % |
 | `[` `]` | rozmiar pędzla |
 | LPM / PPM (lub `Alt`+LPM) | gumka: usuń / przywróć |
+| PPM na zdjęciu | menu zdjęcia (poza gumką) |
 | `Delete` / `Shift+Delete` / `Esc` | wytnij / przywróć zaznaczenie, odznacz |
 | `Enter` lub dwuklik | zatwierdź kadr |
 | `I` | inspekcja tła |

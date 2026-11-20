@@ -190,6 +190,9 @@ fn interface_page(ui: &mut Ui, s: &mut Settings) {
         row(ui, "", |ui| {
             ui.checkbox(&mut s.animations, "Animacje (menu, przewijanie)");
         });
+        row(ui, "", |ui| {
+            ui.checkbox(&mut s.glossy_bar, "Połysk paska menu").on_hover_text("Błysk u góry paska, ku dołowi ciemniej.");
+        });
         if cfg!(not(any(target_os = "macos", target_os = "android", target_arch = "wasm32"))) {
             row(ui, "", |ui| {
                 ui.checkbox(&mut s.system_title_bar, "Systemowy pasek tytułu")
@@ -250,9 +253,27 @@ fn export_page(ui: &mut Ui, s: &mut Settings) {
                 ui.colored_label(pal.text_dim, "mniejsze zdjęcia dopełniane białym tłem");
             });
         });
-        row(ui, "Podfolder eksportu", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut s.out_subfolder).desired_width(140.0))
-                .on_hover_text("Używany, gdy nie wybrano folderu: tworzony obok pierwszego zdjęcia.");
+        row(ui, "Ramka przy zmniejszaniu", |ui| {
+            ui.vertical(|ui| {
+                ui.checkbox(&mut s.keep_frame, "zachowaj ramkę w pełnych pikselach")
+                    .on_hover_text(format!(
+                        "Gdy zdjęcie z marginesami trzeba zmniejszyć (limit wymiarów, „Max dłuższy bok”), \
+                         marginesy do {} px zostają w pliku dokładnie takie, jak ustawione (np. ramka 5 px), \
+                         a zmniejsza się samo zdjęcie. Większe marginesy (np. kwadrat 1:1) skalują się razem ze zdjęciem.",
+                        asone_core::finish::FRAME_MAX
+                    ));
+                ui.colored_label(
+                    pal.text_dim,
+                    format!("np. ramka 5 px na zdjęciu 4000×5000 → plik 2880×3600 z ramką 5 px (ramki do {} px)", asone_core::finish::FRAME_MAX),
+                );
+            });
+        });
+        row(ui, "Domyślny folder zapisu", |ui| {
+            ui.horizontal(|ui| {
+                ui.add(egui::TextEdit::singleline(&mut s.out_subfolder).hint_text("web").desired_width(140.0))
+                    .on_hover_text("Podfolder tworzony obok zdjęć, gdy nie wybrano innego folderu przyciskiem „Folder”.");
+                ui.colored_label(pal.text_dim, "podfolder obok zdjęć (np. web)");
+            });
         });
     });
     ui.add_space(10.0);

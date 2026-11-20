@@ -145,6 +145,8 @@ pub enum Action {
     ClearList,
     /// Dopisek wersji w nazwie wynikowej (`-ver2`…); `None` usuwa dopisek.
     SetVersion(Vec<DocId>, Option<u8>),
+    /// Polecenie z menu kontekstowego zdjęcia (płótna).
+    Canvas(DocId, crate::canvas::CanvasAction),
 }
 
 /// Podmenu „Dopisz wersję”: `-ver2` (zwykle), `-ver3`, `-ver4`, `-ver5`, „Bez dopisku”.
@@ -218,6 +220,7 @@ impl egui_dock::TabViewer for Viewer<'_> {
                     if let Some(t) = out.switch_tool {
                         self.actions.push(Action::SwitchTool(t));
                     }
+                    self.actions.extend(out.actions.into_iter().map(|a| Action::Canvas(id, a)));
                 }
             }
         }

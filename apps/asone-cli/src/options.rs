@@ -64,6 +64,10 @@ pub struct EditOptions {
     /// Wyłącz domyślne limity (3000×3600 px, 3 MB, min. bok 500 px).
     #[arg(long, num_args = 0..=1, default_missing_value = "true", value_name = "BOOL")]
     pub no_limits: Option<bool>,
+    /// Przy zmniejszaniu marginesy do 100 px zostają w pliku w pełnych pikselach, np. ramka 5 px
+    /// (domyślnie tak; `false` – marginesy skalują się razem ze zdjęciem).
+    #[arg(long, value_name = "BOOL")]
+    pub keep_frame: Option<bool>,
 }
 
 pub fn parse_hex_color(s: &str) -> Result<[f32; 4], String> {
@@ -114,6 +118,7 @@ impl EditOptions {
             max_bytes: self.max_file_mb.map(|mb| (mb.max(0.05) as f64 * MIB as f64) as u64).or(defaults.max_bytes),
             min_side: self.min_side.or(defaults.min_side),
             min_quality: self.min_quality.unwrap_or(ExportLimits::default().min_quality).clamp(1, 100),
+            keep_frame: self.keep_frame.unwrap_or(true),
         };
         if self.start_number == Some(0) {
             return Err("start: numeracja zaczyna się od 1".into());

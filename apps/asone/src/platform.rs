@@ -163,6 +163,10 @@ pub const ANDROID_DEFAULT_OUTPUT: &str = "/storage/emulated/0/Pictures/AsOne";
 pub const FILE_OPS: bool = !cfg!(any(target_os = "android", target_arch = "wasm32"));
 /// Czy można odczytać schowek przyciskiem „Wklej”.
 pub const CAN_PASTE: bool = true;
+/// „Wklej smartfon” ze schowka (obraz albo skopiowany plik) – desktop.
+pub const CAN_PASTE_IMAGE: bool = !cfg!(any(target_os = "android", target_arch = "wasm32"));
+/// „Wklej smartfon z pliku…” – desktop i przeglądarka.
+pub const CAN_PICK_OVERLAY: bool = !cfg!(target_os = "android");
 
 /// Do czego służy plik wybrany w oknie „Zapisz jako”.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -181,6 +185,8 @@ pub enum PickerEvent {
     /// Plik modelu AI wybrany w Preferencjach.
     ModelFile(PathBuf),
     SaveTarget(SaveKind, PathBuf),
+    /// Obraz warstwy („Wklej smartfon”) dla dokumentu – ze schowka albo z pliku.
+    OverlayImage(crate::document::DocId, Result<RgbaImage, String>),
 }
 
 /// Okna wyboru plików działające bez blokowania UI (wynik przychodzi kanałem).
@@ -357,6 +363,55 @@ impl Pickers {
         }
     }
 
+    /// „Wklej smartfon”: obraz ze schowka (albo plik skopiowany w menedżerze plików).
+    pub fn paste_image(&self, id: crate::document::DocId) {
+        #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
+        {
+            let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
+            spawn_detached("clipboard", move || {
+                let _ = tx.send(PickerEvent::OverlayImage(id, clipboard_image()));
+                ctx.request_repaint();
+            });
+        }
+        #[cfg(any(target_os = "android", target_arch = "wasm32"))]
+        self.inject(PickerEvent::OverlayImage(id, Err("Obraz ze schowka: tylko w wersji desktopowej – użyj „z pliku…”".into())));
+    }
+
+    /// „Wklej smartfon z pliku…”.
+    pub fn pick_overlay_image(&self, id: crate::document::DocId) {
+        #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
+        {
+            let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
+            run_dialog(move || {
+                let file = rfd::FileDialog::new()
+                    .set_title("Zdjęcie smartfona")
+                    .add_filter("Obrazy", asone_core::imageio::SUPPORTED_EXTENSIONS)
+                    .pick_file();
+                if let Some(path) = file {
+                    let _ = tx.send(PickerEvent::OverlayImage(id, asone_core::imageio::decode_path(&path)));
+                    ctx.request_repaint();
+                }
+            });
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
+            wasm_bindgen_futures::spawn_local(async move {
+                let picked = rfd::AsyncFileDialog::new()
+                    .add_filter("Obrazy", asone_core::imageio::SUPPORTED_EXTENSIONS)
+                    .pick_file()
+                    .await;
+                if let Some(f) = picked {
+                    let bytes = f.read().await;
+                    let _ = tx.send(PickerEvent::OverlayImage(id, asone_core::imageio::decode_bytes(&bytes)));
+                    ctx.request_repaint();
+                }
+            });
+        }
+        #[cfg(target_os = "android")]
+        self.inject(PickerEvent::OverlayImage(id, Err("Wklejanie smartfona: na razie w wersji desktopowej i w przeglądarce".into())));
+    }
+
     /// Okno wyboru folderu docelowego eksportu (desktop).
     pub fn pick_output_folder(&self, start: Option<PathBuf>) {
         #[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
@@ -376,6 +431,46 @@ impl Pickers {
         #[cfg(any(target_os = "android", target_arch = "wasm32"))]
         let _ = start;
     }
+}
+
+/// Obraz ze schowka: bitmapa (np. „Kopiuj obraz” w przeglądarce) albo skopiowany plik obrazu
+/// (menedżer plików: ścieżka lub adres `file://`).
+#[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
+fn clipboard_image() -> Result<RgbaImage, String> {
+    let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("Schowek: {e}"))?;
+    if let Ok(img) = clipboard.get_image() {
+        return RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.into_owned())
+            .ok_or_else(|| "Schowek: uszkodzony obraz".to_string());
+    }
+    let text = clipboard.get_text().unwrap_or_default();
+    for line in text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
+        let path = PathBuf::from(line.strip_prefix("file://").map_or_else(|| line.to_string(), percent_decode));
+        if path.is_file() && asone_core::imageio::is_supported(&path) {
+            return asone_core::imageio::decode_path(&path);
+        }
+    }
+    Err("W schowku nie ma obrazu – skopiuj zdjęcie smartfona (np. „Kopiuj obraz” albo Ctrl+C na pliku)".into())
+}
+
+/// `%20` → spacja itd. (adresy `file://` ze schowka).
+#[cfg_attr(any(target_os = "android", target_arch = "wasm32"), allow(dead_code))]
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        let hex = |c: u8| (c as char).to_digit(16);
+        if b[i] == b'%'
+            && let (Some(h), Some(l)) = (b.get(i + 1).and_then(|&c| hex(c)), b.get(i + 2).and_then(|&c| hex(c)))
+        {
+            out.push((h * 16 + l) as u8);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Linux/BSD: okno w osobnym wątku (portal XDG nie blokuje wtedy pętli zdarzeń).

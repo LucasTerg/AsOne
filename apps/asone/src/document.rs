@@ -90,6 +90,25 @@ pub struct Document {
     pub history: crate::history::History,
     /// Dopisek wersji w nazwie wynikowej: `Some(2)` → `123-marka-2-ver2.jpg`.
     pub version: Option<u8>,
+    /// Obraz warstwy (np. wklejony smartfon); położenie w `edits.overlay`.
+    pub overlay_image: Option<Arc<image::RgbaImage>>,
+    /// Podgląd warstwy na płótnie (pomniejszony do [`OVERLAY_PREVIEW`] px).
+    pub overlay_texture: Option<egui::TextureHandle>,
+}
+
+/// Dłuższy bok tekstury podglądu warstwy.
+pub const OVERLAY_PREVIEW: u32 = 2048;
+
+/// „Wklej smartfon”: tyle px białego tła dokładane z lewej strony zdjęcia (miejsce na warstwę).
+pub const PHONE_STRIP: u32 = 500;
+
+/// Prostokąt warstwy o proporcjach `aspect` (szer./wys.) wyśrodkowany w pasie `strip` × `height`
+/// (od lewej krawędzi obrazu wynikowego), z odstępem 6 % szerokości pasa.
+pub fn fit_in_strip(strip: u32, height: u32, aspect: f32) -> [f32; 4] {
+    let pad = strip as f32 * 0.06;
+    let (bw, bh) = ((strip as f32 - 2.0 * pad).max(1.0), (height as f32 - 2.0 * pad).max(1.0));
+    let (w, h) = if bw / bh > aspect { (bh * aspect, bh) } else { (bw, bw / aspect) };
+    [(strip as f32 - w) / 2.0, (height as f32 - h) / 2.0, w, h]
 }
 
 impl Document {
@@ -118,6 +137,8 @@ impl Document {
             canvas: CanvasState::default(),
             history: crate::history::History::default(),
             version: None,
+            overlay_image: None,
+            overlay_texture: None,
         }
     }
 
@@ -157,6 +178,43 @@ impl Document {
                 true
             }
             None => false,
+        }
+    }
+
+    /// „Wklej smartfon”: pierwsza warstwa dokłada [`PHONE_STRIP`] px białego tła z lewej strony
+    /// i mieści się w tym pasie; kolejna podmienia obraz w tym samym miejscu (ta sama wysokość).
+    pub fn set_overlay(&mut self, image: image::RgbaImage) {
+        let Some(src) = self.src_size() else { return };
+        let aspect = image.width().max(1) as f32 / image.height().max(1) as f32;
+        self.edits.overlay = Some(match self.edits.overlay {
+            Some([x, y, w, h]) => {
+                let nw = h * aspect;
+                [x + (w - nw) / 2.0, y, nw, h]
+            }
+            None => {
+                self.edits.margins[LEFT] += PHONE_STRIP;
+                self.margins_linked = false;
+                fit_in_strip(PHONE_STRIP, self.edits.output_size(src)[1], aspect)
+            }
+        });
+        self.overlay_image = Some(Arc::new(image));
+        self.overlay_texture = None;
+    }
+
+    /// Warstwa z powrotem w lewym pasie (cała szerokość lewego marginesu), wyśrodkowana.
+    pub fn fit_overlay_to_strip(&mut self) {
+        let (Some(src), Some(img), Some(_)) = (self.src_size(), self.overlay_image.as_ref(), self.edits.overlay) else {
+            return;
+        };
+        let aspect = img.width().max(1) as f32 / img.height().max(1) as f32;
+        let strip = self.edits.margins[LEFT].max(1);
+        self.edits.overlay = Some(fit_in_strip(strip, self.edits.output_size(src)[1], aspect));
+    }
+
+    /// Usuwa warstwę razem z dołożonym pasem (obraz zostaje w dokumencie dla „Cofnij”).
+    pub fn remove_overlay(&mut self) {
+        if self.edits.overlay.take().is_some() {
+            self.edits.margins[LEFT] = self.edits.margins[LEFT].saturating_sub(PHONE_STRIP);
         }
     }
 

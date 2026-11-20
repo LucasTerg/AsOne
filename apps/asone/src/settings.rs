@@ -156,6 +156,8 @@ pub struct Settings {
     /// Skala całego interfejsu w %.
     pub ui_scale: u32,
     pub show_tooltips: bool,
+    /// Połysk paska menu (błysk u góry, ciemniej u dołu).
+    pub glossy_bar: bool,
     pub animations: bool,
     /// Systemowy pasek tytułu zamiast własnego (Linux/Windows).
     pub system_title_bar: bool,
@@ -200,6 +202,8 @@ pub struct Settings {
     pub max_file_mb: f32,
     pub min_quality: u8,
     pub min_side: u32,
+    /// Przy zmniejszaniu dużych zdjęć ramka / marginesy do 100 px zostają w pełnych pikselach.
+    pub keep_frame: bool,
 }
 
 impl Default for Settings {
@@ -210,6 +214,7 @@ impl Default for Settings {
             canvas_custom: [0x28, 0x28, 0x28],
             ui_scale: 100,
             show_tooltips: true,
+            glossy_bar: true,
             animations: true,
             system_title_bar: false,
             photo_tabs_bottom: false,
@@ -236,6 +241,7 @@ impl Default for Settings {
             max_file_mb: 3.0,
             min_quality: 65,
             min_side: 500,
+            keep_frame: true,
         }
     }
 }
@@ -279,6 +285,12 @@ impl Settings {
             HideItem::Inspection => self.hide_inspection,
             HideItem::MaskToggle => self.hide_mask_toggle,
         }
+    }
+
+    /// Nazwa domyślnego podfolderu zapisu (obok zdjęć); pusta lub same znaki `/` `\\` → „web”.
+    pub fn out_subfolder_name(&self) -> String {
+        let name = self.out_subfolder.trim().trim_matches(['/', '\\']).trim();
+        if name.is_empty() { "web".into() } else { name.to_string() }
     }
 
     /// Klucz fal.ai: wpisany w Ustawieniach albo ze zmiennej środowiskowej `FAL_KEY`.
@@ -329,6 +341,7 @@ impl Settings {
             // Zawsze: zapisane zdjęcie ma co najmniej 500 px na każdym boku (dopełnienie białym tłem).
             min_side: Some(self.min_side.max(asone_core::finish::MIN_SIDE)),
             min_quality: self.min_quality.clamp(1, 100),
+            keep_frame: self.keep_frame,
         }
     }
 
@@ -369,6 +382,7 @@ impl Settings {
                 self.canvas_custom = d.canvas_custom;
                 self.ui_scale = d.ui_scale;
                 self.show_tooltips = d.show_tooltips;
+                self.glossy_bar = d.glossy_bar;
                 self.animations = d.animations;
                 self.system_title_bar = d.system_title_bar;
                 self.photo_tabs_bottom = d.photo_tabs_bottom;
@@ -391,6 +405,7 @@ impl Settings {
                 self.max_file_mb = d.max_file_mb;
                 self.min_quality = d.min_quality;
                 self.min_side = d.min_side;
+                self.keep_frame = d.keep_frame;
                 self.out_subfolder = d.out_subfolder;
             }
         }

@@ -57,7 +57,7 @@ serde_json = { version = "1", optional = true }
 
 # Desktop: schowek („Wklej nazwę”, także Wayland) i systemowy kosz („Usuń z dysku”).
 [target.'cfg(not(any(target_os = "android", target_arch = "wasm32")))'.dependencies]
-arboard = { version = "3.7", default-features = false, features = ["wayland-data-control"] }
+arboard = { version = "3.7", default-features = false, features = ["wayland-data-control", "image-data"] }
 trash = "5.4"
 
 # „Metadane › Pobrano z”: adres zapisany przez przeglądarkę w atrybutach pliku (Linux, BSD, macOS).

@@ -484,6 +484,41 @@ impl Palette {
         }
     }
 
+    /// Połysk paska: jasna linia i błysk w górnej połowie, wyraźne przejście w połowie,
+    /// ku dołowi ciemniej (jak lakierowany pasek). Rysowany na tle paska, pod jego treścią.
+    pub fn paint_gloss(&self, painter: &egui::Painter, rect: egui::Rect) {
+        let dark = self.is_dark();
+        let (shine_top, shine_mid, shade_bottom, top_line) =
+            if dark { (58u8, 24u8, 110u8, 120u8) } else { (160, 70, 42, 210) };
+        let w = |a: u8| Color32::from_white_alpha(a);
+        let b = |a: u8| Color32::from_black_alpha(a);
+        let mid = rect.top() + rect.height() * 0.5;
+        let mut mesh = egui::Mesh::default();
+        let mut band = |y0: f32, y1: f32, c0: Color32, c1: Color32| {
+            let i = mesh.vertices.len() as u32;
+            mesh.colored_vertex(egui::pos2(rect.left(), y0), c0);
+            mesh.colored_vertex(egui::pos2(rect.right(), y0), c0);
+            mesh.colored_vertex(egui::pos2(rect.left(), y1), c1);
+            mesh.colored_vertex(egui::pos2(rect.right(), y1), c1);
+            mesh.add_triangle(i, i + 1, i + 2);
+            mesh.add_triangle(i + 1, i + 3, i + 2);
+        };
+        // Błysk: od jasnego u góry do lekkiego w połowie, potem cień narastający ku dołowi.
+        band(rect.top(), mid, w(shine_top), w(shine_mid));
+        band(mid, rect.bottom(), b(0), b(shade_bottom));
+        painter.add(egui::Shape::mesh(mesh));
+        // Ostra jasna linia na samej górze i ciemniejsza na dole.
+        let px = 1.0 / painter.ctx().pixels_per_point();
+        painter.line_segment(
+            [egui::pos2(rect.left(), rect.top() + px * 0.5), egui::pos2(rect.right(), rect.top() + px * 0.5)],
+            egui::Stroke::new(px, w(top_line)),
+        );
+        painter.line_segment(
+            [egui::pos2(rect.left(), rect.bottom() - px * 0.5), egui::pos2(rect.right(), rect.bottom() - px * 0.5)],
+            egui::Stroke::new(px, b(if dark { 90 } else { 40 })),
+        );
+    }
+
     pub fn is_dark(&self) -> bool {
         let c = self.chrome;
         (c.r() as u32 * 299 + c.g() as u32 * 587 + c.b() as u32 * 114) / 1000 < 128

@@ -45,6 +45,7 @@ fn eksport_gpu_zgodny_z_cpu() {
                 margins: [7, 11, 13, 5],
                 bg_color: Some([0.2, 0.4, 0.6, 1.0]),
                 use_bg_removal: true,
+                overlay: None,
             },
             4096,
         ),

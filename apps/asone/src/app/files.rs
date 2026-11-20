@@ -220,6 +220,7 @@ impl AsOneApp {
                         }
                     }
                 }
+                Action::Canvas(id, action) => self.canvas_action(id, action),
             }
         }
     }
@@ -321,10 +322,10 @@ impl AsOneApp {
         if let Some(dir) = &self.out_dir {
             return Some(dir.clone());
         }
-        let sub = if self.settings.out_subfolder.trim().is_empty() { "web" } else { self.settings.out_subfolder.trim() };
+        let sub = self.settings.out_subfolder_name();
         open.iter()
             .chain(self.order.iter())
-            .find_map(|id| self.docs.get(id)?.source.path()?.parent().map(|p| p.join(sub)))
+            .find_map(|id| self.docs.get(id)?.source.path()?.parent().map(|p| p.join(&sub)))
     }
 
     pub(super) fn export_blocker(&self, open: &[DocId]) -> Option<&'static str> {
@@ -419,6 +420,7 @@ impl AsOneApp {
                 Some(ExportItem {
                     file_name: build_filename_ver(&self.base_name, start + i, doc.version, "jpg"),
                     edits: doc.edits.clone(),
+                    overlay: doc.overlay_image.clone().filter(|_| doc.edits.overlay.is_some()),
                     #[cfg(not(target_arch = "wasm32"))]
                     gpu: crate::renderer::OffscreenSource {
                         source_view: g.source_view.clone(),

@@ -6,6 +6,38 @@
 use image::RgbaImage;
 
 use crate::edits::{EditParams, LEFT, TOP, WHITE};
+use crate::imageio::{lanczos3, resize_rgba};
+
+/// Nakłada warstwę (z przezroczystością) na obraz wynikowy RGB8: `rect` = `[x, y, szer., wys.]`
+/// w pikselach obrazu; części poza obrazem są obcinane.
+pub fn draw_overlay(size: [u32; 2], rgb: &mut [u8], overlay: &RgbaImage, rect: [f32; 4]) -> Result<(), String> {
+    let (w, h) = (rect[2].round() as i64, rect[3].round() as i64);
+    if w < 1 || h < 1 {
+        return Ok(());
+    }
+    let (x0, y0) = (rect[0].round() as i64, rect[1].round() as i64);
+    let (cw, ch) = (size[0] as i64, size[1] as i64);
+    // Część warstwy widoczna w obrazie.
+    let (vx0, vy0, vx1, vy1) = (x0.max(0), y0.max(0), (x0 + w).min(cw), (y0 + h).min(ch));
+    if vx0 >= vx1 || vy0 >= vy1 {
+        return Ok(());
+    }
+    let scaled = resize_rgba(overlay, [w as u32, h as u32], lanczos3())?;
+    for y in vy0..vy1 {
+        for x in vx0..vx1 {
+            let p = scaled.get_pixel((x - x0) as u32, (y - y0) as u32);
+            let a = p[3] as u32;
+            if a == 0 {
+                continue;
+            }
+            let i = ((y * cw + x) * 3) as usize;
+            for c in 0..3 {
+                rgb[i + c] = ((p[c] as u32 * a + rgb[i + c] as u32 * (255 - a) + 127) / 255) as u8;
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Zwraca rozmiar i piksele RGB8 obrazu wynikowego. `mask` (1 bajt/piksel źródła) jest
 /// stosowana tylko gdy `edits.use_bg_removal`. Bez wybranego tła spłaszcza na biało (JPEG).
@@ -80,6 +112,23 @@ mod tests {
         assert_eq!(px(1, 1), vec![0, 0, 255]);
         assert_eq!(px(0, 0), vec![0, 0, 255]);
         assert_eq!(px(2, 1), vec![0, 255, 0]);
+    }
+
+    #[test]
+    fn warstwa_z_przezroczystoscia_i_obcieciem() {
+        let size = [4, 2];
+        let mut rgb = vec![255u8; 4 * 2 * 3];
+        // 2×1: czerwony nieprzezroczysty + przezroczysty; skala ×1, częściowo poza obrazem z prawej.
+        let mut ov = RgbaImage::new(2, 1);
+        ov.put_pixel(0, 0, image::Rgba([255, 0, 0, 255]));
+        ov.put_pixel(1, 0, image::Rgba([0, 0, 255, 0]));
+        draw_overlay(size, &mut rgb, &ov, [3.0, 1.0, 2.0, 1.0]).unwrap();
+        let px = |x: usize, y: usize| rgb[(y * 4 + x) * 3..(y * 4 + x) * 3 + 3].to_vec();
+        assert_eq!(px(3, 1), vec![255, 0, 0]);
+        assert_eq!(px(2, 1), vec![255, 255, 255]);
+        assert_eq!(px(3, 0), vec![255, 255, 255]);
+        // Całkiem poza obrazem – nic.
+        draw_overlay(size, &mut rgb, &ov, [10.0, 10.0, 2.0, 1.0]).unwrap();
     }
 
     #[test]

@@ -173,6 +173,24 @@ impl AsOneApp {
                         }
                     }
                     if platform::CAN_PICK_FOLDER {
+                        // Ikonka obok „Folder:” – powrót do domyślnego podfolderu obok zdjęć.
+                        let sub = self.settings.out_subfolder_name();
+                        let image = egui::Image::new(egui::include_image!("../../assets/icons/folder-default.svg"))
+                            .fit_to_exact_size(vec2(16.0, 16.0))
+                            .tint(pal.icon);
+                        let reset = egui::Button::image(image).min_size(vec2(26.0, 26.0));
+                        let custom = self.out_dir.is_some();
+                        let response = ui.add_enabled(custom, reset);
+                        let response = if custom {
+                            response.on_hover_text(format!("Przywróć domyślny folder: „{sub}” obok zdjęć"))
+                        } else {
+                            response.on_disabled_hover_text(format!(
+                                "Zapis do domyślnego folderu „{sub}” obok zdjęć (nazwa: Ustawienia › Preferencje › Eksport)"
+                            ))
+                        };
+                        if response.clicked() {
+                            self.out_dir = None;
+                        }
                         let dir = self.default_out_dir(open);
                         let label = dir
                             .as_ref()

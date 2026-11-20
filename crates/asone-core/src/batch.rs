@@ -9,7 +9,7 @@ use image::RgbaImage;
 use crate::autocrop::{DEFAULT_THRESHOLD, content_bbox};
 use crate::compose::compose_rgb;
 use crate::edits::{EditParams, WHITE};
-use crate::finish::{ExportLimits, finish};
+use crate::finish::{ExportLimits, finish_with_margins};
 use crate::imageio::{alpha_mask, decode_path};
 use crate::naming::plan_names_from;
 
@@ -86,7 +86,7 @@ pub fn process_image(img: &RgbaImage, opts: &BatchOptions) -> Result<ProcessedIm
         edits.fit_square(source_size);
     }
     let (size, rgb) = compose_rgb(img, mask.as_deref(), &edits);
-    let f = finish(size, rgb, opts.max_long_side, opts.quality, bg_rgb8(&edits), &opts.limits)?;
+    let f = finish_with_margins(size, rgb, edits.margins, opts.max_long_side, opts.quality, bg_rgb8(&edits), &opts.limits)?;
     notes.extend(f.notes);
     Ok(ProcessedImage { source_size, size: f.size, jpeg: f.jpeg, quality: f.quality, notes })
 }

@@ -7,7 +7,13 @@
 //! 3. plik nie może przekroczyć `max_bytes` (domyślnie 3 MB) – najpierw obniżamy jakość
 //!    (szukając najwyższej mieszczącej się, nie niżej niż `min_quality`), a gdy to nie wystarczy,
 //!    zmniejszamy obraz o 10 % na krok.
+//!
+//! Ramka przy zmniejszaniu ([`finish_with_margins`], `keep_frame`): gdy zdjęcie z marginesami trzeba
+//! zmniejszyć, płótno ma ten sam rozmiar co przy zwykłym zmniejszeniu, ale marginesy-ramki (do
+//! [`FRAME_MAX`] px i do 2 % boku) zostają w pliku w pełnych pikselach (ramka 5 px to dalej 5 px) –
+//! zmniejsza się samo zdjęcie. Większe marginesy (np. z „Dopasuj do kwadratu”) skalują się jak dotąd.
 
+use crate::edits::{BOTTOM, LEFT, RIGHT, TOP};
 use crate::imageio::{fit_within, resize_rgb};
 use crate::jpeg::encode_jpeg;
 
@@ -22,6 +28,8 @@ pub struct ExportLimits {
     pub min_side: Option<u32>,
     /// Najniższa jakość, do której wolno zejść przy dopasowaniu do `max_bytes`.
     pub min_quality: u8,
+    /// Przy zmniejszaniu marginesy do [`FRAME_MAX`] px zostają w pełnych pikselach (zmniejsza się zdjęcie).
+    pub keep_frame: bool,
 }
 
 impl Default for ExportLimits {
@@ -32,6 +40,7 @@ impl Default for ExportLimits {
             max_bytes: Some(3 * MIB),
             min_side: Some(MIN_SIDE),
             min_quality: 65,
+            keep_frame: true,
         }
     }
 }
@@ -39,9 +48,23 @@ impl Default for ExportLimits {
 /// Najmniejszy bok zapisanego zdjęcia (px); mniejsze dopełniane są tłem.
 pub const MIN_SIDE: u32 = 500;
 
+/// Marginesy do tylu px (i do 2 % boku) to „ramka”: po zmniejszeniu zostają w pliku w pełnych pikselach.
+pub const FRAME_MAX: u32 = 100;
+
+/// Margines `m` na osi o długości `len` jest ramką (a nie np. dopełnieniem do kwadratu).
+pub fn is_frame(m: u32, len: u32) -> bool {
+    m > 0 && m <= FRAME_MAX && m.saturating_mul(50) <= len
+}
+
+/// Do takiej różnicy proporcji treść wypełnia środek dokładnie (niewidoczne), żeby ramka miała równe px.
+const FILL_TOLERANCE: f64 = 0.0025;
+
+/// Zmniejszony obraz (rozmiar, piksele RGB8).
+pub type Rgb = ([u32; 2], Vec<u8>);
+
 impl ExportLimits {
     pub const NONE: ExportLimits =
-        ExportLimits { max_width: None, max_height: None, max_bytes: None, min_side: None, min_quality: 1 };
+        ExportLimits { max_width: None, max_height: None, max_bytes: None, min_side: None, min_quality: 1, keep_frame: false };
 }
 
 /// Gotowy plik JPEG z opisem automatycznych korekt.
@@ -79,6 +102,92 @@ pub fn pad_rgb(size: [u32; 2], rgb: &[u8], new: [u32; 2], bg: [u8; 3]) -> Vec<u8
         out[start..start + w * 3].copy_from_slice(src);
     }
     out
+}
+
+/// Rozmiar po zmniejszeniu (dłuższy bok, potem limity szer. × wys.) albo `None`, gdy się mieści.
+fn shrunk_size(size: [u32; 2], max_long_side: Option<u32>, limits: &ExportLimits) -> Option<[u32; 2]> {
+    let s = max_long_side.map_or(size, |max| fit_within(size, max));
+    let s = fit_box(s, limits.max_width, limits.max_height).unwrap_or(s);
+    (s != size).then_some(s)
+}
+
+/// Zmniejszenie z zachowaniem ramki: płótno jak przy zwykłym zmniejszeniu, marginesy-ramki
+/// ([`is_frame`]) w pełnych pikselach, pozostałe skalowane; treść (bez marginesów) wypełnia resztę.
+/// `None` – nic do zmniejszenia, brak ramki albo marginesy nie mieszczą się w płótnie.
+pub fn shrink_keep_frame(
+    size: [u32; 2],
+    rgb: &[u8],
+    margins: [u32; 4],
+    max_long_side: Option<u32>,
+    limits: &ExportLimits,
+    bg: [u8; 3],
+) -> Result<Option<Rgb>, String> {
+    let any_frame = [(LEFT, 0), (RIGHT, 0), (TOP, 1), (BOTTOM, 1)].iter().any(|&(i, axis)| is_frame(margins[i], size[axis]));
+    if !any_frame {
+        return Ok(None);
+    }
+    let Some(canvas) = shrunk_size(size, max_long_side, limits) else { return Ok(None) };
+    let [ml, mr, mt, mb] = [margins[LEFT], margins[RIGHT], margins[TOP], margins[BOTTOM]];
+    if ml + mr >= size[0] || mt + mb >= size[1] {
+        return Ok(None);
+    }
+    let (kx, ky) = (canvas[0] as f64 / size[0] as f64, canvas[1] as f64 / size[1] as f64);
+    let keep = |m: u32, k: f64, len: u32| if is_frame(m, len) { m } else { (m as f64 * k).round() as u32 };
+    let [fl, fr, ft, fb] = [keep(ml, kx, size[0]), keep(mr, kx, size[0]), keep(mt, ky, size[1]), keep(mb, ky, size[1])];
+    if fl + fr >= canvas[0] || ft + fb >= canvas[1] {
+        return Ok(None);
+    }
+    let content = [size[0] - ml - mr, size[1] - mt - mb];
+    let inner = [canvas[0] - fl - fr, canvas[1] - ft - fb];
+    let (cx, cy) = (inner[0] as f64 / content[0] as f64, inner[1] as f64 / content[1] as f64);
+    let target = if (cx - cy).abs() <= FILL_TOLERANCE * cx.max(cy) {
+        inner
+    } else {
+        let c = cx.min(cy).min(1.0);
+        [
+            ((content[0] as f64 * c).round() as u32).clamp(1, inner[0]),
+            ((content[1] as f64 * c).round() as u32).clamp(1, inner[1]),
+        ]
+    };
+    let (w, cw) = (size[0] as usize, content[0] as usize);
+    let mut cropped = Vec::with_capacity(cw * content[1] as usize * 3);
+    for y in mt as usize..(mt + content[1]) as usize {
+        let row = (y * w + ml as usize) * 3;
+        cropped.extend_from_slice(&rgb[row..row + cw * 3]);
+    }
+    let (_, scaled) = resize_rgb(content, cropped, target)?;
+    let mut out: Vec<u8> = std::iter::repeat_n(bg, canvas[0] as usize * canvas[1] as usize).flatten().collect();
+    let ox = (fl + (inner[0] - target[0]) / 2) as usize;
+    let oy = (ft + (inner[1] - target[1]) / 2) as usize;
+    let (tw, nw) = (target[0] as usize, canvas[0] as usize);
+    for y in 0..target[1] as usize {
+        let dst = ((oy + y) * nw + ox) * 3;
+        out[dst..dst + tw * 3].copy_from_slice(&scaled[y * tw * 3..(y + 1) * tw * 3]);
+    }
+    Ok(Some((canvas, out)))
+}
+
+/// Jak [`finish`], ale z marginesami obrazu: przy `limits.keep_frame` zmniejsza z zachowaniem ramki.
+pub fn finish_with_margins(
+    size: [u32; 2],
+    rgb: Vec<u8>,
+    margins: [u32; 4],
+    max_long_side: Option<u32>,
+    quality: u8,
+    bg: [u8; 3],
+    limits: &ExportLimits,
+) -> Result<Finished, String> {
+    if limits.keep_frame
+        && let Some((canvas, out)) = shrink_keep_frame(size, &rgb, margins, max_long_side, limits, bg)?
+    {
+        let mut f = finish(canvas, out, None, quality, bg, limits)?;
+        f.notes.insert(
+            0,
+            format!("zmniejszono {}×{} → {}×{}, ramka zachowana w pełnych pikselach", size[0], size[1], canvas[0], canvas[1]),
+        );
+        return Ok(f);
+    }
+    finish(size, rgb, max_long_side, quality, bg, limits)
 }
 
 fn mb(bytes: u64) -> String {
@@ -201,6 +310,91 @@ mod tests {
                 (x >> 24) as u8
             })
             .collect()
+    }
+
+    /// Obraz T×T z ramką `m` (biała) wokół czarnej treści.
+    fn framed(size: [u32; 2], m: [u32; 4]) -> Vec<u8> {
+        let mut rgb = vec![255u8; (size[0] * size[1] * 3) as usize];
+        for y in m[TOP]..size[1] - m[BOTTOM] {
+            for x in m[LEFT]..size[0] - m[RIGHT] {
+                let i = ((y * size[0] + x) * 3) as usize;
+                rgb[i..i + 3].copy_from_slice(&[0, 0, 0]);
+            }
+        }
+        rgb
+    }
+
+    /// Szerokość białego pasa od krawędzi do pierwszego ciemnego piksela (wiersz/kolumna środkowa).
+    fn white_run(size: [u32; 2], rgb: &[u8], side: usize) -> u32 {
+        let px = |x: u32, y: u32| rgb[((y * size[0] + x) * 3) as usize];
+        let (cx, cy) = (size[0] / 2, size[1] / 2);
+        let mut n = 0;
+        loop {
+            let v = match side {
+                TOP => px(cx, n),
+                BOTTOM => px(cx, size[1] - 1 - n),
+                LEFT => px(n, cy),
+                _ => px(size[0] - 1 - n, cy),
+            };
+            if v < 128 {
+                return n;
+            }
+            n += 1;
+        }
+    }
+
+    #[test]
+    fn ramka_5px_zostaje_po_zmniejszeniu() {
+        // 4010×5010 z ramką 5 px → limit 3000×3600: płótno jak dotąd, ramka nadal 5 px.
+        let size = [4010, 5010];
+        let m = [5; 4];
+        let limits = ExportLimits::default();
+        let (canvas, out) = shrink_keep_frame(size, &framed(size, m), m, None, &limits, [255; 3]).unwrap().unwrap();
+        assert_eq!(Some(canvas), fit_box(size, Some(3000), Some(3600)));
+        for side in [TOP, RIGHT, BOTTOM, LEFT] {
+            assert_eq!(white_run(canvas, &out, side), 5, "bok {side}");
+        }
+    }
+
+    #[test]
+    fn duze_marginesy_skaluja_sie_kwadrat_zostaje() {
+        // Treść 400×500 + kwadrat (50 z boków) + ramka 5 px: 510×510 → limit 300 px.
+        let size = [510, 510];
+        let m = [5, 55, 5, 55];
+        let limits = ExportLimits { max_width: Some(300), max_height: Some(300), keep_frame: true, ..ExportLimits::NONE };
+        let (canvas, out) = shrink_keep_frame(size, &framed(size, m), m, None, &limits, [255; 3]).unwrap().unwrap();
+        assert_eq!(canvas, [300, 300], "kwadrat zostaje");
+        assert_eq!(white_run(canvas, &out, TOP), 5);
+        assert_eq!(white_run(canvas, &out, BOTTOM), 5);
+        // 55 px to ponad 2 % boku – dopełnienie do kwadratu, skaluje się (≈ 32 px).
+        assert!((30..=40).contains(&white_run(canvas, &out, LEFT)), "{}", white_run(canvas, &out, LEFT));
+        // Same duże marginesy (bez ramki) – jak dotąd.
+        let m = [0, 55, 0, 55];
+        assert!(shrink_keep_frame(size, &framed(size, m), m, None, &limits, [255; 3]).unwrap().is_none());
+    }
+
+    #[test]
+    fn bez_zmniejszenia_albo_bez_marginesow_nic() {
+        let limits = ExportLimits::default();
+        assert!(shrink_keep_frame([800, 600], &framed([800, 600], [5; 4]), [5; 4], None, &limits, [255; 3]).unwrap().is_none());
+        assert!(shrink_keep_frame([4000, 5000], &vec![0; 4000 * 5000 * 3], [0; 4], None, &limits, [255; 3]).unwrap().is_none());
+        // „Max dłuższy bok” też zmniejsza – ramka zostaje.
+        let size = [1010, 810];
+        let (canvas, out) = shrink_keep_frame(size, &framed(size, [5; 4]), [5; 4], Some(500), &limits, [255; 3]).unwrap().unwrap();
+        assert_eq!(canvas, fit_within(size, 500));
+        assert_eq!(white_run(canvas, &out, LEFT), 5);
+    }
+
+    #[test]
+    fn finish_z_marginesami_wylaczone_jak_dotad() {
+        let size = [1010, 810];
+        let rgb = framed(size, [5; 4]);
+        let off = ExportLimits { keep_frame: false, ..ExportLimits::default() };
+        let a = finish_with_margins(size, rgb.clone(), [5; 4], Some(500), 95, [255; 3], &off).unwrap();
+        let b = finish(size, rgb.clone(), Some(500), 95, [255; 3], &off).unwrap();
+        assert_eq!(a.jpeg, b.jpeg);
+        let on = finish_with_margins(size, rgb, [5; 4], Some(500), 95, [255; 3], &ExportLimits::default()).unwrap();
+        assert!(on.notes[0].contains("ramka zachowana"), "{:?}", on.notes);
     }
 
     #[test]

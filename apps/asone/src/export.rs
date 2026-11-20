@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use asone_core::batch::bg_rgb8;
 use asone_core::edits::EditParams;
-use asone_core::finish::{ExportLimits, Finished, finish};
+use asone_core::finish::{ExportLimits, Finished, finish_with_margins};
 use crossbeam_channel::Receiver;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -33,6 +33,8 @@ pub struct ExportSettings {
 pub struct ExportItem {
     pub file_name: String,
     pub edits: EditParams,
+    /// Obraz warstwy (smartfon); położenie w `edits.overlay`.
+    pub overlay: Option<std::sync::Arc<image::RgbaImage>>,
     #[cfg(not(target_arch = "wasm32"))]
     pub gpu: OffscreenSource,
     #[cfg(target_arch = "wasm32")]
@@ -50,9 +52,20 @@ pub enum ExportMsg {
     Finished { elapsed: Duration },
 }
 
-/// Zmniejszenie, limity i kompresja jednego obrazu.
-fn finish_image(size: [u32; 2], rgb: Vec<u8>, edits: &EditParams, settings: &ExportSettings) -> Result<Finished, String> {
-    finish(size, rgb, settings.max_long_side, settings.quality, bg_rgb8(edits), &settings.limits)
+/// Warstwa (smartfon), zmniejszenie, limity i kompresja jednego obrazu.
+fn finish_image(
+    size: [u32; 2],
+    mut rgb: Vec<u8>,
+    edits: &EditParams,
+    overlay: Option<&image::RgbaImage>,
+    settings: &ExportSettings,
+) -> Result<Finished, String> {
+    if let (Some(img), Some(rect)) = (overlay, edits.overlay) {
+        asone_core::compose::draw_overlay(size, &mut rgb, img, rect)?;
+    }
+    // Z warstwą w marginesie ramka nie jest odtwarzana osobno (warstwa zostałaby zamalowana tłem).
+    let margins = if edits.overlay.is_some() { [0; 4] } else { edits.margins };
+    finish_with_margins(size, rgb, margins, settings.max_long_side, settings.quality, bg_rgb8(edits), &settings.limits)
 }
 
 fn saved(file_name: String, f: Finished) -> ExportMsg {
@@ -127,7 +140,8 @@ pub fn start_export(
                     let settings = settings.clone();
                     spawned += 1;
                     pool.spawn(move || {
-                        let msg = match finish_image(size, rgb, &item.edits, &settings).and_then(|f| store(&target, &f.jpeg).map(|()| f))
+                        let msg = match finish_image(size, rgb, &item.edits, item.overlay.as_deref(), &settings)
+                            .and_then(|f| store(&target, &f.jpeg).map(|()| f))
                         {
                             Ok(f) => saved(item.file_name, f),
                             Err(error) => ExportMsg::Failed { file_name: item.file_name, error },
@@ -164,7 +178,7 @@ pub fn start_export(items: Vec<ExportItem>, settings: ExportSettings, ctx: egui:
         Tasks.spawn(move || {
             let result = crate::loader::decode_for_gpu(&item.source, item.max_texture_dim).and_then(|(img, _)| {
                 let (size, rgb) = asone_core::compose::compose_rgb(&img, Some(&item.mask), &item.edits);
-                let f = finish_image(size, rgb, &item.edits, &settings)?;
+                let f = finish_image(size, rgb, &item.edits, item.overlay.as_deref(), &settings)?;
                 crate::platform::download(&item.file_name, &f.jpeg, "image/jpeg")?;
                 Ok(f)
             });
@@ -181,4 +195,33 @@ pub fn start_export(items: Vec<ExportItem>, settings: ExportSettings, ctx: egui:
         ctx.request_repaint();
     });
     rx
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Warstwa (smartfon) trafia do zapisanego JPEG w swoim miejscu; bez obrazu warstwy – samo tło.
+    #[test]
+    fn warstwa_w_zapisanym_pliku() {
+        let size = [600, 500];
+        let rgb = vec![255u8; 600 * 500 * 3];
+        let edits = EditParams { margins: [0, 0, 0, 100], overlay: Some([20.0, 100.0, 60.0, 200.0]), ..Default::default() };
+        let phone = image::RgbaImage::from_pixel(30, 100, image::Rgba([0, 0, 200, 255]));
+        let settings = ExportSettings {
+            quality: 95,
+            max_long_side: None,
+            out_dir: std::path::PathBuf::new(),
+            limits: ExportLimits::default(),
+        };
+        let f = finish_image(size, rgb.clone(), &edits, Some(&phone), &settings).unwrap();
+        let img = image::load_from_memory(&f.jpeg).unwrap().to_rgb8();
+        assert_eq!(img.dimensions(), (600, 500));
+        let p = img.get_pixel(50, 200).0;
+        assert!(p[2] > 150 && p[0] < 60, "smartfon: {p:?}");
+        assert!(img.get_pixel(50, 50).0.iter().all(|&c| c > 240), "tło nad smartfonem");
+        let f = finish_image(size, rgb, &edits, None, &settings).unwrap();
+        let img = image::load_from_memory(&f.jpeg).unwrap().to_rgb8();
+        assert!(img.get_pixel(50, 200).0.iter().all(|&c| c > 240));
+    }
 }

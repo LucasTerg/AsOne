@@ -5,7 +5,7 @@ use std::sync::Arc;
 use eframe::egui_wgpu;
 use egui::{Color32, CursorIcon, Key, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Vec2, pos2, vec2};
 
-use crate::document::{Camera, Document, LoadState, PxRect, stamp_segment, union_opt};
+use crate::document::{Camera, Document, LoadState, OVERLAY_PREVIEW, PxRect, stamp_segment, union_opt};
 use crate::renderer::{CanvasCallback, GpuShared, Layout, RenderMode, build_uniforms, upload_mask_region};
 use crate::theme;
 
@@ -44,7 +44,7 @@ impl Tool {
 
     fn hint(self) -> &'static str {
         match self {
-            Tool::Move => "LPM / Spacja / środkowy – przesuwanie · kółko – zoom · Ctrl+0 dopasuj · Ctrl+1 100%",
+            Tool::Move => "LPM / Spacja / środkowy – przesuwanie · kółko – zoom · PPM – menu · Ctrl+0 dopasuj · Ctrl+1 100%",
             Tool::Crop => "Przeciągaj uchwyty lub ramkę · poza kadrem – nowy kadr · Enter / dwuklik – zatwierdź",
             Tool::Eraser => "LPM – usuń · PPM lub Alt+LPM – przywróć · [ ] – rozmiar pędzla",
             Tool::RectCut => "Przeciągnij, aby zaznaczyć · Delete – wytnij · Shift+Delete – przywróć · Esc – odznacz",
@@ -85,10 +85,97 @@ struct CropDrag {
     start_ptr: [f32; 2],
 }
 
+/// Przeciąganie warstwy (smartfona): przesunięcie albo skalowanie z rogu (z zachowaniem proporcji).
+#[derive(Clone, Copy, Debug)]
+struct OverlayDrag {
+    /// `None` – przesunięcie; `Some((sx, sy))` – róg: −1 lewy/górny, +1 prawy/dolny.
+    corner: Option<(f32, f32)>,
+    start_rect: [f32; 4],
+    start_ptr: [f32; 2],
+}
+
+fn overlay_corner(h: CropHandle) -> Option<(f32, f32)> {
+    match h {
+        CropHandle::NW => Some((-1.0, -1.0)),
+        CropHandle::NE => Some((1.0, -1.0)),
+        CropHandle::SW => Some((-1.0, 1.0)),
+        CropHandle::SE => Some((1.0, 1.0)),
+        _ => None,
+    }
+}
+
+/// Nowe położenie warstwy po przesunięciu wskaźnika o `d` (px obrazu); róg skaluje względem
+/// przeciwległego rogu, z zachowaniem proporcji (min. 16 px).
+fn drag_overlay(drag: &OverlayDrag, d: [f32; 2]) -> [f32; 4] {
+    let [x, y, w, h] = drag.start_rect;
+    let Some((sx, sy)) = drag.corner else { return [x + d[0], y + d[1], w, h] };
+    let (ax, ay) = (if sx > 0.0 { x } else { x + w }, if sy > 0.0 { y } else { y + h });
+    let (cx, cy) = ((if sx > 0.0 { x + w } else { x }) + d[0], (if sy > 0.0 { y + h } else { y }) + d[1]);
+    let s = ((cx - ax) * sx / w.max(1.0)).max((cy - ay) * sy / h.max(1.0)).max(16.0 / w.min(h).max(1.0));
+    let (nw, nh) = (w * s, h * s);
+    [if sx > 0.0 { ax } else { ax - nw }, if sy > 0.0 { ay } else { ay - nh }, nw, nh]
+}
+
+/// Tekstura podglądu warstwy (pomniejszona do [`OVERLAY_PREVIEW`] px).
+fn overlay_texture(ctx: &egui::Context, img: &image::RgbaImage) -> egui::TextureHandle {
+    use asone_core::imageio::{fit_within, lanczos3, resize_rgba};
+    let size = fit_within([img.width(), img.height()], OVERLAY_PREVIEW);
+    let small = resize_rgba(img, size, lanczos3()).unwrap_or_else(|_| img.clone());
+    let color = egui::ColorImage::from_rgba_unmultiplied([small.width() as usize, small.height() as usize], small.as_raw());
+    ctx.load_texture("asone-overlay", color, egui::TextureOptions::LINEAR)
+}
+
+/// Polecenia z menu kontekstowego płótna (wykonuje je aplikacja).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CanvasAction {
+    PastePhone,
+    PickPhone,
+    FitPhone,
+    RemovePhone,
+    RemoveBackground,
+    AutoCrop,
+    FitSquare,
+    Frame5,
+    ResetMargins,
+    FitView,
+    Undo,
+    Redo,
+}
+
+/// Menu pod prawym przyciskiem na zdjęciu.
+fn canvas_menu(ui: &mut egui::Ui, has_overlay: bool, can_undo: bool, can_redo: bool, actions: &mut Vec<CanvasAction>) {
+    use crate::platform::{CAN_PASTE_IMAGE, CAN_PICK_OVERLAY};
+    ui.set_min_width(240.0);
+    let mut item = |ui: &mut egui::Ui, enabled: bool, label: &str, action: CanvasAction| {
+        if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+            actions.push(action);
+            ui.close();
+        }
+    };
+    let paste = if has_overlay { "Podmień smartfon ze schowka" } else { "Wklej smartfon ze schowka" };
+    item(ui, CAN_PASTE_IMAGE, paste, CanvasAction::PastePhone);
+    item(ui, CAN_PICK_OVERLAY, "Wklej smartfon z pliku…", CanvasAction::PickPhone);
+    if has_overlay {
+        item(ui, true, "Dopasuj smartfon do pasa", CanvasAction::FitPhone);
+        item(ui, true, "Usuń smartfon", CanvasAction::RemovePhone);
+    }
+    ui.separator();
+    item(ui, crate::ai::AVAILABLE, "Usuń tło", CanvasAction::RemoveBackground);
+    item(ui, true, "Kadruj (auto)", CanvasAction::AutoCrop);
+    item(ui, true, "Dopasuj do kwadratu 1:1", CanvasAction::FitSquare);
+    item(ui, true, "Ramka 5 px", CanvasAction::Frame5);
+    item(ui, true, "Zeruj marginesy", CanvasAction::ResetMargins);
+    ui.separator();
+    item(ui, true, "Dopasuj widok (Ctrl+0)", CanvasAction::FitView);
+    item(ui, can_undo, "Cofnij (Ctrl+Z)", CanvasAction::Undo);
+    item(ui, can_redo, "Ponów (Ctrl+Shift+Z)", CanvasAction::Redo);
+}
+
 /// Stan interakcji płótna przechowywany w dokumencie.
 #[derive(Default)]
 pub struct CanvasState {
     crop_drag: Option<CropDrag>,
+    overlay_drag: Option<OverlayDrag>,
     last_brush: Option<[f32; 2]>,
     rect_anchor: Option<[f32; 2]>,
     last_canvas_size: Vec2,
@@ -104,6 +191,8 @@ impl CanvasState {
 #[derive(Default)]
 pub struct CanvasOutput {
     pub switch_tool: Option<Tool>,
+    /// Polecenia z menu kontekstowego.
+    pub actions: Vec<CanvasAction>,
 }
 
 /// Dopasowuje widok tak, by `size` (od `origin`, w px źródła) zmieścił się w oknie.
@@ -290,8 +379,28 @@ pub fn photo_ui(
             }
     }
 
+    // --- Warstwa (smartfon): przesuwanie i skalowanie narzędziem „Przesuwanie” ---------------
+    let overlay = doc.edits.overlay.filter(|_| doc.overlay_image.is_some() && !full_source);
+    let overlay_screen = |cam: Camera, r: [f32; 4]| {
+        Rect::from_min_size(
+            canvas_rect.min + cam.pan + vec2(extent_origin[0] + r[0], extent_origin[1] + r[1]) * cam.zoom,
+            vec2(r[2], r[3]) * cam.zoom,
+        )
+    };
+    if tool == Tool::Move
+        && !space_down
+        && let Some(r) = overlay
+        && response.drag_started_by(PointerButton::Primary)
+        && let Some(p) = press_origin
+        && let Some(h) = hit_test(overlay_screen(doc.camera, r), p)
+    {
+        let v = (p - canvas_rect.min - doc.camera.pan) / doc.camera.zoom;
+        doc.canvas.overlay_drag = Some(OverlayDrag { corner: overlay_corner(h), start_rect: r, start_ptr: [v.x, v.y] });
+    }
+
     let panning = response.dragged_by(PointerButton::Middle)
-        || (response.dragged_by(PointerButton::Primary) && (space_down || tool == Tool::Move));
+        || (response.dragged_by(PointerButton::Primary)
+            && (space_down || (tool == Tool::Move && doc.canvas.overlay_drag.is_none())));
     if panning {
         doc.camera.pan += response.drag_delta();
     }
@@ -308,7 +417,30 @@ pub fn photo_ui(
     let mut cursor = None;
     match tool {
         Tool::Move => {
-            cursor = Some(if panning { CursorIcon::Grabbing } else { CursorIcon::Grab });
+            if let Some(drag) = doc.canvas.overlay_drag {
+                if response.dragged_by(PointerButton::Primary)
+                    && let Some(p) = latest_pos
+                {
+                    let cur = to_src(p);
+                    doc.edits.overlay = Some(drag_overlay(&drag, [cur[0] - drag.start_ptr[0], cur[1] - drag.start_ptr[1]]));
+                }
+                cursor = Some(match drag.corner {
+                    None => CursorIcon::Grabbing,
+                    Some((sx, sy)) if sx * sy > 0.0 => CursorIcon::ResizeNwSe,
+                    Some(_) => CursorIcon::ResizeNeSw,
+                });
+                if response.drag_stopped() || !primary_down {
+                    doc.canvas.overlay_drag = None;
+                }
+            } else {
+                let hover = overlay.zip(response.hover_pos()).and_then(|(r, p)| hit_test(overlay_screen(cam, r), p));
+                cursor = Some(match hover {
+                    Some(h) if overlay_corner(h).is_some() => handle_cursor(h),
+                    Some(_) => CursorIcon::Move,
+                    None if panning => CursorIcon::Grabbing,
+                    None => CursorIcon::Grab,
+                });
+            }
         }
         Tool::Crop if tools_active => {
             let c = doc.edits.crop_px(src);
@@ -422,6 +554,23 @@ pub fn photo_ui(
     let image_rect = Rect::from_min_size(origin_screen, vec2(layout.out_size[0], layout.out_size[1]) * cam.zoom);
     painter.rect_stroke(image_rect, 0.0, Stroke::new(1.0, Color32::from_black_alpha(140)), egui::StrokeKind::Outside);
 
+    // Warstwa (smartfon) na zdjęciu – przycięta do obrazu wynikowego, jak w zapisanym pliku.
+    if let (Some(r), Some(img)) = (doc.edits.overlay.filter(|_| !full_source), doc.overlay_image.clone()) {
+        let tex = doc.overlay_texture.get_or_insert_with(|| overlay_texture(ui.ctx(), &img));
+        let rs = Rect::from_min_size(to_screen([origin_src[0] + r[0], origin_src[1] + r[1]]), vec2(r[2], r[3]) * cam.zoom);
+        let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+        painter.with_clip_rect(image_rect.intersect(canvas_rect)).image(tex.id(), rs, uv, Color32::WHITE);
+        if tool == Tool::Move {
+            let pts = [rs.left_top(), rs.right_top(), rs.right_bottom(), rs.left_bottom(), rs.left_top()];
+            painter.extend(Shape::dashed_line(&pts, Stroke::new(1.0, Color32::from_white_alpha(220)), 5.0, 4.0));
+            for p in [rs.left_top(), rs.right_top(), rs.left_bottom(), rs.right_bottom()] {
+                let h = Rect::from_center_size(p, vec2(8.0, 8.0));
+                painter.rect_filled(h, 1.0, Color32::WHITE);
+                painter.rect_stroke(h, 1.0, Stroke::new(1.0, Color32::BLACK), egui::StrokeKind::Outside);
+            }
+        }
+    }
+
     if tool == Tool::Crop {
         let c = doc.edits.crop_px(src);
         let cr = Rect::from_min_max(to_screen([c.x0 as f32, c.y0 as f32]), to_screen([c.x1 as f32, c.y1 as f32]));
@@ -486,6 +635,13 @@ pub fn photo_ui(
                 painter.line_segment([p - vec2(0.0, 4.0), p + vec2(0.0, 4.0)], Stroke::new(1.0, Color32::WHITE));
             }
         }
+
+    // --- Menu kontekstowe (PPM; gumka używa PPM do przywracania) ---------------------------
+    if tool != Tool::Eraser {
+        let has_overlay = doc.overlay_image.is_some() && doc.edits.overlay.is_some();
+        let (can_undo, can_redo) = (doc.history.can_undo(), doc.history.can_redo());
+        response.context_menu(|ui| canvas_menu(ui, has_overlay, can_undo, can_redo, &mut out.actions));
+    }
 
     // --- Pasek stanu ----------------------------------------------------------------------
     let sp = ui.painter_at(status_rect);
@@ -561,6 +717,23 @@ mod tests {
         // przeciągnięcie lewej krawędzi za prawą odwraca prostokąt
         let drag = CropDrag { handle: CropHandle::W, start_rect: [100.0, 100.0, 500.0, 400.0], start_ptr: [100.0, 200.0] };
         assert_eq!(drag_crop(&drag, [600.0, 200.0], src), PxRect { x0: 500, y0: 100, x1: 600, y1: 400 });
+    }
+
+    #[test]
+    fn przeciaganie_warstwy() {
+        let start = [100.0, 50.0, 40.0, 80.0];
+        let mv = OverlayDrag { corner: None, start_rect: start, start_ptr: [0.0, 0.0] };
+        assert_eq!(drag_overlay(&mv, [10.0, -5.0]), [110.0, 45.0, 40.0, 80.0]);
+        // Prawy dolny róg o +40 px w poziomie → ×2, lewy górny róg w miejscu.
+        let se = OverlayDrag { corner: Some((1.0, 1.0)), ..mv };
+        assert_eq!(drag_overlay(&se, [40.0, 0.0]), [100.0, 50.0, 80.0, 160.0]);
+        // Lewy górny róg do środka → mniejsza, prawy dolny róg w miejscu, proporcje zachowane.
+        let nw = OverlayDrag { corner: Some((-1.0, -1.0)), ..mv };
+        let r = drag_overlay(&nw, [20.0, 0.0]);
+        assert_eq!([r[0] + r[2], r[1] + r[3]], [140.0, 130.0]);
+        assert!((r[2] / r[3] - 0.5).abs() < 1e-4);
+        // Przeciągnięcie za przeciwległy róg – minimalny rozmiar zamiast odwrócenia.
+        assert!(drag_overlay(&se, [-500.0, -500.0])[2] >= 16.0 - 1e-3);
     }
 
     #[test]

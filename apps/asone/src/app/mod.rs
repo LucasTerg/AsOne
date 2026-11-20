@@ -411,6 +411,15 @@ impl AsOneApp {
             match event {
                 PickerEvent::Files(sources, skipped) => self.add_sources(sources, skipped),
                 PickerEvent::OutputFolder(dir) => self.out_dir = Some(dir),
+                PickerEvent::OverlayImage(id, result) => match result {
+                    Ok(img) => {
+                        if let Some(doc) = self.docs.get_mut(&id) {
+                            doc.set_overlay(img);
+                            self.tool = Tool::Move;
+                        }
+                    }
+                    Err(e) => self.toast(e, true),
+                },
                 PickerEvent::Pasted(text) => {
                     let line = text.split_whitespace().collect::<Vec<_>>().join(" ");
                     if line.is_empty() {
