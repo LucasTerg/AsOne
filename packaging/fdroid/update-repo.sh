@@ -1,23 +1,40 @@
 #!/usr/bin/env bash
-# Repozytorium F-Droid na GitHub Pages (gałąź gh-pages, katalog fdroid/repo):
-# dokłada podane APK, przelicza i podpisuje indeks, publikuje stronę z instrukcją.
+# Strona AsOne na GitHub Pages (gałąź gh-pages): repozytorium F-Droid (fdroid/repo), wersja
+# przeglądarkowa (app/) i strona główna. Dokłada podane APK, przelicza i podpisuje indeks F-Droid.
 #
-#   KEYSTORE_B64=… KEYSTORE_PASSWORD=… packaging/fdroid/update-repo.sh plik.apk [plik2.apk…]
+#   KEYSTORE_B64=… KEYSTORE_PASSWORD=… [WEB_DIR=dist/web] packaging/fdroid/update-repo.sh [plik.apk…]
 #
 # KEYSTORE_B64 – magazyn kluczy PKCS12 (base64) do podpisu indeksu repozytorium,
 # KEYSTORE_PASSWORD – jego hasło (to samo dla klucza). Konfiguracja z hasłem powstaje w katalogu
 # tymczasowym i nigdy nie trafia na gh-pages. Zmienne opcjonalne:
-#   REPO_URL   (domyślnie https://lucasterg.github.io/AsOne/fdroid/repo)
+#   WEB_DIR    zbudowana wersja web (trunk build) → app/; bez niej app/ zostaje bez zmian
+#   REPO_URL   (domyślnie https://<domena z packaging/pages/CNAME>/fdroid/repo)
 #   NO_PUSH=1  (bez publikacji – do testów; wynik zostaje w $SITE)
+# Bez plików APK tylko odświeża indeks i stronę.
 # Potrzebne: fdroidserver ≥ 2.4 (pip; starszy androguard nie czyta APK z AGP 9), JDK 21 (keytool, jarsigner – na Ubuntu 24.04 `openjdk-21-jdk-headless`,
 # bo fdroid używa /usr/lib/jvm/default-java), git, qrencode (kod QR na stronie).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HERE="$ROOT/packaging/fdroid"
-REPO_URL="${REPO_URL:-https://lucasterg.github.io/AsOne/fdroid/repo}"
 : "${KEYSTORE_B64:?brak KEYSTORE_B64}" "${KEYSTORE_PASSWORD:?brak KEYSTORE_PASSWORD}"
-[ "$#" -ge 1 ] || { echo "podaj co najmniej jeden plik APK" >&2; exit 2; }
+if [ -n "${WEB_DIR:-}" ] && [ ! -f "$WEB_DIR/index.html" ]; then
+  echo "WEB_DIR=$WEB_DIR: brak index.html" >&2
+  exit 2
+fi
+
+# Własna domena (packaging/pages/CNAME). Plik CNAME na gh-pages przekierowuje lucasterg.github.io/AsOne
+# na tę domenę, więc trafia tam dopiero, gdy domena istnieje w DNS – inaczej strona i repozytorium
+# F-Droid przestałyby działać.
+DOMAIN="$(tr -d '[:space:]' < "$ROOT/packaging/pages/CNAME" 2>/dev/null || true)"
+if [ -n "$DOMAIN" ] && getent hosts "$DOMAIN" >/dev/null 2>&1; then
+  PAGES_URL="https://$DOMAIN"
+else
+  [ -z "$DOMAIN" ] || echo "uwaga: $DOMAIN nie istnieje jeszcze w DNS – strona zostaje pod lucasterg.github.io/AsOne" >&2
+  DOMAIN=""
+  PAGES_URL="https://lucasterg.github.io/AsOne"
+fi
+REPO_URL="${REPO_URL:-$PAGES_URL/fdroid/repo}"
 
 WORK="$(mktemp -d)"
 SITE="${SITE:-$(mktemp -d)/site}"
@@ -39,6 +56,10 @@ if [ -d "$SITE/fdroid/repo" ]; then
   cp -R "$SITE/fdroid/repo/." "$WORK/repo/"
 fi
 cp "$HERE"/metadata/*.yml "$WORK/metadata/"
+# Ikona aplikacji w katalogu F-Droid – fdroidserver 2.4 nie wyciąga jej z naszych APK.
+mkdir -p "$WORK/metadata/io.github.lucasterg.asone/en-US"
+cp "$ROOT/packaging/linux/icons/hicolor/512x512/apps/io.github.lucasterg.AsOne.png" \
+  "$WORK/metadata/io.github.lucasterg.asone/en-US/icon.png"
 # repo_icon – ścieżka względem katalogu roboczego; fdroid kopiuje ją do repo/icons/.
 cp "$ROOT/packaging/linux/icons/hicolor/256x256/apps/io.github.lucasterg.AsOne.png" "$WORK/icon.png"
 umask 077
@@ -78,12 +99,26 @@ HOST_PATH="${REPO_URL#https://}"
 sed -e "s|@REPO_URL@|$REPO_URL|g" -e "s|@HOST_PATH@|$HOST_PATH|g" -e "s|@FINGERPRINT@|$FINGERPRINT|g" \
   "$HERE/index.html.in" > "$SITE/index.html"
 touch "$SITE/.nojekyll"
+if [ -n "$DOMAIN" ]; then
+  printf '%s\n' "$DOMAIN" > "$SITE/CNAME"
+else
+  rm -f "$SITE/CNAME"
+fi
+
 # Kod QR z adresem repozytorium i odciskiem klucza (skaner F-Droid albo aparat telefonu).
 if command -v qrencode >/dev/null; then
   qrencode -t SVG -l M -m 2 -o "$SITE/qr.svg" "$REPO_URL?fingerprint=$FINGERPRINT"
 else
   echo "uwaga: brak qrencode – strona bez kodu QR" >&2
 fi
+
+# 5. Wersja przeglądarkowa.
+if [ -n "${WEB_DIR:-}" ]; then
+  rm -rf "$SITE/app"
+  cp -R "$WEB_DIR" "$SITE/app"
+  rm -f "$SITE/app/.trunk-lock" "$SITE/app/_headers"
+fi
+
 echo "Repozytorium: $REPO_URL?fingerprint=$FINGERPRINT"
 ls -la "$SITE/fdroid/repo" | grep -E '\.apk|index' || true
 
@@ -96,8 +131,16 @@ git add -A
 if git diff --cached --quiet; then
   echo "bez zmian"
 else
-  git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-    commit -q -m "F-Droid: $(cd "$WORK/repo" && ls -1 ./*.apk | sed 's|^\./||' | tr '\n' ' ')"
+  VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' "$ROOT/Cargo.toml" | head -n 1)"
+  MSG="Strona: AsOne $VERSION – F-Droid"
+  [ -z "${WEB_DIR:-}" ] || MSG="$MSG, wersja web"
+  [ -z "$DOMAIN" ] || MSG="$MSG ($DOMAIN)"
+  # W GitHub Actions jako bot, lokalnie – bieżąca tożsamość git.
+  GIT_ID=()
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    GIT_ID=(-c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com")
+  fi
+  git "${GIT_ID[@]}" commit -q -m "$MSG"
   git push -q origin HEAD:gh-pages
   echo "opublikowano na gh-pages"
 fi

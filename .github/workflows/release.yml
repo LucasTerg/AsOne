@@ -375,7 +375,7 @@ jobs:
             | macOS Apple Silicon / Intel | `.zip` z `AsOne.app` |
             | FreeBSD x86_64 | `.tar.gz` (bez usuwania tła AI) |
             | Android (arm64, x86_64) | `-android.apk` – wybór zdjęć z Galerii, zapis do Galerii (Pictures/AsOne); aktualizacje także z repozytorium F-Droid: https://lucasterg.github.io/AsOne/ |
-            | Przeglądarka | `-web.zip` – pliki do wrzucenia na serwer (WebGPU / WebGL2) |
+            | Przeglądarka | online: https://lucasterg.github.io/AsOne/app/ albo `-web.zip` – pliki do wrzucenia na serwer WWW (WebGPU / WebGL2; nie działa otwarte prosto z dysku) |
 
             Programy nie są podpisane certyfikatami Microsoft ani Apple:
             * Windows (SmartScreen): „Więcej informacji” › „Uruchom mimo to”.
@@ -385,9 +385,9 @@ jobs:
             `SHA256SUMS.txt` – sumy kontrolne plików.
 
   fdroid:
-    name: Repozytorium F-Droid (GitHub Pages)
-    needs: [android, release]
-    # Przy wydaniu (tag / ręcznie), gdy APK się zbudował.
+    name: GitHub Pages (F-Droid, wersja web)
+    needs: [android, web, release]
+    # Przy wydaniu (tag / ręcznie), gdy APK się zbudował; wersja web – jeśli też się zbudowała.
     if: ${{ !cancelled() && needs.android.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04
     permissions:
@@ -424,6 +424,17 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/fdroidserver"
           "$RUNNER_TEMP/fdroidserver/bin/pip" install -q "fdroidserver==2.4.5"
           echo "$RUNNER_TEMP/fdroidserver/bin" >> "$GITHUB_PATH"
-      - name: Aktualizacja repozytorium na gh-pages
+      - uses: actions/download-artifact@v5
+        if: steps.keys.outputs.skip != '1' && needs.web.result == 'success'
+        with:
+          name: web
+          path: webzip
+      - name: Wersja web (app/)
+        if: steps.keys.outputs.skip != '1' && needs.web.result == 'success'
+        run: |
+          mkdir -p "$RUNNER_TEMP/web"
+          unzip -q webzip/*.zip -d "$RUNNER_TEMP/web"
+          echo "WEB_DIR=$RUNNER_TEMP/web" >> "$GITHUB_ENV"
+      - name: Aktualizacja strony na gh-pages
         if: steps.keys.outputs.skip != '1'
         run: packaging/fdroid/update-repo.sh apk/*.apk

@@ -157,7 +157,14 @@
 
   <div id="asone_loading">
     <div class="loading-card">
-      <img src="asone.svg" alt="AsOne" class="app-icon">
+      <!-- Ikona w treści strony (nie z pliku obok) – widoczna nawet wtedy, gdy przeglądarka dostała sam index.html. -->
+      <svg class="app-icon" viewBox="0 0 512 512" role="img" aria-label="AsOne">
+        <rect x="16" y="16" width="480" height="480" rx="108" fill="#2680eb"/>
+        <path d="M124 16 H388 A108 108 0 0 1 496 124 V200 C380 250 200 230 16 180 V124 A108 108 0 0 1 124 16 Z" fill="#ffffff" fill-opacity="0.10"/>
+        <rect x="72" y="72" width="368" height="368" rx="36" fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="14"/>
+        <path fill="#ffffff" fill-rule="evenodd" d="M104 392 L188 120 L254 120 L338 392 L282 392 L265 336 L177 336 L160 392 Z M192 288 L250 288 L221 192 Z"/>
+        <path fill="#ffffff" d="M352 176 L394 128 L428 128 L428 392 L378 392 L378 200 L352 222 Z"/>
+      </svg>
       <h1 class="app-title">AsOne</h1>
       <p class="app-subtitle">Zdjęcia produktowe do internetu &bull; kadr, marginesy, białe tło &bull; Progressive JPEG bez metadanych</p>
 
@@ -177,5 +184,18 @@
       <noscript>AsOne wymaga włączonego JavaScriptu i WebAssembly.</noscript>
     </div>
   </div>
+  <script>
+    // Otwarte z dysku (file://): przeglądarka blokuje moduły JS i WebAssembly, ładowanie stanęłoby na 0%.
+    if (location.protocol === "file:") {
+      document.getElementById("status_text").textContent = "AsOne trzeba otworzyć przez serwer WWW";
+      document.querySelector(".progress-container").style.display = "none";
+      document.querySelector(".progress-info").style.display = "none";
+      var box = document.getElementById("error_box");
+      box.style.display = "block";
+      box.innerHTML = "Przeglądarka nie uruchamia WebAssembly z pliku otwartego prosto z dysku (<code>file://</code>).<br><br>" +
+        "W katalogu z tymi plikami uruchom serwer, np. <code>python3 -m http.server 8080</code>, i otwórz " +
+        "<a href=\"http://localhost:8080/\">http://localhost:8080/</a> – albo wgraj pliki na serwer WWW.";
+    }
+  </script>
 </body>
 </html>
