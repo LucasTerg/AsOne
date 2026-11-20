@@ -15,7 +15,7 @@ use crate::naming::plan_names_from;
 
 #[derive(Clone, Debug)]
 pub struct BatchOptions {
-    /// Nazwa bazowa paczki, np. `123-marka model` → `123-marka-model-1.jpg`, …
+    /// Nazwa bazowa paczki, np. `Kubek ASONE Classic` → `Kubek-ASONE-Classic-1.jpg`, …
     pub base_name: String,
     /// Jakość JPEG 1..=100.
     pub quality: u8,

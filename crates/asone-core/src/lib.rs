@@ -3,7 +3,7 @@
 //! Rdzeń AsOne bez zależności od GUI – wspólny dla aplikacji okienkowej (desktop, Android, wasm),
 //! `asone-cli` i serwera MCP:
 //!
-//! * [`naming`] – nazwy plików przyjazne dla URL (`123-marka model` → `123-marka-model-1.jpg`),
+//! * [`naming`] – nazwy plików przyjazne dla URL (`Kubek ASONE Classic` → `Kubek-ASONE-Classic-1.jpg`),
 //! * [`edits`] – niedestrukcyjne parametry (kadr, marginesy, tło, maska) i edycja maski,
 //! * [`imageio`] – dekodowanie z orientacją EXIF, skalowanie Lanczos3 (`fast_image_resize`),
 //! * [`compose`] – kompozycja wyniku na CPU (ta sama semantyka co shader GPU),

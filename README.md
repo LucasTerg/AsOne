@@ -73,9 +73,10 @@ APK lokalnie (Podman, Android SDK/NDK, Java 17+; ustawienia w nagłówku skryptu
    (miniatura i pełna, zawijana nazwa) lub *Szczegóły* (tabela: nazwa, wymiary, rozmiar, typ).
 2. Kliknij miniaturę → zdjęcie otwiera się w osobnej zakładce `#1`, `#2`, … (ponowny klik zamyka
    zakładkę). „Odznacz” zamyka wszystkie zakładki, „Wyczyść listę” usuwa zdjęcia z listy.
-3. Wklej nazwę (przycisk „Wklej”), np. `123-marka model` → `123-marka-model-1.jpg`, `-2.jpg`, …
+3. Wklej nazwę (przycisk „Wklej”) według wzoru Nazwa-MARKA-Model, np. `Kubek ASONE Classic` →
+   `Kubek-ASONE-Classic-1.jpg`, `-2.jpg`, …
    („Start nr” zmienia pierwszy numer). Menu kontekstowe zdjęcia › **Dopisz wersję**: `-ver2`
-   (zwykle), `-ver3`, `-ver4`, `-ver5` → `123-marka-2-ver2.jpg`.
+   (zwykle), `-ver3`, `-ver4`, `-ver5` → `Kubek-ASONE-Classic-2-ver2.jpg`.
 
    ![Menu kontekstowe miniatury › Dopisz wersję z zaznaczonym -ver2; miniatura z plakietką ver2, zakładka i panel z nazwą Kubek-ASONE-Classic-2-ver2.jpg](docs/screenshots/ver2.png)
 4. Przeciągnij miniatury na liście albo zakładki, żeby zmienić kolejność – numeracja przelicza się od razu.
@@ -224,9 +225,9 @@ done
 ## CLI
 
 ```sh
-asone-cli names "123-marka model" -c 3
+asone-cli names "Kubek ASONE Classic" -c 3
 asone-cli inspect zdjecia/
-asone-cli export -n "123-marka model" --max-long-side 1200 --margin 40 --square IMG_*.jpg
+asone-cli export -n "Kubek ASONE Classic" --max-long-side 1200 --margin 40 --square IMG_*.jpg
 asone-cli export -n "buty" -o web --background "#FFFFFF" --crop 0.1,0,0.9,1 --json a.jpg b.png
 ```
 

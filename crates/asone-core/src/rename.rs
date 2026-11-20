@@ -2,7 +2,7 @@
 //! zawartości.
 //!
 //! Plik zostaje w swoim folderze i zachowuje rozszerzenie (małymi literami):
-//! `IMG_0042.JPG` → `123-marka-model-3.jpg` (albo `…-3-ver2.jpg` z dopiskiem wersji).
+//! `IMG_0042.JPG` → `Kubek-ASONE-Classic-3.jpg` (albo `…-3-ver2.jpg` z dopiskiem wersji).
 //! Zmiana idzie w dwóch krokach przez nazwy tymczasowe, więc zamiana kolejności
 //! (`a-1` ↔ `a-2`) działa, a pliki spoza zestawu nigdy nie są nadpisywane.
 

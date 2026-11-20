@@ -20,7 +20,7 @@ pub fn slugify(raw: &str) -> String {
     out
 }
 
-/// Buduje nazwę pliku wynikowego, np. `("123-marka model", 1, "jpg")` → `123-marka-model-1.jpg`.
+/// Buduje nazwę pliku wynikowego, np. `("Kubek ASONE Classic", 1, "jpg")` → `Kubek-ASONE-Classic-1.jpg`.
 ///
 /// `index` to numer porządkowy liczony od 1 (pozycja zakładki ze zdjęciem).
 /// Gdy nazwa bazowa po oczyszczeniu jest pusta, zwracany jest sam numer (`1.jpg`).
@@ -28,7 +28,7 @@ pub fn build_filename(raw_input: &str, index: usize, ext: &str) -> String {
     build_filename_ver(raw_input, index, None, ext)
 }
 
-/// Jak [`build_filename`], z dopiskiem wersji: `Some(2)` → `123-marka-2-ver2.jpg`.
+/// Jak [`build_filename`], z dopiskiem wersji: `Some(2)` → `Kubek-ASONE-Classic-2-ver2.jpg`.
 pub fn build_filename_ver(raw_input: &str, index: usize, version: Option<u8>, ext: &str) -> String {
     let base = slugify(raw_input);
     let ext = ext.trim_start_matches('.');

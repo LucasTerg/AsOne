@@ -19,7 +19,7 @@ use crate::options::EditOptions;
     name = "asone-cli",
     version,
     about = "AsOne bez okna: zdjęcia produktowe do internetu (Progressive JPEG bez metadanych)",
-    after_help = "Przykład:\n  asone-cli export -n \"123-marka model\" --max-long-side 1200 --margin 40 --square IMG_*.jpg\n  → web/123-marka-model-1.jpg, web/123-marka-model-2.jpg, …\n\nLimity domyślnie: 3000×3600 px i 3 MB (--max-width/--max-height/--max-file-mb, --no-limits)."
+    after_help = "Przykład:\n  asone-cli export -n \"Kubek ASONE Classic\" --max-long-side 1200 --margin 40 --square IMG_*.jpg\n  → web/Kubek-ASONE-Classic-1.jpg, web/Kubek-ASONE-Classic-2.jpg, …\n\nLimity domyślnie: 3000×3600 px i 3 MB (--max-width/--max-height/--max-file-mb, --no-limits)."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -32,7 +32,7 @@ enum Command {
     Export(ExportArgs),
     /// Podgląd nazw plików dla nazwy bazowej.
     Names {
-        /// Nazwa bazowa, np. "123-marka model".
+        /// Nazwa bazowa, np. "Kubek ASONE Classic".
         name: String,
         /// Liczba zdjęć.
         #[arg(short, long, default_value_t = 3)]
@@ -69,7 +69,7 @@ struct ExportArgs {
     /// Pliki lub katalogi; kolejność wyznacza numerację.
     #[arg(required = true)]
     inputs: Vec<PathBuf>,
-    /// Nazwa bazowa paczki, np. "123-marka model".
+    /// Nazwa bazowa paczki, np. "Kubek ASONE Classic".
     #[arg(short, long)]
     name: String,
     /// Folder wynikowy (domyślnie podfolder „web” obok pierwszego pliku).

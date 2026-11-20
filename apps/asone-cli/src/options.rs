@@ -109,7 +109,7 @@ impl EditOptions {
             return Err("max_long_side: zakres 16–16384".into());
         }
         if asone_core::naming::slugify(base_name).is_empty() {
-            return Err("Nazwa bazowa po oczyszczeniu jest pusta (np. „123-marka model”)".into());
+            return Err("Nazwa bazowa po oczyszczeniu jest pusta (np. „Kubek ASONE Classic”)".into());
         }
         let defaults = if self.no_limits.unwrap_or(false) { ExportLimits::NONE } else { ExportLimits::default() };
         let limits = ExportLimits {

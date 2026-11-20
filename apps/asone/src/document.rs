@@ -88,7 +88,7 @@ pub struct Document {
     pub canvas: CanvasState,
     /// Cofnij / Ponów.
     pub history: crate::history::History,
-    /// Dopisek wersji w nazwie wynikowej: `Some(2)` → `123-marka-2-ver2.jpg`.
+    /// Dopisek wersji w nazwie wynikowej: `Some(2)` → `Kubek-ASONE-Classic-2-ver2.jpg`.
     pub version: Option<u8>,
     /// Obraz warstwy (np. wklejony smartfon); położenie w `edits.overlay`.
     pub overlay_image: Option<Arc<image::RgbaImage>>,

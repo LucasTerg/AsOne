@@ -28,7 +28,7 @@ use crate::workspace::Workspace;
 const INSTRUCTIONS: &str = "AsOne przygotowuje paczki zdjęć produktowych do internetu: kadr (także auto do obiektu), marginesy, \
 białe tło, kwadrat 1:1, zmniejszenie (Lanczos3) i Progressive JPEG bez metadanych (EXIF/GPS/ICC). \
 Limity domyślnie zawsze pilnowane: maks. 3000×3600 px i 3 MB (options.max_width/max_height/max_file_mb, no_limits). \
-Nazwy: `123-marka model` → `123-marka-model-1.jpg`, `-2.jpg`… w kolejności `inputs`. \
+Nazwy (wzór Nazwa-MARKA-Model): `Kubek ASONE Classic` → `Kubek-ASONE-Classic-1.jpg`, `-2.jpg`… w kolejności `inputs`. \
 Najpierw `names_preview` i `images_inspect`, potem `render_preview` dla jednego zdjęcia, na końcu `batch_export`. \
 Ścieżki wejściowe są względne do katalogu odczytu, `out_dir` – do katalogu zapisu.";
 
@@ -38,7 +38,7 @@ const MAX_PREVIEW_SIDE: u32 = 2048;
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct NamesParams {
-    /// Nazwa bazowa paczki, np. „123-marka model”.
+    /// Nazwa bazowa paczki, np. „Kubek ASONE Classic”.
     pub base_name: String,
     /// Liczba zdjęć (1–1000).
     pub count: usize,
@@ -57,7 +57,7 @@ pub struct InspectParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExportParams {
-    /// Nazwa bazowa paczki, np. „123-marka model”.
+    /// Nazwa bazowa paczki, np. „Kubek ASONE Classic”.
     pub base_name: String,
     /// Obrazy w kolejności numeracji (względem katalogu odczytu).
     pub inputs: Vec<String>,
