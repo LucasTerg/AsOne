@@ -7,10 +7,11 @@ pluginManagement {
         includeGroupByRegex("com\\.google.*")
       }
     }
+    // Kopia Maven Central (Google) PRZED repo.maven.apache.org: Gradle przy błędzie repozytorium
+    // (np. 429 Too Many Requests dla botów CI) nie próbuje następnego – szuka dalej tylko przy 404.
+    maven("https://maven-central.storage-download.googleapis.com/maven2/")
     mavenCentral()
     gradlePluginPortal()
-    // Kopia Maven Central (Google) – gdy repo.maven.apache.org chwilowo nie odpowiada.
-    maven("https://maven-central.storage-download.googleapis.com/maven2/")
   }
 }
 
@@ -24,8 +25,8 @@ dependencyResolutionManagement {
         includeGroupByRegex("com\\.google.*")
       }
     }
-    mavenCentral()
     maven("https://maven-central.storage-download.googleapis.com/maven2/")
+    mavenCentral()
   }
 }
 
