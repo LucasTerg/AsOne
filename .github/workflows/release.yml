@@ -50,7 +50,9 @@ jobs:
           sudo apt-get update
           # librsvg2-common: flatpak build-export sprawdza ikonę SVG przez gdk-pixbuf.
           # zsync: appimagetool tworzy plik .zsync (aktualizacja AppImage tylko zmienionymi częściami).
-          sudo apt-get install -y --no-install-recommends nasm pkg-config flatpak librsvg2-common zsync g++-13
+          # Biblioteki X11 dołączane do AppImage (package.sh) – dla systemów, którym ich brakuje.
+          sudo apt-get install -y --no-install-recommends nasm pkg-config flatpak librsvg2-common zsync g++-13 \
+            libxkbcommon0 libxkbcommon-x11-0 libxcb-xkb1 libx11-xcb1 libxcursor1 libxrandr2 libxi6 libxrender1 libxfixes3 libxext6
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//26.08 org.freedesktop.Sdk//26.08
       - uses: dtolnay/rust-toolchain@stable

@@ -66,6 +66,21 @@ build_appimage() {
   rm -rf "$appdir"
   mkdir -p "$appdir/usr"
   cp -R "$STAGE/." "$appdir/usr/"
+  # Biblioteki X11 wczytywane przez bibliotekę okien w trakcie działania (dlopen), których może nie być
+  # w minimalnym systemie (np. libxkbcommon-x11 – bez niej program kończy się przy starcie). libX11
+  # i libxcb są zawsze tam, gdzie działa X11 (lista wyjątków AppImage), więc ich nie dołączamy.
+  # AppRun ustawia LD_LIBRARY_PATH na usr/lib; AsOne przywraca pierwotną wartość dla uruchamianych programów.
+  mkdir -p "$appdir/usr/lib"
+  local lib path
+  for lib in libxkbcommon.so.0 libxkbcommon-x11.so.0 libxcb-xkb.so.1 libX11-xcb.so.1 libXcursor.so.1 \
+             libXrandr.so.2 libXi.so.6 libXrender.so.1 libXfixes.so.3 libXext.so.6; do
+    path="$(ldconfig -p 2>/dev/null | awk -v l="$lib" '$1 == l { print $NF; exit }')"
+    if [[ -z "$path" || ! -e "$path" ]]; then
+      echo "brak $lib w systemie budowania (pakiety libxkbcommon-x11-0, libxcursor1, libxrandr2, libxi6, libx11-xcb1)" >&2
+      exit 1
+    fi
+    cp -L "$path" "$appdir/usr/lib/$lib"
+  done
   install -m755 "$HERE/AppRun" "$appdir/AppRun"
   cp "$HERE/$APP_ID.desktop" "$appdir/"
   cp "$HERE/icons/hicolor/256x256/apps/$APP_ID.png" "$appdir/$APP_ID.png"

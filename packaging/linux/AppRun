@@ -53,4 +53,8 @@ integrate() {
 }
 
 integrate
+# Dołączone biblioteki X11 (usr/lib) – na systemach, którym ich brakuje. AsOne zaraz po starcie
+# przywraca pierwotne LD_LIBRARY_PATH (z ASONE_LD_ORIG) dla programów, które uruchamia.
+export ASONE_LD_ORIG="${LD_LIBRARY_PATH-__unset__}"
+export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec "$APPDIR/usr/bin/asone" "$@"

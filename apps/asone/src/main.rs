@@ -5,8 +5,26 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
+    restore_library_path();
     let files = std::env::args_os().skip(1).map(std::path::PathBuf::from).collect();
     asone_app::run_native(asone_app::native_options(), files)
+}
+
+/// AppImage: AppRun dopisuje do LD_LIBRARY_PATH katalog z dołączonymi bibliotekami X11. Loader
+/// zapamiętuje ścieżki przy starcie procesu, więc biblioteki dalej się wczytują, a programy uruchamiane
+/// przez AsOne (GIMP, przeglądarka, nowa wersja po aktualizacji) dostają pierwotną wartość.
+#[cfg(not(target_arch = "wasm32"))]
+fn restore_library_path() {
+    let Some(orig) = std::env::var_os("ASONE_LD_ORIG") else { return };
+    // SAFETY: na samym początku `main`, zanim powstaną inne wątki.
+    unsafe {
+        if orig == "__unset__" {
+            std::env::remove_var("LD_LIBRARY_PATH");
+        } else {
+            std::env::set_var("LD_LIBRARY_PATH", orig);
+        }
+        std::env::remove_var("ASONE_LD_ORIG");
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
