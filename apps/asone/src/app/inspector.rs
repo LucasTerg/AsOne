@@ -470,7 +470,13 @@ impl AsOneApp {
                 }
                 let busy = doc.busy.is_some();
                 ui.horizontal_wrapped(|ui| {
-                    let run = ui.add_enabled(!busy && !too_big, egui::Button::new(t!("Powiększ → {w} × {h} px", w = new[0], h = new[1])));
+                    let label = t!("Powiększ do {w} × {h} px", w = new[0], h = new[1]);
+                    let button = if !busy && !too_big {
+                        egui::Button::new(RichText::new(label).strong().color(pal.on_accent)).fill(pal.accent)
+                    } else {
+                        egui::Button::new(label)
+                    };
+                    let run = ui.add_enabled(!busy && !too_big, button);
                     let run = if too_big {
                         run.on_disabled_hover_text(t!("waifu2x jest dla mniejszych zdjęć – dłuższy bok najwyżej {max} px", max = MAX_INPUT_SIDE))
                     } else {
@@ -483,6 +489,12 @@ impl AsOneApp {
                         ui.spinner();
                     }
                 });
+                if too_big {
+                    ui.colored_label(
+                        pal.warning,
+                        t!("Za duże dla waifu2x: dłuższy bok {side} px, najwyżej {max} px (powiększanie jest dla małych zdjęć).", side = src[0].max(src[1]), max = MAX_INPUT_SIDE),
+                    );
+                }
                 if !crate::waifu2x::models_dir().join(variant.file_name()).is_file() {
                     ui.colored_label(pal.text_dim, egui::RichText::new(t!("Pierwsze użycie tego wariantu: pobranie modelu (ok. 20 MB).")).small());
                 }

@@ -698,6 +698,19 @@ pub fn current_style(ctx: &egui::Context) -> std::sync::Arc<egui::Style> {
     ctx.style_of(if p().is_dark() { Theme::Dark } else { Theme::Light })
 }
 
+/// Czcionki: domyślne egui, a do zwykłego tekstu dochodzi zapasowo Hack (już wbudowana) – ma strzałki
+/// i inne znaki („→”, „↳”), których brakuje w Ubuntu-Light (bez niej – pusty kwadracik).
+pub fn install_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    if fonts.font_data.contains_key("Hack")
+        && let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional)
+        && !family.iter().any(|f| f == "Hack")
+    {
+        family.push("Hack".to_owned());
+    }
+    ctx.set_fonts(fonts);
+}
+
 /// Styl doku zakładek zgodny z aktualną paletą.
 pub fn dock_style(style: &egui::Style) -> egui_dock::Style {
     let pal = p();

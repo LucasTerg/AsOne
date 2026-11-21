@@ -245,6 +245,7 @@ impl AsOneApp {
         theme::watch_system_scheme(ctx);
         theme::apply(ctx, &settings.appearance(theme::system_dark(ctx)));
         egui_extras::install_image_loaders(ctx);
+        theme::install_fonts(ctx);
         // Ctrl+0 / Ctrl+1 / Ctrl± obsługujemy sami (zdjęcie vs. skala interfejsu).
         ctx.options_mut(|o| o.zoom_with_keyboard = false);
 

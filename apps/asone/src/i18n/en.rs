@@ -379,7 +379,6 @@ pub static EN: &[(&str, &str)] = &[
     ("Kadr: {w} × {h} px (od {x}, {y})", "Crop: {w} × {h} px (from {x}, {y})"),
     ("Dokłada {px} px białego tła z lewej i wkleja tam zdjęcie smartfona ze schowka (do przesunięcia i skalowania na zdjęciu)", "Adds {px} px of white background on the left and pastes the phone photo from the clipboard there (to move and scale on the photo)"),
     ("Usuwa warstwę i pas {px} px", "Removes the layer and the {px} px strip"),
-    ("Powiększ → {w} × {h} px", "Upscale → {w} × {h} px"),
     ("waifu2x jest dla mniejszych zdjęć – dłuższy bok najwyżej {max} px", "waifu2x is for smaller photos – longer side at most {max} px"),
     ("Wykonaj ({price})", "Run ({price})"),
     ("{model} na Replicate: zdjęcie z zakładki (z kadrem, marginesami i smartfonem) zostanie wysłane, a wynik (ok. 1 Mpx) zastąpi zdjęcie. Płatne: {price} za obraz.", "{model} on Replicate: the photo from the tab (with crop, margins and phone) will be sent and the result (about 1 Mpx) will replace the photo. Paid: {price} per image."),
@@ -625,4 +624,6 @@ pub static EN: &[(&str, &str)] = &[
     ("Strona, z której pobrano", "Page it was downloaded from"),
     ("Pobrane przez", "Downloaded by"),
     ("Strefa", "Zone"),
+    ("Powiększ do {w} × {h} px", "Upscale to {w} × {h} px"),
+    ("Za duże dla waifu2x: dłuższy bok {side} px, najwyżej {max} px (powiększanie jest dla małych zdjęć).", "Too large for waifu2x: longer side {side} px, at most {max} px (upscaling is for small photos)."),
 ];
