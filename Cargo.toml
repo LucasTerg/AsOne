@@ -5,7 +5,7 @@ default-members = ["crates/asone-core", "apps/asone", "apps/asone-cli"]
 exclude = ["vendor/egui_dock", "vendor/avif-decode"]
 
 [workspace.package]
-version = "0.1.25"
+version = "0.1.26"
 edition = "2024"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -24,8 +24,10 @@ opt-level = 1
 opt-level = 3
 
 [profile.release]
-lto = "thin"
-codegen-units = 4
+# Pełna optymalizacja przy łączeniu: pliki mniejsze o ok. 30% (asone-cli 14,1 → 9,8 MB);
+# szybkość praktycznie bez zmian (pomiar 21.11.2026: +0,4–1,5%), budowa ok. 1,7× dłuższa.
+lto = "fat"
+codegen-units = 1
 
 # Łatki (szczegóły w vendor/*/ASONE-PATCH.md):
 # * egui_dock 0.21.1 – pasek zakładek na dole liścia (TabViewer::tab_bar_at_bottom),
