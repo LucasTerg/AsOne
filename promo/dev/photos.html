@@ -1,0 +1,50 @@
+<!DOCTYPE html><html><body style="margin:0;background:#222">
+<div id="grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px"></div><pre id="o" style="color:#ccc"></pre>
+<script type="module">
+window.onerror = (m) => { document.getElementById("o").textContent += "ERR " + m + "\n"; };
+window.addEventListener("unhandledrejection", (e) => { document.getElementById("o").textContent += "REJ " + e.reason + "\n"; });
+const wgsl = await (await fetch('../src/products.wgsl')).text();
+const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+const device = await adapter.requestDevice();
+device.addEventListener('uncapturederror', (e) => { document.getElementById('o').textContent += 'GPU ' + e.error.message.slice(0, 1500) + '\n'; });
+const mod = device.createShaderModule({ code: wgsl });
+const info = await mod.getCompilationInfo();
+document.getElementById('o').textContent = info.messages.map((m) => m.type + ' ' + m.lineNum + ':' + m.linePos + ' ' + m.message).join('\n');
+const pipe = device.createRenderPipeline({ layout: 'auto', vertex: { module: mod, entryPoint: 'vs' }, fragment: { module: mod, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] } });
+// ujęcia: [produkt, pozycja kamery, cel, fov, przesunięcie kadru, jasne/ciemne tło]
+window.SHOTS = [
+  [0, [1.25, 1.05, 2.6], [0.05, 0.42, 0], 0.5, [0.18, 0.05], [0.95, 0.95, 0.95], [0.58, 0.58, 0.6]],
+  [0, [-0.5, 0.75, 2.9], [0.08, 0.4, 0], 0.48, [-0.2, 0.12], [0.93, 0.93, 0.92], [0.55, 0.55, 0.56]],
+  [0, [0.7, 2.0, 2.4], [0.05, 0.35, 0], 0.58, [0.08, -0.04], [0.94, 0.94, 0.95], [0.6, 0.6, 0.62]],
+  [1, [1.1, 1.1, 3.2], [0, 0.62, 0], 0.55, [0.1, 0.05], [0.94, 0.94, 0.94], [0.56, 0.56, 0.58]],
+  [2, [0.9, 0.95, 2.1], [-0.02, 0.22, 0], 0.5, [-0.1, 0.08], [0.94, 0.94, 0.93], [0.57, 0.57, 0.57]],
+  [3, [-0.9, 0.95, 2.6], [0, 0.6, 0], 0.52, [0.15, 0.0], [0.93, 0.94, 0.95], [0.55, 0.57, 0.6]],
+];
+async function render(i, mode, w = 1600, h = 1200) {
+  const s = SHOTS[i];
+  const tex = device.createTexture({ size: [w, h], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+  const u = new Float32Array([...s[1], s[3], ...s[2], s[0], ...s[5], mode, ...s[6], i * 13.0, ...s[4], w, h]);
+  const ub = device.createBuffer({ size: u.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(ub, 0, u);
+  const bg = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: ub } }] });
+  const enc = device.createCommandEncoder();
+  const pass = enc.beginRenderPass({ colorAttachments: [{ view: tex.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] });
+  pass.setPipeline(pipe); pass.setBindGroup(0, bg); pass.draw(3); pass.end();
+  const bpr = Math.ceil(w * 4 / 256) * 256;
+  const rb = device.createBuffer({ size: bpr * h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  enc.copyTextureToBuffer({ texture: tex }, { buffer: rb, bytesPerRow: bpr }, [w, h]);
+  device.queue.submit([enc.finish()]);
+  await rb.mapAsync(GPUMapMode.READ);
+  const raw = new Uint8Array(rb.getMappedRange());
+  const data = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) data.set(raw.subarray(y * bpr, y * bpr + w * 4), y * w * 4);
+  rb.unmap();
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').putImageData(new ImageData(data, w, h), 0, 0);
+  return c;
+}
+window.renderPhoto = async (i, mode) => (await render(i, mode)).toDataURL('image/png');
+for (let i = 0; i < SHOTS.length; i++) { const c = await render(i, 0, 480, 360); c.style.width = '100%'; document.getElementById('grid').append(c); }
+for (let i = 0; i < 3; i++) { const c = await render(i, 1, 480, 360); c.style.width = '100%'; document.getElementById('grid').append(c); }
+window.done = true;
+</script></body></html>

@@ -20,3 +20,6 @@ prompt_do_budowy_aplikacji.md
 
 # Pliki pomocnicze pakowania AppImage
 *.zsync
+# Promo: nagrania i czytelna wersja robocza (do strony idzie promo/index.min.html)
+/promo/out/
+/promo/index.html

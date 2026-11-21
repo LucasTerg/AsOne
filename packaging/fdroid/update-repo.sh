@@ -178,6 +178,12 @@ if [ -n "${WEB_DIR:-}" ]; then
   rm -f "$SITE/app/.trunk-lock" "$SITE/app/_headers"
 fi
 
+# 6. Film promocyjny (WebGPU, jeden plik): /promo/
+if [ -f "$ROOT/promo/index.min.html" ]; then
+  mkdir -p "$SITE/promo"
+  cp "$ROOT/promo/index.min.html" "$SITE/promo/index.html"
+fi
+
 echo "Repozytorium: $REPO_URL?fingerprint=$FINGERPRINT"
 ls -la "$SITE/fdroid/repo" | grep -E '\.apk|index' || true
 
