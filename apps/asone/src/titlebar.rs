@@ -1,4 +1,4 @@
-//! Pasek tytułu jak w PhotoCrafcie: znak, menu, tytuł na środku, skala interfejsu −/+ i
+//! Pasek tytułu: znak, menu, tytuł na środku, skala interfejsu −/+ i
 //! (z własnym paskiem) przyciski okna. Bez dekoracji systemowych okno przesuwa się za wolne
 //! miejsce na pasku, a rozmiar zmienia się za krawędzie.
 
@@ -47,21 +47,23 @@ fn brand_mark(ui: &mut Ui) {
     ui.painter().text(rect.center(), Align2::CENTER_CENTER, "A1", FontId::proportional(9.5), pal.on_accent);
 }
 
-// --- Menu jak w PhotoCrafcie ----------------------------------------------------------------
+// --- Menu ----------------------------------------------------------------------------------------
 //
 // * tytuł otwiera menu na WCIŚNIĘCIE (nie na puszczenie); gest „wciśnij – przeciągnij – puść na
 //   pozycji” od razu ją wykonuje,
 // * gdy jedno menu jest otwarte, najechanie na inny tytuł przełącza menu (jak natywny pasek),
-// * klawiatura: Alt+P/E/U/W/M otwiera menu, F10 – pierwsze, ←/→ – sąsiednie, Esc zamyka.
+// * klawiatura: Alt+P/E/U/W/M (po angielsku Alt+F/E/S/V/H) otwiera menu, F10 – pierwsze,
+//   ←/→ – sąsiednie, Esc zamyka.
 
-/// Tytuły menu i ich litery (Alt+litera).
-const TOP: [(&str, egui::Key); 5] = [
-    ("Plik", egui::Key::P),
-    ("Edycja", egui::Key::E),
-    ("Ustawienia", egui::Key::U),
-    ("Widok", egui::Key::W),
-    ("Pomoc", egui::Key::M),
-];
+/// Tytuły menu i ich litery (Alt+litera) w bieżącym języku.
+fn top() -> [(&'static str, egui::Key); 5] {
+    use egui::Key;
+    if crate::i18n::is_english() {
+        [("File", Key::F), ("Edit", Key::E), ("Settings", Key::S), ("View", Key::V), ("Help", Key::H)]
+    } else {
+        [("Plik", Key::P), ("Edycja", Key::E), ("Ustawienia", Key::U), ("Widok", Key::W), ("Pomoc", Key::M)]
+    }
+}
 
 fn press_gesture_id() -> egui::Id {
     egui::Id::new("asone-menu-press-gesture")
@@ -149,7 +151,7 @@ fn menu_keys(ctx: &egui::Context, buttons: &[egui::Response]) {
     let ids: Vec<egui::Id> = buttons.iter().map(egui::Popup::default_response_id).collect();
     let open = ids.iter().position(|id| egui::Popup::is_id_open(ctx, *id));
     let (alt_key, f10, left, right, esc) = ctx.input(|i| {
-        let alt = TOP.iter().position(|(_, k)| i.modifiers.alt && !i.modifiers.command && i.key_pressed(*k));
+        let alt = top().iter().position(|(_, k)| i.modifiers.alt && !i.modifiers.command && i.key_pressed(*k));
         (alt, i.key_pressed(egui::Key::F10), i.key_pressed(egui::Key::ArrowLeft), i.key_pressed(egui::Key::ArrowRight), i.key_pressed(egui::Key::Escape))
     });
     let target = if let Some(k) = alt_key {
@@ -183,55 +185,55 @@ fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, state: MenuStat
     ui.set_min_width(220.0);
     match index {
         0 => {
-            if crate::platform::CAN_PICK_FILES && item(ui, "Dodaj zdjęcia…", "Ctrl+O") {
+            if crate::platform::CAN_PICK_FILES && item(ui, t!("Dodaj zdjęcia…"), "Ctrl+O") {
                 out.push(MenuAction::AddFiles);
             }
-            if crate::platform::CAN_ADD_FOLDER && item(ui, "Dodaj folder…", "") {
+            if crate::platform::CAN_ADD_FOLDER && item(ui, t!("Dodaj folder…"), "") {
                 out.push(MenuAction::AddFolder);
             }
             ui.separator();
-            if item(ui, "Zapisz z zakładek", "Ctrl+S") {
+            if item(ui, t!("Zapisz z zakładek"), "Ctrl+S") {
                 out.push(MenuAction::Export);
             }
-            if crate::platform::FILE_OPS && item(ui, "Zmień tylko nazwę…", "") {
+            if crate::platform::FILE_OPS && item(ui, t!("Zmień tylko nazwę…"), "") {
                 out.push(MenuAction::RenameOnly);
             }
             if cfg!(not(target_arch = "wasm32")) {
                 ui.separator();
-                if item(ui, "Zakończ", "Ctrl+Q") {
+                if item(ui, t!("Zakończ"), "Ctrl+Q") {
                     out.push(MenuAction::Quit);
                 }
             }
         }
         1 => {
-            if item_enabled(ui, state.can_undo, "Cofnij", "Ctrl+Z") {
+            if item_enabled(ui, state.can_undo, t!("Cofnij"), "Ctrl+Z") {
                 out.push(MenuAction::Undo);
             }
-            if item_enabled(ui, state.can_redo, "Ponów", "Ctrl+Shift+Z") {
+            if item_enabled(ui, state.can_redo, t!("Ponów"), "Ctrl+Shift+Z") {
                 out.push(MenuAction::Redo);
             }
         }
         2 => {
-            ui.menu_button("Preferencje", |ui| {
+            ui.menu_button(t!("Preferencje"), |ui| {
                 ui.set_min_width(200.0);
-                if item(ui, "Interfejs…", "") {
+                if item(ui, t!("Interfejs…"), "") {
                     out.push(MenuAction::Preferences(PrefsSection::Interface));
                 }
-                if item(ui, "Eksport i limity…", "") {
+                if item(ui, t!("Eksport i limity…"), "") {
                     out.push(MenuAction::Preferences(PrefsSection::Export));
                 }
-                if item(ui, "Usuwanie tła (AI)…", "") {
+                if item(ui, t!("Usuwanie tła (AI)…"), "") {
                     out.push(MenuAction::Preferences(PrefsSection::Ai));
                 }
             });
-            ui.menu_button("Motyw", |ui| {
+            ui.menu_button(t!("Motyw"), |ui| {
                 for kind in ThemeKind::ALL {
                     if check_item(ui, settings.theme == kind, kind.label()) {
                         out.push(MenuAction::SetTheme(kind));
                     }
                 }
             });
-            ui.menu_button("Ukryj", |ui| {
+            ui.menu_button(t!("Ukryj"), |ui| {
                 ui.set_min_width(260.0);
                 for hide in HideItem::ALL {
                     if check_item(ui, settings.hidden(hide), hide.label()) {
@@ -241,45 +243,45 @@ fn menu_contents(index: usize, ui: &mut Ui, settings: &Settings, state: MenuStat
             });
         }
         3 => {
-            if item(ui, "Powiększ interfejs", "Ctrl++") {
+            if item(ui, t!("Powiększ interfejs"), "Ctrl++") {
                 out.push(MenuAction::UiZoomIn);
             }
-            if item(ui, "Pomniejsz interfejs", "Ctrl+−") {
+            if item(ui, t!("Pomniejsz interfejs"), "Ctrl+−") {
                 out.push(MenuAction::UiZoomOut);
             }
-            if item(ui, "Interfejs 100 %", "") {
+            if item(ui, t!("Interfejs 100 %"), "") {
                 out.push(MenuAction::UiZoomReset);
             }
             ui.separator();
-            if item(ui, "Dopasuj zdjęcie do okna", "Ctrl+0") {
+            if item(ui, t!("Dopasuj zdjęcie do okna"), "Ctrl+0") {
                 out.push(MenuAction::FitImage);
             }
-            if item(ui, "Zdjęcie 100 %", "Ctrl+1") {
+            if item(ui, t!("Zdjęcie 100 %"), "Ctrl+1") {
                 out.push(MenuAction::ActualSize);
             }
             ui.separator();
-            if check_item(ui, settings.photo_tabs_bottom, "Zakładki zdjęć na dole") {
+            if check_item(ui, settings.photo_tabs_bottom, t!("Zakładki zdjęć na dole")) {
                 out.push(MenuAction::TogglePhotoTabsBottom);
             }
             let number_only = settings.tab_title == crate::settings::TabTitle::NumberOnly;
-            if check_item(ui, number_only, "Zakładki: tylko numer (#1)") {
+            if check_item(ui, number_only, t!("Zakładki: tylko numer (#1)")) {
                 out.push(MenuAction::ToggleTabNumberOnly);
             }
             if !settings.hide_inspection {
                 ui.separator();
-                if check_item(ui, state.inspection, "Inspekcja tła   (I)") {
+                if check_item(ui, state.inspection, t!("Inspekcja tła   (I)")) {
                     out.push(MenuAction::ToggleInspection);
                 }
             }
         }
         _ => {
-            if item(ui, "Skróty klawiszowe", "F1") {
+            if item(ui, t!("Skróty klawiszowe"), "F1") {
                 out.push(MenuAction::Shortcuts);
             }
-            if cfg!(not(target_arch = "wasm32")) && item(ui, "Sprawdź aktualizacje…", "") {
+            if cfg!(not(target_arch = "wasm32")) && item(ui, t!("Sprawdź aktualizacje…"), "") {
                 out.push(MenuAction::CheckUpdates);
             }
-            if item(ui, "O programie AsOne", "") {
+            if item(ui, t!("O programie AsOne"), "") {
                 out.push(MenuAction::About);
             }
         }
@@ -299,8 +301,9 @@ fn menus(ui: &mut Ui, settings: &Settings, state: MenuState, out: &mut Vec<MenuA
         v.widgets.hovered.bg_stroke = Stroke::NONE;
         egui::MenuBar::new().ui(ui, |ui| {
             ui.spacing_mut().button_padding = vec2(7.0, 3.0);
-            let mut buttons = Vec::with_capacity(TOP.len());
-            for (k, (name, _)) in TOP.iter().enumerate() {
+            let top = top();
+            let mut buttons = Vec::with_capacity(top.len());
+            for (k, (name, _)) in top.iter().enumerate() {
                 let title = ui.add(egui::Button::new(egui::RichText::new(*name).color(pal.text_dim)));
                 let bar = egui::containers::menu::MenuConfig::find(ui);
                 let config = egui::containers::menu::MenuConfig::new()
@@ -333,7 +336,7 @@ fn menus(ui: &mut Ui, settings: &Settings, state: MenuState, out: &mut Vec<MenuA
     right
 }
 
-/// Przycisk okna (minimalizuj / maksymalizuj / zamknij) rysowany jak w PhotoCrafcie.
+/// Przycisk okna (minimalizuj / maksymalizuj / zamknij) rysowany samodzielnie.
 fn caption_button(ui: &mut Ui, kind: u8, maximized: bool) -> bool {
     let pal = theme::p();
     let (rect, response) = ui.allocate_exact_size(vec2(46.0, BAR_HEIGHT), Sense::click());
@@ -363,7 +366,7 @@ fn caption_button(ui: &mut Ui, kind: u8, maximized: bool) -> bool {
             p.line_segment([c + vec2(-5.0, 5.0), c + vec2(5.0, -5.0)], stroke);
         }
     }
-    let tip = ["Minimalizuj", if maximized { "Przywróć" } else { "Maksymalizuj" }, "Zamknij"][kind as usize];
+    let tip = [t!("Minimalizuj"), if maximized { t!("Przywróć") } else { t!("Maksymalizuj") }, t!("Zamknij")][kind as usize];
     response.on_hover_text(tip).clicked()
 }
 
@@ -386,8 +389,8 @@ pub fn title_bar(ui: &mut Ui, title: &str, settings: &Settings, state: MenuState
         }
         let ctx = ui.ctx().clone();
         let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
-        // Okno przesuwa tylko wolne miejsce między menu a przyciskami (z poprzedniej klatki), jak
-        // w PhotoCrafcie: wciśnięcie na tytule menu ma otworzyć menu, a nie przesunąć okno.
+        // Okno przesuwa tylko wolne miejsce między menu a przyciskami (z poprzedniej klatki):
+        // wciśnięcie na tytule menu ma otworzyć menu, a nie przesunąć okno.
         let gap_id = ui.id().with("title_gap");
         let (gap_l, gap_r) = ctx.data(|d| d.get_temp::<(f32, f32)>(gap_id)).unwrap_or((full.right(), full.right()));
         if custom && gap_r > gap_l {
@@ -429,14 +432,14 @@ pub fn title_bar(ui: &mut Ui, title: &str, settings: &Settings, state: MenuState
                 ui.spacing_mut().item_spacing.x = 2.0;
                 let small = |t: &str| egui::Button::new(egui::RichText::new(t).size(15.0)).min_size(vec2(24.0, 22.0));
                 if show_zoom {
-                    if ui.add(small("+")).on_hover_text("Powiększ interfejs (Ctrl++)").clicked() {
+                    if ui.add(small("+")).on_hover_text(t!("Powiększ interfejs (Ctrl++)")).clicked() {
                         actions.push(MenuAction::UiZoomIn);
                     }
                     let pct = egui::Button::new(format!("{} %", settings.ui_scale)).min_size(vec2(54.0, 22.0)).frame(false);
-                    if ui.add(pct).on_hover_text("Skala interfejsu – kliknij, aby wrócić do 100 %").clicked() {
+                    if ui.add(pct).on_hover_text(t!("Skala interfejsu – kliknij, aby wrócić do 100 %")).clicked() {
                         actions.push(MenuAction::UiZoomReset);
                     }
-                    if ui.add(small("−")).on_hover_text("Pomniejsz interfejs (Ctrl+−)").clicked() {
+                    if ui.add(small("−")).on_hover_text(t!("Pomniejsz interfejs (Ctrl+−)")).clicked() {
                         actions.push(MenuAction::UiZoomOut);
                     }
                     ui.add_space(4.0);
@@ -448,14 +451,14 @@ pub fn title_bar(ui: &mut Ui, title: &str, settings: &Settings, state: MenuState
                 // Szybkie przełączanie motywu (jasny / ciemny)
                 let is_dark = theme::p().is_dark();
                 let theme_icon = if is_dark { "☀" } else { "🌙" };
-                let theme_tip = if is_dark { "Przełącz motyw na jasny" } else { "Przełącz motyw na ciemny" };
+                let theme_tip = if is_dark { t!("Przełącz motyw na jasny") } else { t!("Przełącz motyw na ciemny") };
                 if ui.add(egui::Button::new(egui::RichText::new(theme_icon).size(14.0)).min_size(vec2(24.0, 22.0))).on_hover_text(theme_tip).clicked() {
                     let next = if is_dark { ThemeKind::ProLight } else { ThemeKind::AsOne };
                     actions.push(MenuAction::SetTheme(next));
                 }
                 ui.add_space(2.0);
                 // Ikonka wyszukiwania / skrótów klawiszowych
-                if ui.add(egui::Button::new(egui::RichText::new("🔍").size(13.0)).min_size(vec2(24.0, 22.0))).on_hover_text("Szukaj / Skróty klawiszowe").clicked() {
+                if ui.add(egui::Button::new(egui::RichText::new("🔍").size(13.0)).min_size(vec2(24.0, 22.0))).on_hover_text(t!("Szukaj / Skróty klawiszowe")).clicked() {
                     actions.push(MenuAction::Shortcuts);
                 }
                 controls_start = ui.min_rect().left();

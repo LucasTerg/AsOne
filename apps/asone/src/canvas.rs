@@ -26,10 +26,10 @@ impl Tool {
 
     pub fn label(self) -> &'static str {
         match self {
-            Tool::Move => "Przesuwanie",
-            Tool::Crop => "Kadrowanie",
-            Tool::Eraser => "Gumka / Przywróć maskę",
-            Tool::RectCut => "Wycinanie obszaru prostokątem",
+            Tool::Move => t!("Przesuwanie"),
+            Tool::Crop => t!("Kadrowanie"),
+            Tool::Eraser => t!("Gumka / Przywróć maskę"),
+            Tool::RectCut => t!("Wycinanie obszaru prostokątem"),
         }
     }
 
@@ -44,10 +44,10 @@ impl Tool {
 
     fn hint(self) -> &'static str {
         match self {
-            Tool::Move => "LPM / Spacja / środkowy – przesuwanie · kółko – zoom · PPM – menu · Ctrl+0 dopasuj · Ctrl+1 100%",
-            Tool::Crop => "Przeciągaj uchwyty lub ramkę · poza kadrem – nowy kadr · Enter / dwuklik – zatwierdź",
-            Tool::Eraser => "LPM – usuń · PPM lub Alt+LPM – przywróć · [ ] albo Ctrl+kółko – rozmiar pędzla",
-            Tool::RectCut => "Przeciągnij, aby zaznaczyć · Delete – wytnij · Shift+Delete – przywróć · Esc – odznacz",
+            Tool::Move => t!("LPM / Spacja / środkowy – przesuwanie · kółko – zoom · PPM – menu · Ctrl+0 dopasuj · Ctrl+1 100%"),
+            Tool::Crop => t!("Przeciągaj uchwyty lub ramkę · poza kadrem – nowy kadr · Enter / dwuklik – zatwierdź"),
+            Tool::Eraser => t!("LPM – usuń · PPM lub Alt+LPM – przywróć · [ ] albo Ctrl+kółko – rozmiar pędzla"),
+            Tool::RectCut => t!("Przeciągnij, aby zaznaczyć · Delete – wytnij · Shift+Delete – przywróć · Esc – odznacz"),
         }
     }
 }
@@ -202,44 +202,44 @@ fn canvas_menu(
             ui.close();
         }
     };
-    let paste = if has_overlay { "Podmień smartfon ze schowka" } else { "Wklej smartfon ze schowka" };
+    let paste = if has_overlay { t!("Podmień smartfon ze schowka") } else { t!("Wklej smartfon ze schowka") };
     item(ui, CAN_PASTE_IMAGE, paste, CanvasAction::PastePhone);
-    item(ui, CAN_PICK_OVERLAY, "Wklej smartfon z pliku…", CanvasAction::PickPhone);
+    item(ui, CAN_PICK_OVERLAY, t!("Wklej smartfon z pliku…"), CanvasAction::PickPhone);
     if has_overlay {
-        item(ui, true, "Dopasuj smartfon do pasa", CanvasAction::FitPhone);
-        item(ui, true, "Usuń smartfon", CanvasAction::RemovePhone);
+        item(ui, true, t!("Dopasuj smartfon do pasa"), CanvasAction::FitPhone);
+        item(ui, true, t!("Usuń smartfon"), CanvasAction::RemovePhone);
     }
-    item(ui, true, "Spłaszcz zdjęcie", CanvasAction::Flatten);
+    item(ui, true, t!("Spłaszcz zdjęcie"), CanvasAction::Flatten);
     if flattened {
-        item(ui, true, "Przywróć oryginał (z pliku)", CanvasAction::RestoreOriginal);
+        item(ui, true, t!("Przywróć oryginał (z pliku)"), CanvasAction::RestoreOriginal);
     }
     ui.separator();
     if lama {
-        let label = if has_selection { "Usuń obiekt z zaznaczenia (LaMa)" } else { "Usuń obiekt (LaMa) – zaznacz narzędziem M" };
+        let label = if has_selection { t!("Usuń obiekt z zaznaczenia (LaMa)") } else { t!("Usuń obiekt (LaMa) – zaznacz narzędziem M") };
         item(ui, has_selection, label, CanvasAction::Inpaint);
     }
     if waifu2x {
-        item(ui, true, "Powiększ (waifu2x)", CanvasAction::Upscale);
+        item(ui, true, t!("Powiększ (waifu2x)"), CanvasAction::Upscale);
     }
     if replicate {
-        ui.menu_button("Edycja AI (Replicate)", |ui| {
+        ui.menu_button(t!("Edycja AI (Replicate)"), |ui| {
             ui.set_min_width(220.0);
-            for (i, (label, _)) in crate::settings::AI_PRESETS.iter().enumerate() {
+            for (i, (label, _)) in crate::settings::ai_presets().into_iter().enumerate() {
                 item(ui, true, label, CanvasAction::AiPreset(i as u8));
             }
             ui.separator();
-            item(ui, true, "Polecenie z panelu", CanvasAction::AiEdit);
+            item(ui, true, t!("Polecenie z panelu"), CanvasAction::AiEdit);
         });
     }
-    item(ui, crate::ai::AVAILABLE || crate::ai::FAL_AVAILABLE, "Usuń tło", CanvasAction::RemoveBackground);
-    item(ui, true, "Kadruj (auto)", CanvasAction::AutoCrop);
-    item(ui, true, "Dopasuj do kwadratu 1:1", CanvasAction::FitSquare);
-    item(ui, true, "Ramka 5 px", CanvasAction::Frame5);
-    item(ui, true, "Zeruj marginesy", CanvasAction::ResetMargins);
+    item(ui, crate::ai::AVAILABLE || crate::ai::FAL_AVAILABLE, t!("Usuń tło"), CanvasAction::RemoveBackground);
+    item(ui, true, t!("Kadruj (auto)"), CanvasAction::AutoCrop);
+    item(ui, true, t!("Dopasuj do kwadratu 1:1"), CanvasAction::FitSquare);
+    item(ui, true, t!("Ramka 5 px"), CanvasAction::Frame5);
+    item(ui, true, t!("Zeruj marginesy"), CanvasAction::ResetMargins);
     ui.separator();
-    item(ui, true, "Dopasuj widok (Ctrl+0)", CanvasAction::FitView);
-    item(ui, can_undo, "Cofnij (Ctrl+Z)", CanvasAction::Undo);
-    item(ui, can_redo, "Ponów (Ctrl+Shift+Z)", CanvasAction::Redo);
+    item(ui, true, t!("Dopasuj widok (Ctrl+0)"), CanvasAction::FitView);
+    item(ui, can_undo, t!("Cofnij (Ctrl+Z)"), CanvasAction::Undo);
+    item(ui, can_redo, t!("Ponów (Ctrl+Shift+Z)"), CanvasAction::Redo);
 }
 
 /// Stan interakcji płótna przechowywany w dokumencie.
@@ -386,9 +386,9 @@ pub fn photo_ui(
     ui.painter().rect_filled(full, 0.0, theme::p().canvas);
 
     let message = match (&doc.load, gpu) {
-        (_, None) => Some(("Brak akceleracji GPU (wgpu) – podgląd niedostępny".to_string(), true)),
-        (LoadState::Failed(e), _) => Some((format!("Nie udało się wczytać {}:\n{e}", doc.file_name), true)),
-        (LoadState::NotLoaded | LoadState::Loading, _) => Some((format!("Wczytywanie {}…", doc.file_name), false)),
+        (_, None) => Some((t!("Brak akceleracji GPU (wgpu) – podgląd niedostępny").to_string(), true)),
+        (LoadState::Failed(e), _) => Some((t!("Nie udało się wczytać {name}:\n{error}", name = doc.file_name, error = e), true)),
+        (LoadState::NotLoaded | LoadState::Loading, _) => Some((t!("Wczytywanie {name}…", name = doc.file_name), false)),
         (LoadState::Ready, _) => None,
     };
     if let Some((text, is_error)) = message {
@@ -720,7 +720,7 @@ pub fn photo_ui(
     // --- Praca w tle: przyciemnione zdjęcie i karta na środku ------------------------------
     let busy_label = match (&doc.busy, &doc.ai) {
         (Some(b), _) => Some((b.label, b.fraction(), Some(b.started.elapsed().as_secs_f32()))),
-        (None, crate::document::AiState::Running) => Some(("Usuwanie tła…", None, None)),
+        (None, crate::document::AiState::Running) => Some((t!("Usuwanie tła…"), None, None)),
         _ => None,
     };
     if let Some((label, fraction, elapsed)) = busy_label {
@@ -744,13 +744,13 @@ pub fn photo_ui(
     let sp = ui.painter_at(status_rect);
     sp.rect_filled(status_rect, 0.0, theme::p().chrome);
     let out_size = doc.edits.output_size(src);
-    let mut left = format!(
-        "{:.0}%   źródło {}×{}   wynik {}×{}",
-        cam.zoom * 100.0,
-        src[0],
-        src[1],
-        out_size[0],
-        out_size[1]
+    let mut left = t!(
+        "{zoom}%   źródło {sw}×{sh}   wynik {ow}×{oh}",
+        zoom = format!("{:.0}", cam.zoom * 100.0),
+        sw = src[0],
+        sh = src[1],
+        ow = out_size[0],
+        oh = out_size[1]
     );
     if let Some(p) = response.hover_pos() {
         let s = to_src(p);
@@ -760,7 +760,7 @@ pub fn photo_ui(
     }
     let font = egui::FontId::proportional(12.0);
     if inspection {
-        left.push_str("   · INSPEKCJA TŁA (I)");
+        left.push_str(t!("   · INSPEKCJA TŁA (I)"));
     }
     let left_rect = sp.text(status_rect.left_center() + vec2(8.0, 0.0), egui::Align2::LEFT_CENTER, left, font.clone(), theme::p().text);
     // Podpowiedź narzędzia po prawej – tylko tyle, ile się zmieści (bez nachodzenia na lewy tekst).

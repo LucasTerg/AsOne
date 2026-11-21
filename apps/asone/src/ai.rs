@@ -41,13 +41,12 @@ pub enum AiError {
 impl std::fmt::Display for AiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AiError::ModelMissing(p) => write!(
-                f,
-                "Brak pliku modelu: {} – pobierz go w Ustawienia › Preferencje › Usuwanie tła (AI)",
-                p.display()
-            ),
-            AiError::BackendUnavailable(s) => write!(f, "Usuwanie tła AI niedostępne: {s}"),
-            AiError::Inference(s) => write!(f, "Błąd modelu: {s}"),
+            AiError::ModelMissing(p) => f.write_str(&t!(
+                "Brak pliku modelu: {path} – pobierz go w Ustawienia › Preferencje › Usuwanie tła (AI)",
+                path = p.display()
+            )),
+            AiError::BackendUnavailable(s) => f.write_str(&t!("Usuwanie tła AI niedostępne: {s}", s = s)),
+            AiError::Inference(s) => f.write_str(&t!("Błąd modelu: {s}", s = s)),
             AiError::NotEnoughMemory { model, need_gb, free_gb } => write!(
                 f,
                 "Za mało wolnej pamięci dla {}: potrzeba ok. {need_gb:.1} GB, wolne {free_gb:.1} GB (RAM + swap). \
@@ -235,7 +234,7 @@ impl BackgroundRemover for OnnxBackgroundRemover {
                 .outputs()
                 .last()
                 .map(|o| o.name().to_string())
-                .ok_or_else(|| AiError::Inference("model bez wyjść".into()))?;
+                .ok_or_else(|| AiError::Inference(t!("model bez wyjść").into()))?;
             let tensor = ort::value::Tensor::from_array(([1usize, 3, INPUT as usize, INPUT as usize], input.into_boxed_slice()))
                 .map_err(err)?;
             let outputs = session.run(ort::inputs![tensor]).map_err(err)?;
@@ -377,7 +376,7 @@ fn predict_online(job: &AiJob) -> Result<GrayImage, AiError> {
     #[cfg(target_arch = "wasm32")]
     {
         let _ = job;
-        Err(AiError::BackendUnavailable("w przeglądarce zadanie online idzie osobną ścieżką".into()))
+        Err(AiError::BackendUnavailable(t!("w przeglądarce zadanie online idzie osobną ścieżką").into()))
     }
 }
 
@@ -410,13 +409,13 @@ pub fn download_model(model: crate::settings::ModelFile, dest: PathBuf, token: S
             }
             let resp = req.call().map_err(|e| match e {
                 ureq::Error::StatusCode(401) => {
-                    "Hugging Face: 401 – brak lub błędny token (klucz API)".to_string()
+                    t!("Hugging Face: 401 – brak lub błędny token (klucz API)").to_string()
                 }
-                ureq::Error::StatusCode(403) => format!(
-                    "Hugging Face: 403 – zaakceptuj licencję modelu na {} (zalogowany tym samym kontem co token)",
-                    model.page_url()
+                ureq::Error::StatusCode(403) => t!(
+                    "Hugging Face: 403 – zaakceptuj licencję modelu na {url} (zalogowany tym samym kontem co token)",
+                    url = model.page_url()
                 ),
-                other => format!("Pobieranie: {other}"),
+                other => t!("Pobieranie: {other}", other = other),
             })?;
             let total = resp
                 .headers()
@@ -430,24 +429,24 @@ pub fn download_model(model: crate::settings::ModelFile, dest: PathBuf, token: S
             let mut done = 0u64;
             let mut last = 0u64;
             loop {
-                let n = reader.read(&mut buf).map_err(|e| format!("Pobieranie: {e}"))?;
+                let n = reader.read(&mut buf).map_err(|e| t!("Pobieranie: {e}", e = e))?;
                 if n == 0 {
                     break;
                 }
-                file.write_all(&buf[..n]).map_err(|e| format!("Zapis: {e}"))?;
+                file.write_all(&buf[..n]).map_err(|e| t!("Zapis: {e}", e = e))?;
                 done += n as u64;
                 if done - last > 2 * 1024 * 1024 {
                     last = done;
                     send(DownloadMsg::Progress { done, total });
                 }
             }
-            file.flush().map_err(|e| format!("Zapis: {e}"))?;
+            file.flush().map_err(|e| t!("Zapis: {e}", e = e))?;
             drop(file);
             if total.is_some_and(|t| t != done) {
                 let _ = std::fs::remove_file(&part);
-                return Err("Pobieranie przerwane (niepełny plik)".into());
+                return Err(t!("Pobieranie przerwane (niepełny plik)").into());
             }
-            std::fs::rename(&part, &dest).map_err(|e| format!("Zapis: {e}"))?;
+            std::fs::rename(&part, &dest).map_err(|e| t!("Zapis: {e}", e = e))?;
             Ok(dest.clone())
         })();
         match result {

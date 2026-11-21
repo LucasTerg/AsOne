@@ -120,7 +120,7 @@ impl EditModel {
     pub fn label(self) -> &'static str {
         match self {
             EditModel::KontextPro => "FLUX.1 Kontext Pro",
-            EditModel::KontextMax => "FLUX.1 Kontext Max (dokładniejszy)",
+            EditModel::KontextMax => t!("FLUX.1 Kontext Max (dokładniejszy)"),
         }
     }
 
@@ -137,33 +137,36 @@ impl EditModel {
     }
 }
 
-/// Gotowe polecenia edycji AI: (etykieta, polecenie dla modelu – po angielsku, tak rozumie najlepiej).
-pub const AI_PRESETS: [(&str, &str); 5] = [
-    (
-        "Białe tło i delikatny cień",
-        "Place the product on a pure white background with a soft, natural shadow under it. \
-         Keep the product exactly the same: shape, colors, text and logos.",
-    ),
-    (
-        "Usuń napisy i znaki wodne",
-        "Remove all watermarks, captions and overlaid text that are not printed on the product. \
-         Keep everything else exactly the same.",
-    ),
-    (
-        "Popraw światło i kolory",
-        "Improve the lighting to bright, even studio light with natural colors and crisp details. \
-         Do not change the product's shape, text or logos.",
-    ),
-    (
-        "Usuń kurz i rysy",
-        "Remove dust, scratches and small blemishes from the product surface. Keep everything else exactly the same.",
-    ),
-    (
-        "Produkt we wnętrzu",
-        "Place the product in a bright, modern home interior with realistic lighting and shadows. \
-         Keep the product exactly the same, including text and logos.",
-    ),
-];
+/// Gotowe polecenia edycji AI: (etykieta w bieżącym języku, polecenie dla modelu – po angielsku,
+/// tak rozumie najlepiej).
+pub fn ai_presets() -> [(&'static str, &'static str); 5] {
+    [
+        (
+            t!("Białe tło i delikatny cień"),
+            "Place the product on a pure white background with a soft, natural shadow under it. \
+             Keep the product exactly the same: shape, colors, text and logos.",
+        ),
+        (
+            t!("Usuń napisy i znaki wodne"),
+            "Remove all watermarks, captions and overlaid text that are not printed on the product. \
+             Keep everything else exactly the same.",
+        ),
+        (
+            t!("Popraw światło i kolory"),
+            "Improve the lighting to bright, even studio light with natural colors and crisp details. \
+             Do not change the product's shape, text or logos.",
+        ),
+        (
+            t!("Usuń kurz i rysy"),
+            "Remove dust, scratches and small blemishes from the product surface. Keep everything else exactly the same.",
+        ),
+        (
+            t!("Produkt we wnętrzu"),
+            "Place the product in a bright, modern home interior with realistic lighting and shadows. \
+             Keep the product exactly the same, including text and logos.",
+        ),
+    ]
+}
 
 /// Wygląd paska menu (tytułowego).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -182,9 +185,9 @@ impl BarStyle {
 
     pub fn label(self) -> &'static str {
         match self {
-            BarStyle::Flat => "Płaski z linią (delikatny)",
-            BarStyle::Gloss => "Połysk",
-            BarStyle::Plain => "Bez efektu",
+            BarStyle::Flat => t!("Płaski z linią (delikatny)"),
+            BarStyle::Gloss => t!("Połysk"),
+            BarStyle::Plain => t!("Bez efektu"),
         }
     }
 }
@@ -215,13 +218,13 @@ impl CanvasColor {
 
     pub fn label(self) -> &'static str {
         match self {
-            CanvasColor::Theme => "Z motywu",
-            CanvasColor::Black => "Czarny",
-            CanvasColor::DarkGray => "Ciemnoszary",
-            CanvasColor::MediumGray => "Szary",
-            CanvasColor::LightGray => "Jasnoszary",
-            CanvasColor::White => "Biały",
-            CanvasColor::Custom => "Własny",
+            CanvasColor::Theme => t!("Z motywu"),
+            CanvasColor::Black => t!("Czarny"),
+            CanvasColor::DarkGray => t!("Ciemnoszary"),
+            CanvasColor::MediumGray => t!("Szary"),
+            CanvasColor::LightGray => t!("Jasnoszary"),
+            CanvasColor::White => t!("Biały"),
+            CanvasColor::Custom => t!("Własny"),
         }
     }
 }
@@ -296,6 +299,8 @@ pub struct Settings {
     /// Skala całego interfejsu w %.
     pub ui_scale: u32,
     pub show_tooltips: bool,
+    /// Język interfejsu (domyślnie jak w systemie).
+    pub language: crate::i18n::Language,
     /// Wygląd paska menu.
     pub bar_style: BarStyle,
     /// AppImage: sprawdzanie nowej wersji przy starcie (GitHub).
@@ -376,11 +381,12 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            theme: ThemeKind::AsOne,
+            theme: ThemeKind::System,
             canvas_color: CanvasColor::Theme,
             canvas_custom: [0x28, 0x28, 0x28],
             ui_scale: 100,
             show_tooltips: true,
+            language: crate::i18n::Language::Auto,
             bar_style: BarStyle::Flat,
             check_updates: true,
             recent_folders: Vec::new(),
@@ -438,10 +444,10 @@ impl HideItem {
 
     pub fn label(self) -> &'static str {
         match self {
-            HideItem::Gimp => "Edytuj w GIMP",
-            HideItem::DeleteFromDisk => "Usuń z dysku",
-            HideItem::Inspection => "Inspekcja tła",
-            HideItem::MaskToggle => "Maska aktywna (usunięte tło, PNG)",
+            HideItem::Gimp => t!("Edytuj w GIMP"),
+            HideItem::DeleteFromDisk => t!("Usuń z dysku"),
+            HideItem::Inspection => t!("Inspekcja tła"),
+            HideItem::MaskToggle => t!("Maska aktywna (usunięte tło, PNG)"),
         }
     }
 }
@@ -598,7 +604,8 @@ impl Settings {
         }
     }
 
-    pub fn appearance(&self) -> Appearance {
+    /// `system_dark` – system prosi o ciemny wygląd (motyw „Jak w systemie”).
+    pub fn appearance(&self, system_dark: bool) -> Appearance {
         let gray = |v: u8| Some(egui::Color32::from_gray(v));
         let canvas = match self.canvas_color {
             CanvasColor::Theme => None,
@@ -612,7 +619,7 @@ impl Settings {
                 Some(egui::Color32::from_rgb(r, g, b))
             }
         };
-        Appearance { kind: self.theme, canvas, show_tooltips: self.show_tooltips, animations: self.animations }
+        Appearance { kind: self.theme, system_dark, canvas, show_tooltips: self.show_tooltips, animations: self.animations }
     }
 
     /// Następna/poprzednia skala z listy (przyciski −/+).
@@ -635,6 +642,7 @@ impl Settings {
                 self.canvas_custom = d.canvas_custom;
                 self.ui_scale = d.ui_scale;
                 self.show_tooltips = d.show_tooltips;
+                self.language = d.language;
                 self.bar_style = d.bar_style;
                 self.check_updates = d.check_updates;
                 self.animations = d.animations;

@@ -4,6 +4,9 @@
 //! Androida i przeglądarkę (wasm). Logika bez GUI – nazwy, kompozycja, JPEG – jest w `asone-core`,
 //! z którego korzysta też `asone-cli` (CLI + serwer MCP).
 
+// Najpierw: makro `t!` (tłumaczenia) dostępne w pozostałych modułach.
+#[macro_use]
+pub mod i18n;
 pub mod ai;
 #[cfg(target_os = "android")]
 pub mod android;
@@ -47,7 +50,7 @@ pub fn native_options() -> eframe::NativeOptions {
             .with_inner_size([1280.0, 800.0])
             .with_min_inner_size([900.0, 560.0])
             .with_drag_and_drop(true)
-            // Własny pasek tytułu jak w PhotoCrafcie (Linux/BSD/Windows); macOS – systemowy.
+            // Własny pasek tytułu (Linux/BSD/Windows); macOS – systemowy.
             // Preferencje › Interfejs › Systemowy pasek tytułu przywraca dekoracje.
             .with_decorations(cfg!(any(target_os = "macos", target_os = "android"))),
         wgpu_options: renderer::wgpu_configuration(),

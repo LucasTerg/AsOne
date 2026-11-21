@@ -167,31 +167,26 @@ pub enum RecentPreview {
     Missing,
 }
 
-/// „1 zdjęcie”, „3 zdjęcia”, „12 zdjęć”.
+/// „1 zdjęcie”, „3 zdjęcia”, „12 zdjęć” (po angielsku „1 photo”, „3 photos”).
 pub fn photos_count(n: usize) -> String {
-    let word = match (n % 10, n % 100) {
-        _ if n == 1 => "zdjęcie",
-        (2..=4, r) if !(12..=14).contains(&r) => "zdjęcia",
-        _ => "zdjęć",
-    };
-    format!("{n} {word}")
+    crate::i18n::count(n, "zdjęcie", "zdjęcia", "zdjęć", "photo", "photos")
 }
 
 /// Podmenu „Dopisz wersję”: `-ver2` (zwykle), `-ver3`, `-ver4`, `-ver5`, „Bez dopisku”.
 fn version_menu(ui: &mut Ui, targets: &[DocId], current: Option<u8>, actions: &mut Vec<Action>) {
     let suffix = if targets.len() > 1 { format!(" ({})", targets.len()) } else { String::new() };
-    ui.menu_button(format!("Dopisz wersję (-ver){suffix}"), |ui| {
+    ui.menu_button(format!("{}{suffix}", t!("Dopisz wersję (-ver)")), |ui| {
         ui.set_min_width(170.0);
         for v in 2u8..=5 {
             let mark = if current == Some(v) { "✔ " } else { "    " };
-            let hint = if v == 2 { "  (zwykle)" } else { "" };
+            let hint = if v == 2 { t!("  (zwykle)") } else { "" };
             if ui.button(format!("{mark}-ver{v}{hint}")).clicked() {
                 actions.push(Action::SetVersion(targets.to_vec(), Some(v)));
                 ui.close();
             }
         }
         ui.separator();
-        if ui.add_enabled(current.is_some(), egui::Button::new("Bez dopisku")).clicked() {
+        if ui.add_enabled(current.is_some(), egui::Button::new(t!("Bez dopisku"))).clicked() {
             actions.push(Action::SetVersion(targets.to_vec(), None));
             ui.close();
         }
@@ -227,8 +222,8 @@ impl egui_dock::TabViewer for Viewer<'_> {
 
     fn title(&mut self, tab: &mut AppTab) -> WidgetText {
         match tab {
-            AppTab::FileList => "Lista plików".into(),
-            AppTab::ListTools => "Opcje listy".into(),
+            AppTab::FileList => t!("Lista plików").into(),
+            AppTab::ListTools => t!("Opcje listy").into(),
             AppTab::Photo(id) => {
                 let name = self.docs.get(id).map(|d| d.file_name.as_str()).unwrap_or("?");
                 let number_only = self.settings.tab_title == crate::settings::TabTitle::NumberOnly;
@@ -276,8 +271,12 @@ impl egui_dock::TabViewer for Viewer<'_> {
         {
             let where_from = doc.source.path().map(|p| p.display().to_string()).unwrap_or_else(|| doc.file_name.clone());
             let text = match self.numbering.get(id) {
-                Some((n, out)) => format!("#{n} · {}\nOryginał: {where_from}", out.as_deref().unwrap_or(&doc.file_name)),
-                None => format!("Oryginał: {where_from}"),
+                Some((n, out)) => format!(
+                    "#{n} · {}\n{}",
+                    out.as_deref().unwrap_or(&doc.file_name),
+                    t!("Oryginał: {path}", path = where_from)
+                ),
+                None => t!("Oryginał: {path}", path = where_from),
             };
             response.clone().on_hover_text(text);
         }
@@ -309,41 +308,41 @@ impl Viewer<'_> {
         let open_count = self.numbering.len();
         egui::Frame::new().inner_margin(egui::Margin::symmetric(8, 6)).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
-                if crate::platform::CAN_PICK_FILES && ui.button("Dodaj zdjęcia…").clicked() {
+                if crate::platform::CAN_PICK_FILES && ui.button(t!("Dodaj zdjęcia…")).clicked() {
                     self.actions.push(Action::AddFiles);
                 }
-                if crate::platform::CAN_ADD_FOLDER && ui.button("Dodaj folder…").clicked() {
+                if crate::platform::CAN_ADD_FOLDER && ui.button(t!("Dodaj folder…")).clicked() {
                     self.actions.push(Action::AddFolder);
                 }
                 if !crate::platform::CAN_PICK_FILES {
                     ui.label("Folder:");
                     ui.add(egui::TextEdit::singleline(self.folder_input).desired_width(220.0));
-                    if ui.button("Wczytaj").clicked() {
+                    if ui.button(t!("Wczytaj")).clicked() {
                         self.actions.push(Action::LoadFolder);
                     }
                 }
                 let can_open_all = self.order.len() > open_count;
-                if ui.add_enabled(can_open_all, egui::Button::new("Otwórz wszystkie")).clicked() {
+                if ui.add_enabled(can_open_all, egui::Button::new(t!("Otwórz wszystkie"))).clicked() {
                     self.actions.push(Action::OpenAll);
                 }
                 let can_deselect = open_count > 0 || !self.selected.is_empty();
                 if ui
-                    .add_enabled(can_deselect, egui::Button::new("Odznacz"))
-                    .on_hover_text("Zamyka wszystkie zakładki ze zdjęciami (pliki zostają na liście)")
+                    .add_enabled(can_deselect, egui::Button::new(t!("Odznacz")))
+                    .on_hover_text(t!("Zamyka wszystkie zakładki ze zdjęciami (pliki zostają na liście)"))
                     .clicked()
                 {
                     self.actions.push(Action::CloseAllTabs);
                 }
                 if ui
-                    .add_enabled(!self.order.is_empty(), egui::Button::new("Wyczyść listę"))
-                    .on_hover_text("Usuwa wszystkie zdjęcia z listy (pliki na dysku zostają)")
+                    .add_enabled(!self.order.is_empty(), egui::Button::new(t!("Wyczyść listę")))
+                    .on_hover_text(t!("Usuwa wszystkie zdjęcia z listy (pliki na dysku zostają)"))
                     .clicked()
                 {
                     self.actions.push(Action::ClearList);
                 }
-                let mut info = format!("Plików: {} · w zakładkach: {open_count}", self.order.len());
+                let mut info = t!("Plików: {n} · w zakładkach: {open}", n = self.order.len(), open = open_count);
                 if !self.selected.is_empty() {
-                    info.push_str(&format!(" · zaznaczone: {}", self.selected.len()));
+                    info.push_str(&t!(" · zaznaczone: {n}", n = self.selected.len()));
                 }
                 ui.colored_label(pal.text_dim, info);
             });
@@ -414,10 +413,10 @@ impl Viewer<'_> {
         let side = ((avail.x - 3.0 * gap) / 2.0).clamp(96.0, 220.0);
         let row = Rect::from_center_size(ui.max_rect().center(), vec2(2.0 * side + gap, side));
         let tiles = [
-            (Rect::from_min_size(row.min, vec2(side, side)), "Dodaj\nzdjęcia", Action::AddFiles, true),
+            (Rect::from_min_size(row.min, vec2(side, side)), t!("Dodaj\nzdjęcia"), Action::AddFiles, true),
             (
                 Rect::from_min_size(row.min + vec2(side + gap, 0.0), vec2(side, side)),
-                "Dodaj\nfolder",
+                t!("Dodaj\nfolder"),
                 Action::AddFolder,
                 false,
             ),
@@ -458,9 +457,9 @@ impl Viewer<'_> {
         }
         let pal = theme::p();
         let drop_hint = if cfg!(target_os = "android") {
-            "Dodaj zdjęcia z Galerii albo Plików – „Dodaj zdjęcia…”"
+            t!("Dodaj zdjęcia z Galerii albo Plików – „Dodaj zdjęcia…”")
         } else {
-            "Przeciągnij tutaj zdjęcia (JPG, PNG, WebP, AVIF, TIFF, BMP) albo cały folder"
+            t!("Przeciągnij tutaj zdjęcia (JPG, PNG, WebP, AVIF, TIFF, BMP) albo cały folder")
         };
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.add_space(28.0);
@@ -469,33 +468,33 @@ impl Viewer<'_> {
                 // Lewa kolumna: najważniejsze przyciski i odnośniki.
                 ui.vertical(|ui| {
                     ui.set_width(180.0);
-                    let primary = egui::Button::new(egui::RichText::new("Dodaj zdjęcia…").strong().color(pal.on_accent))
+                    let primary = egui::Button::new(egui::RichText::new(t!("Dodaj zdjęcia…")).strong().color(pal.on_accent))
                         .fill(pal.accent)
                         .min_size(vec2(176.0, 32.0));
                     if crate::platform::CAN_PICK_FILES && ui.add(primary).clicked() {
                         self.actions.push(Action::AddFiles);
                     }
                     ui.add_space(4.0);
-                    if crate::platform::CAN_ADD_FOLDER && ui.add(egui::Button::new("Dodaj folder…").min_size(vec2(176.0, 32.0))).clicked() {
+                    if crate::platform::CAN_ADD_FOLDER && ui.add(egui::Button::new(t!("Dodaj folder…")).min_size(vec2(176.0, 32.0))).clicked() {
                         self.actions.push(Action::AddFolder);
                     }
                     ui.add_space(24.0);
-                    ui.hyperlink_to("Witryna AsOne", "https://asone.lmk.one/");
-                    ui.hyperlink_to("Kod i wydania (GitHub)", "https://github.com/LucasTerg/AsOne");
+                    ui.hyperlink_to(t!("Witryna AsOne"), "https://asone.lmk.one/");
+                    ui.hyperlink_to(t!("Kod i wydania (GitHub)"), "https://github.com/LucasTerg/AsOne");
                 });
                 ui.add_space(36.0);
                 // Prawa kolumna: nazwa programu i ostatnio otwierane foldery.
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new("AsOne").size(24.0).strong().color(pal.text));
-                    ui.colored_label(pal.text_dim, "Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, nazwy plików.");
+                    ui.colored_label(pal.text_dim, t!("Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, nazwy plików."));
                     ui.add_space(10.0);
                     ui.separator();
                     ui.add_space(8.0);
-                    ui.label(egui::RichText::new("Ostatnie").size(17.0).strong().color(pal.text));
+                    ui.label(egui::RichText::new(t!("Ostatnie")).size(17.0).strong().color(pal.text));
                     ui.add_space(6.0);
                     let folders = self.settings.recent_folders.clone();
                     if folders.is_empty() || !crate::platform::CAN_PICK_FOLDER {
-                        ui.colored_label(pal.text_dim, "Tu pojawią się ostatnio otwierane foldery ze zdjęciami.");
+                        ui.colored_label(pal.text_dim, t!("Tu pojawią się ostatnio otwierane foldery ze zdjęciami."));
                     } else {
                         ui.spacing_mut().item_spacing = vec2(12.0, 12.0);
                         ui.horizontal_wrapped(|ui| {
@@ -542,7 +541,7 @@ impl Viewer<'_> {
         let parent = path.parent().map(|p| p.display().to_string()).unwrap_or_default();
         let info = match preview {
             Some(RecentPreview::Ready { count, .. }) => photos_count(*count),
-            Some(RecentPreview::Missing) => "folder nie istnieje".to_string(),
+            Some(RecentPreview::Missing) => t!("folder nie istnieje").to_string(),
             _ => String::new(),
         };
         let width = size.x - 16.0;
@@ -556,16 +555,16 @@ impl Viewer<'_> {
         line(parent, egui::FontId::proportional(11.5), pal.text_dim, 158.0);
         line(info, egui::FontId::proportional(11.5), if missing { pal.danger } else { pal.text_faint }, 178.0);
 
-        let response = response.on_hover_text(format!("{dir}\nKliknij, aby wczytać zdjęcia z tego folderu"));
+        let response = response.on_hover_text(t!("{dir}\nKliknij, aby wczytać zdjęcia z tego folderu", dir = dir));
         if response.clicked() {
             self.actions.push(Action::OpenRecent(dir.to_string()));
         }
         response.context_menu(|ui| {
-            if ui.add_enabled(!missing, egui::Button::new("Wczytaj zdjęcia z folderu")).clicked() {
+            if ui.add_enabled(!missing, egui::Button::new(t!("Wczytaj zdjęcia z folderu"))).clicked() {
                 self.actions.push(Action::OpenRecent(dir.to_string()));
                 ui.close();
             }
-            if ui.button("Usuń z ostatnich").clicked() {
+            if ui.button(t!("Usuń z ostatnich")).clicked() {
                 self.actions.push(Action::ForgetRecent(dir.to_string()));
                 ui.close();
             }
@@ -610,11 +609,11 @@ impl Viewer<'_> {
     fn list_options_bar(&mut self, ui: &mut Ui) {
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
-            ui.label("Widok:");
+            ui.label(t!("Widok:"));
             for (view, label, tip) in [
-                (ListView::Thumbnails, "Miniatury", "Siatka miniatur"),
-                (ListView::List, "Lista", "Miniatura i pełna, zawijana nazwa w wierszu"),
-                (ListView::Details, "Szczegóły", "Tabela: nazwa, wymiary, rozmiar, typ"),
+                (ListView::Thumbnails, t!("Miniatury"), t!("Siatka miniatur")),
+                (ListView::List, t!("Lista"), t!("Miniatura i pełna, zawijana nazwa w wierszu")),
+                (ListView::Details, t!("Szczegóły"), t!("Tabela: nazwa, wymiary, rozmiar, typ")),
             ] {
                 if ui.selectable_label(self.list.view == view, label).on_hover_text(tip).clicked() {
                     self.list.view = view;
@@ -627,12 +626,12 @@ impl Viewer<'_> {
                 } else {
                     ui.separator();
                 }
-                ui.label("Rozmiar");
+                ui.label(t!("Rozmiar"));
                 ui.add(egui::Slider::new(&mut self.list.thumb_size, THUMB_MIN..=THUMB_MAX).show_value(false))
-                    .on_hover_text("Rozmiar miniatur (też Ctrl + kółko myszy nad listą)");
+                    .on_hover_text(t!("Rozmiar miniatur (też Ctrl + kółko myszy nad listą)"));
             }
             if self.list.view == ListView::Thumbnails {
-                ui.checkbox(&mut self.list.show_names, "Nazwy");
+                ui.checkbox(&mut self.list.show_names, t!("Nazwy"));
             }
         });
     }
@@ -675,7 +674,7 @@ impl Viewer<'_> {
             }
             ThumbState::Failed(_) => {
                 let font = egui::FontId::proportional((area.height() * 0.2).clamp(10.0, 13.0));
-                ui.painter().text(area.center(), egui::Align2::CENTER_CENTER, "Błąd", font, pal.danger);
+                ui.painter().text(area.center(), egui::Align2::CENTER_CENTER, t!("Błąd"), font, pal.danger);
             }
         }
     }
@@ -821,10 +820,10 @@ impl Viewer<'_> {
         let Some(doc) = self.docs.get(&id) else { return };
         let hover = match &doc.thumb {
             ThumbState::Failed(e) => format!("{}\n{e}", doc.file_name),
-            _ => format!(
-                "{}\n{:.1} MB · klik – otwórz / zamknij zakładkę · Ctrl/Shift+klik – zaznacz · przeciągnij – zmień kolejność",
-                doc.file_name,
-                doc.file_size as f64 / 1e6
+            _ => t!(
+                "{name}\n{mb} MB · klik – otwórz / zamknij zakładkę · Ctrl/Shift+klik – zaznacz · przeciągnij – zmień kolejność",
+                name = doc.file_name,
+                mb = format!("{:.1}", doc.file_size as f64 / 1e6)
             ),
         };
         let has_path = doc.source.path().is_some();
@@ -837,11 +836,11 @@ impl Viewer<'_> {
         response.context_menu(|ui| {
             let many = targets.len() > 1;
             let suffix = if many { format!(" ({})", targets.len()) } else { String::new() };
-            if !many && ui.button("Otwórz w zakładce").clicked() {
+            if !many && ui.button(t!("Otwórz w zakładce")).clicked() {
                 self.actions.push(Action::Open(id));
                 ui.close();
             }
-            if !many && number.is_some() && ui.button("Zamknij zakładkę").clicked() {
+            if !many && number.is_some() && ui.button(t!("Zamknij zakładkę")).clicked() {
                 self.actions.push(Action::CloseTab(id));
                 ui.close();
             }
@@ -849,43 +848,43 @@ impl Viewer<'_> {
             version_menu(ui, &targets, current.flatten(), self.actions);
             if crate::platform::FILE_OPS && has_path {
                 ui.separator();
-                if !many && ui.button("Otwórz plik").clicked() {
+                if !many && ui.button(t!("Otwórz plik")).clicked() {
                     self.actions.push(Action::OpenFile(id));
                     ui.close();
                 }
-                if !many && ui.button("Otwórz folder pliku").clicked() {
+                if !many && ui.button(t!("Otwórz folder pliku")).clicked() {
                     self.actions.push(Action::OpenFolder(id));
                     ui.close();
                 }
-                if !many && !self.settings.hide_gimp && ui.button("Edytuj w GIMP").clicked() {
+                if !many && !self.settings.hide_gimp && ui.button(t!("Edytuj w GIMP")).clicked() {
                     self.actions.push(Action::EditInGimp(id));
                     ui.close();
                 }
-                if ui.button(format!("Wczytaj ponownie z dysku{suffix}")).clicked() {
+                if ui.button(format!("{}{suffix}", t!("Wczytaj ponownie z dysku"))).clicked() {
                     self.actions.push(Action::Reload(targets.clone()));
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(format!("Zapisz do ZIP…{suffix}")).clicked() {
+                if ui.button(format!("{}{suffix}", t!("Zapisz do ZIP…"))).clicked() {
                     self.actions.push(Action::ZipSelected(targets.clone()));
                     ui.close();
                 }
-                if ui.button(format!("Eksportuj do PDF…{suffix}")).clicked() {
+                if ui.button(format!("{}{suffix}", t!("Eksportuj do PDF…"))).clicked() {
                     self.actions.push(Action::PdfSelected(targets.clone()));
                     ui.close();
                 }
             }
             ui.separator();
-            if ui.button(format!("Usuń z listy{suffix}")).clicked() {
+            if ui.button(format!("{}{suffix}", t!("Usuń z listy"))).clicked() {
                 self.actions.push(Action::Remove(targets.clone()));
                 ui.close();
             }
-            if ui.button(format!("Usuń wszystkie z listy ({})", self.order.len())).clicked() {
+            if ui.button(t!("Usuń wszystkie z listy ({n})", n = self.order.len())).clicked() {
                 self.actions.push(Action::ClearList);
                 ui.close();
             }
             if crate::platform::FILE_OPS && has_path && !self.settings.hide_delete_from_disk {
-                let danger = egui::RichText::new(format!("Usuń z dysku…{suffix}")).color(theme::p().danger);
+                let danger = egui::RichText::new(format!("{}{suffix}", t!("Usuń z dysku…"))).color(theme::p().danger);
                 if ui.button(danger).clicked() {
                     self.actions.push(Action::DeleteFromDisk(targets.clone()));
                     ui.close();
@@ -949,7 +948,7 @@ fn details_header(ui: &mut Ui) {
     let cols = details_columns(width);
     let (rect, _) = ui.allocate_exact_size(vec2(width, 22.0), Sense::hover());
     let font = egui::FontId::proportional(12.0);
-    for (x, text) in [(Some(cols.num), "#"), (Some(cols.name), "Nazwa"), (cols.dims, "Wymiary"), (cols.size, "Rozmiar"), (cols.kind, "Typ")] {
+    for (x, text) in [(Some(cols.num), "#"), (Some(cols.name), t!("Nazwa")), (cols.dims, t!("Wymiary")), (cols.size, t!("Rozmiar")), (cols.kind, t!("Typ"))] {
         if let Some(x) = x {
             ui.painter().text(pos2(rect.left() + x, rect.center().y), egui::Align2::LEFT_CENTER, text, font.clone(), pal.text_dim);
         }

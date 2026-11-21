@@ -32,8 +32,8 @@ impl Style {
 
     pub fn label(self) -> &'static str {
         match self {
-            Style::Photo => "Zdjęcie",
-            Style::Art => "Grafika / render",
+            Style::Photo => t!("Zdjęcie"),
+            Style::Art => t!("Grafika / render"),
         }
     }
 
@@ -50,11 +50,11 @@ pub const NOISE_LEVELS: [Option<u8>; 5] = [None, Some(0), Some(1), Some(2), Some
 
 pub fn noise_label(noise: Option<u8>) -> &'static str {
     match noise {
-        None => "bez odszumiania",
-        Some(0) => "bardzo słabe (0)",
-        Some(1) => "słabe (1)",
-        Some(2) => "średnie (2)",
-        _ => "mocne (3)",
+        None => t!("bez odszumiania"),
+        Some(0) => t!("bardzo słabe (0)"),
+        Some(1) => t!("słabe (1)"),
+        Some(2) => t!("średnie (2)"),
+        _ => t!("mocne (3)"),
     }
 }
 
@@ -98,7 +98,7 @@ pub fn models_dir() -> PathBuf {
 pub fn upscale(image: &RgbaImage, variant: Variant, progress: Option<&std::sync::atomic::AtomicU32>) -> Result<RgbaImage, String> {
     let (w, h) = image.dimensions();
     if w.max(h) > MAX_INPUT_SIDE {
-        return Err(format!("waifu2x jest dla mniejszych zdjęć – dłuższy bok najwyżej {MAX_INPUT_SIDE} px"));
+        return Err(t!("waifu2x jest dla mniejszych zdjęć – dłuższy bok najwyżej {max} px", max = MAX_INPUT_SIDE));
     }
     let model = ensure_model(variant)?;
     let s = variant.scale;
@@ -149,7 +149,7 @@ pub fn upscale(image: &RgbaImage, variant: Variant, progress: Option<&std::sync:
             }
             let oplane = (out_tile * out_tile) as usize;
             if y_out.len() != 3 * oplane {
-                return Err(format!("waifu2x: nieoczekiwany rozmiar wyniku ({} wartości)", y_out.len()));
+                return Err(t!("waifu2x: nieoczekiwany rozmiar wyniku ({n} wartości)", n = y_out.len()));
             }
             // Wynik odpowiada wejściu od (tx·step, ty·step) – w skali wyjścia.
             let (bx, by) = (tx * step * s, ty * step * s);
@@ -222,21 +222,21 @@ fn download(url: &str, dest: &Path) -> Result<(), String> {
         .timeout_global(Some(std::time::Duration::from_secs(300)))
         .build()
         .call()
-        .map_err(|e| format!("waifu2x: pobieranie modelu ({e})"))?;
+        .map_err(|e| t!("waifu2x: pobieranie modelu ({e})", e = e))?;
     let bytes = resp
         .body_mut()
         .with_config()
         .limit(200 * 1024 * 1024)
         .read_to_vec()
-        .map_err(|e| format!("waifu2x: pobieranie modelu ({e})"))?;
+        .map_err(|e| t!("waifu2x: pobieranie modelu ({e})", e = e))?;
     let part = dest.with_extension("onnx.part");
-    std::fs::write(&part, &bytes).map_err(|e| format!("Zapis: {e}"))?;
-    std::fs::rename(&part, dest).map_err(|e| format!("Zapis: {e}"))
+    std::fs::write(&part, &bytes).map_err(|e| t!("Zapis: {e}", e = e))?;
+    std::fs::rename(&part, dest).map_err(|e| t!("Zapis: {e}", e = e))
 }
 
 #[cfg(target_arch = "wasm32")]
 fn download(_url: &str, _dest: &Path) -> Result<(), String> {
-    Err("waifu2x działa lokalnie na Linux, Windows i macOS".into())
+    Err(t!("waifu2x działa lokalnie na Linux, Windows i macOS").into())
 }
 
 /// Sesja ONNX na czas jednego powiększenia.
@@ -267,7 +267,7 @@ impl Session {
 
     #[cfg(not(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos"))))]
     fn open(_model: &Path) -> Result<Self, String> {
-        Err("waifu2x działa lokalnie na Linux, Windows i macOS".into())
+        Err(t!("waifu2x działa lokalnie na Linux, Windows i macOS").into())
     }
 
     #[cfg(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos")))]
@@ -275,7 +275,7 @@ impl Session {
         let err = |e: ort::Error| format!("waifu2x: {e}");
         let n = tile as usize;
         let x = ort::value::Tensor::from_array(([1usize, 3, n, n], input.into_boxed_slice())).map_err(err)?;
-        let name = self.inner.outputs().first().map(|o| o.name().to_string()).ok_or("waifu2x: model bez wyjść")?;
+        let name = self.inner.outputs().first().map(|o| o.name().to_string()).ok_or(t!("waifu2x: model bez wyjść"))?;
         let outputs = self.inner.run(ort::inputs![x]).map_err(err)?;
         let (_, raw) = outputs[name.as_str()].try_extract_tensor::<f32>().map_err(err)?;
         Ok(raw.to_vec())
@@ -283,7 +283,7 @@ impl Session {
 
     #[cfg(not(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos"))))]
     fn run(&mut self, _input: Vec<f32>, _tile: u32) -> Result<Vec<f32>, String> {
-        Err("waifu2x działa lokalnie na Linux, Windows i macOS".into())
+        Err(t!("waifu2x działa lokalnie na Linux, Windows i macOS").into())
     }
 }
 

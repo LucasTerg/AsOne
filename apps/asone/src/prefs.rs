@@ -1,4 +1,4 @@
-//! Ustawienia › Preferencje (układ jak w PhotoCrafcie: sekcje po lewej, Anuluj / Zastosuj / OK).
+//! Ustawienia › Preferencje (sekcje po lewej, Anuluj / Zastosuj / OK).
 
 use egui::{RichText, Ui, vec2};
 
@@ -81,7 +81,7 @@ impl PrefsDialog {
         // Stały rozmiar startowy; panele wypełniają dokładnie wnętrze okna, więc okno nie „rośnie”
         // z klatki na klatkę (jak przy liczeniu wysokości z `available_height`).
         let size = vec2(740.0, 520.0);
-        egui::Window::new("Preferencje")
+        egui::Window::new(t!("Preferencje"))
             .id(egui::Id::new("asone_prefs"))
             .open(&mut open)
             .collapsible(false)
@@ -102,10 +102,10 @@ impl PrefsDialog {
                             result.apply = Some(self.draft.clone());
                             close = true;
                         }
-                        if ui.add(egui::Button::new("Zastosuj").min_size(vec2(84.0, 26.0))).clicked() {
+                        if ui.add(egui::Button::new(t!("Zastosuj")).min_size(vec2(84.0, 26.0))).clicked() {
                             result.apply = Some(self.draft.clone());
                         }
-                        if ui.add(egui::Button::new("Anuluj").min_size(vec2(84.0, 26.0))).clicked() {
+                        if ui.add(egui::Button::new(t!("Anuluj")).min_size(vec2(84.0, 26.0))).clicked() {
                             close = true;
                         }
                     });
@@ -114,12 +114,12 @@ impl PrefsDialog {
                 egui::Panel::left("prefs_sections").exact_size(176.0).resizable(false).frame(egui::Frame::NONE).show(ui, |ui| {
                     ui.add_space(4.0);
                     for (section, label) in [
-                        (PrefsSection::Interface, "Interfejs"),
-                        (PrefsSection::Export, "Eksport i limity"),
-                        (PrefsSection::Ai, "Usuwanie tła (AI)"),
-                        (PrefsSection::Retouch, "Retusz (LaMa)"),
-                        (PrefsSection::Upscale, "Powiększanie (waifu2x)"),
-                        (PrefsSection::Replicate, "Replicate (AI online)"),
+                        (PrefsSection::Interface, t!("Interfejs")),
+                        (PrefsSection::Export, t!("Eksport i limity")),
+                        (PrefsSection::Ai, t!("Usuwanie tła (AI)")),
+                        (PrefsSection::Retouch, t!("Retusz (LaMa)")),
+                        (PrefsSection::Upscale, t!("Powiększanie (waifu2x)")),
+                        (PrefsSection::Replicate, t!("Replicate (AI online)")),
                     ] {
                         if ui.add_sized(vec2(164.0, 26.0), egui::Button::selectable(self.section == section, label)).clicked() {
                             self.section = section;
@@ -165,9 +165,20 @@ fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
 }
 
 fn interface_page(ui: &mut Ui, s: &mut Settings) {
-    ui.heading("Interfejs");
+    ui.heading(t!("Interfejs"));
     ui.add_space(6.0);
     egui::Grid::new("prefs_interface").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
+        // Opis w obu językach – do znalezienia także przy niezrozumiałym języku.
+        row(ui, "Język / Language", |ui| {
+            egui::ComboBox::from_id_salt("language")
+                .width(220.0)
+                .selected_text(s.language.label())
+                .show_ui(ui, |ui| {
+                    for lang in crate::i18n::Language::ALL {
+                        ui.selectable_value(&mut s.language, lang, lang.label());
+                    }
+                });
+        });
         row(ui, "Motyw", |ui| {
             egui::ComboBox::from_id_salt("theme")
                 .width(220.0)
@@ -178,7 +189,7 @@ fn interface_page(ui: &mut Ui, s: &mut Settings) {
                     }
                 });
         });
-        row(ui, "Kolor płótna", |ui| {
+        row(ui, t!("Kolor płótna"), |ui| {
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("canvas")
                     .width(150.0)
@@ -195,7 +206,7 @@ fn interface_page(ui: &mut Ui, s: &mut Settings) {
                 }
             });
         });
-        row(ui, "Skala interfejsu", |ui| {
+        row(ui, t!("Skala interfejsu"), |ui| {
             egui::ComboBox::from_id_salt("ui_scale")
                 .width(120.0)
                 .selected_text(format!("{} %", s.ui_scale))
@@ -205,31 +216,31 @@ fn interface_page(ui: &mut Ui, s: &mut Settings) {
                     }
                 });
         });
-        row(ui, "Zakładki zdjęć", |ui| {
+        row(ui, t!("Zakładki zdjęć"), |ui| {
             ui.horizontal(|ui| {
-                ui.radio_value(&mut s.photo_tabs_bottom, false, "Na górze");
-                ui.radio_value(&mut s.photo_tabs_bottom, true, "Na dole");
+                ui.radio_value(&mut s.photo_tabs_bottom, false, t!("Na górze"));
+                ui.radio_value(&mut s.photo_tabs_bottom, true, t!("Na dole"));
             });
         });
-        row(ui, "Na zakładce", |ui| {
+        row(ui, t!("Na zakładce"), |ui| {
             ui.vertical(|ui| {
-                ui.radio_value(&mut s.tab_title, TabTitle::Full, "Pokazuj pełną nazwę (#1 · nazwa)");
-                ui.radio_value(&mut s.tab_title, TabTitle::NumberOnly, "Pokazuj tylko numer kolejności (#1)");
+                ui.radio_value(&mut s.tab_title, TabTitle::Full, t!("Pokazuj pełną nazwę (#1 · nazwa)"));
+                ui.radio_value(&mut s.tab_title, TabTitle::NumberOnly, t!("Pokazuj tylko numer kolejności (#1)"));
             });
         });
         row(ui, "", |ui| {
-            ui.checkbox(&mut s.show_tooltips, "Pokaż podpowiedzi");
+            ui.checkbox(&mut s.show_tooltips, t!("Pokaż podpowiedzi"));
         });
         if cfg!(not(target_arch = "wasm32")) {
             row(ui, "", |ui| {
-                ui.checkbox(&mut s.check_updates, "Sprawdzaj aktualizacje przy starcie (wersja AppImage)")
-                    .on_hover_text("Pyta GitHub o najnowsze wydanie; nowa wersja pobiera się dopiero po kliknięciu „Zaktualizuj”.");
+                ui.checkbox(&mut s.check_updates, t!("Sprawdzaj aktualizacje przy starcie (wersja AppImage)"))
+                    .on_hover_text(t!("Pyta GitHub o najnowsze wydanie; nowa wersja pobiera się dopiero po kliknięciu „Zaktualizuj”."));
             });
         }
         row(ui, "", |ui| {
-            ui.checkbox(&mut s.animations, "Animacje (menu, przewijanie)");
+            ui.checkbox(&mut s.animations, t!("Animacje (menu, przewijanie)"));
         });
-        row(ui, "Pasek menu", |ui| {
+        row(ui, t!("Pasek menu"), |ui| {
             ui.vertical(|ui| {
                 for style in BarStyle::ALL {
                     ui.radio_value(&mut s.bar_style, style, style.label());
@@ -238,8 +249,8 @@ fn interface_page(ui: &mut Ui, s: &mut Settings) {
         });
         if cfg!(not(any(target_os = "macos", target_os = "android", target_arch = "wasm32"))) {
             row(ui, "", |ui| {
-                ui.checkbox(&mut s.system_title_bar, "Systemowy pasek tytułu")
-                    .on_hover_text("Zamiast paska AsOne z menu i przyciskami okna – np. dla menedżerów kafelkowych.");
+                ui.checkbox(&mut s.system_title_bar, t!("Systemowy pasek tytułu"))
+                    .on_hover_text(t!("Zamiast paska AsOne z menu i przyciskami okna – np. dla menedżerów kafelkowych."));
             });
         }
     });
@@ -249,32 +260,32 @@ fn interface_page(ui: &mut Ui, s: &mut Settings) {
         ui.checkbox(s.hidden_mut(item), item.label());
     }
     ui.add_space(10.0);
-    if ui.button("Przywróć domyślne").clicked() {
+    if ui.button(t!("Przywróć domyślne")).clicked() {
         s.reset_section(PrefsSection::Interface);
     }
 }
 
 fn export_page(ui: &mut Ui, s: &mut Settings) {
     let pal = theme::p();
-    ui.heading("Eksport i limity");
+    ui.heading(t!("Eksport i limity"));
     ui.colored_label(
         pal.text_dim,
-        "Limity działają przy każdym zapisie – także wtedy, gdy ktoś zapomni ustawić zmniejszanie na górnym pasku.",
+        t!("Limity działają przy każdym zapisie – także wtedy, gdy ktoś zapomni ustawić zmniejszanie na górnym pasku."),
     );
     ui.add_space(6.0);
     egui::Grid::new("prefs_export").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
-        row(ui, "Maks. wymiary", |ui| {
+        row(ui, t!("Maks. wymiary"), |ui| {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut s.enforce_dimensions, "");
                 ui.add_enabled_ui(s.enforce_dimensions, |ui| {
                     ui.add(egui::DragValue::new(&mut s.max_width).range(16..=16384).suffix(" px"));
                     ui.label("×");
                     ui.add(egui::DragValue::new(&mut s.max_height).range(16..=16384).suffix(" px"));
-                    ui.colored_label(pal.text_dim, "(szer. × wys.)");
+                    ui.colored_label(pal.text_dim, t!("(szer. × wys.)"));
                 });
             });
         });
-        row(ui, "Maks. rozmiar pliku", |ui| {
+        row(ui, t!("Maks. rozmiar pliku"), |ui| {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut s.enforce_file_size, "");
                 ui.add_enabled(
@@ -283,44 +294,44 @@ fn export_page(ui: &mut Ui, s: &mut Settings) {
                 );
             });
         });
-        row(ui, "Najniższa jakość", |ui| {
+        row(ui, t!("Najniższa jakość"), |ui| {
             ui.add_enabled(s.enforce_file_size, egui::Slider::new(&mut s.min_quality, 30..=95).suffix(" %"))
-                .on_hover_text("Do tej jakości wolno zejść, żeby zmieścić plik w limicie; dalej zdjęcie jest zmniejszane.");
+                .on_hover_text(t!("Do tej jakości wolno zejść, żeby zmieścić plik w limicie; dalej zdjęcie jest zmniejszane."));
         });
-        row(ui, "Min. bok", |ui| {
+        row(ui, t!("Min. bok"), |ui| {
             let floor = asone_core::finish::MIN_SIDE;
             s.min_side = s.min_side.max(floor);
             ui.horizontal(|ui| {
                 ui.add(egui::DragValue::new(&mut s.min_side).range(floor..=4000).suffix(" px"))
-                    .on_hover_text(format!("Nie mniej niż {floor} px."));
-                ui.colored_label(pal.text_dim, "mniejsze zdjęcia dopełniane białym tłem");
+                    .on_hover_text(t!("Nie mniej niż {floor} px.", floor = floor));
+                ui.colored_label(pal.text_dim, t!("mniejsze zdjęcia dopełniane białym tłem"));
             });
         });
-        row(ui, "Ramka przy zmniejszaniu", |ui| {
+        row(ui, t!("Ramka przy zmniejszaniu"), |ui| {
             ui.vertical(|ui| {
-                ui.checkbox(&mut s.keep_frame, "zachowaj ramkę w pełnych pikselach")
-                    .on_hover_text(format!(
+                ui.checkbox(&mut s.keep_frame, t!("zachowaj ramkę w pełnych pikselach"))
+                    .on_hover_text(t!(
                         "Gdy zdjęcie z marginesami trzeba zmniejszyć (limit wymiarów, „Max dłuższy bok”), \
-                         marginesy do {} px zostają w pliku dokładnie takie, jak ustawione (np. ramka 5 px), \
+                         marginesy do {max} px zostają w pliku dokładnie takie, jak ustawione (np. ramka 5 px), \
                          a zmniejsza się samo zdjęcie. Większe marginesy (np. kwadrat 1:1) skalują się razem ze zdjęciem.",
-                        asone_core::finish::FRAME_MAX
+                        max = asone_core::finish::FRAME_MAX
                     ));
                 ui.colored_label(
                     pal.text_dim,
-                    format!("np. ramka 5 px na zdjęciu 4000×5000 → plik 2880×3600 z ramką 5 px (ramki do {} px)", asone_core::finish::FRAME_MAX),
+                    t!("np. ramka 5 px na zdjęciu 4000×5000 → plik 2880×3600 z ramką 5 px (ramki do {max} px)", max = asone_core::finish::FRAME_MAX),
                 );
             });
         });
-        row(ui, "Domyślny folder zapisu", |ui| {
+        row(ui, t!("Domyślny folder zapisu"), |ui| {
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut s.out_subfolder).hint_text("web").desired_width(140.0))
-                    .on_hover_text("Podfolder tworzony obok zdjęć, gdy nie wybrano innego folderu przyciskiem „Folder”.");
-                ui.colored_label(pal.text_dim, "podfolder obok zdjęć (np. web)");
+                    .on_hover_text(t!("Podfolder tworzony obok zdjęć, gdy nie wybrano innego folderu przyciskiem „Folder”."));
+                ui.colored_label(pal.text_dim, t!("podfolder obok zdjęć (np. web)"));
             });
         });
     });
     ui.add_space(10.0);
-    if ui.button("Przywróć domyślne (3000 × 3600, 3 MB)").clicked() {
+    if ui.button(t!("Przywróć domyślne (3000 × 3600, 3 MB)")).clicked() {
         s.reset_section(PrefsSection::Export);
     }
 }
@@ -328,38 +339,38 @@ fn export_page(ui: &mut Ui, s: &mut Settings) {
 /// Retusz LaMa: opis, plik modelu, pobieranie.
 fn retouch_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, result: &mut PrefsResult) {
     let pal = theme::p();
-    ui.heading("Retusz (LaMa)");
+    ui.heading(t!("Retusz (LaMa)"));
     ui.colored_label(
         pal.text_dim,
-        "Usuwa kurz, rysy, napisy, metki i drobne przedmioty: zaznacz je prostokątem (narzędzie M) i wybierz \
+        t!("Usuwa kurz, rysy, napisy, metki i drobne przedmioty: zaznacz je prostokątem (narzędzie M) i wybierz \
          „Usuń obiekt (LaMa)” w panelu albo pod prawym przyciskiem na zdjęciu. Model dorysowuje tło z otoczenia – \
-         lokalnie, bez wysyłania zdjęcia i bez opłat.",
+         lokalnie, bez wysyłania zdjęcia i bez opłat."),
     );
     ui.add_space(4.0);
     ui.colored_label(
         pal.text_dim,
-        "Najlepiej działa na małych obszarach na jednolitym albo powtarzalnym tle. Duże obszary i fragmenty samego \
-         produktu mogą wyjść rozmyte – wtedy Cofnij nie pomoże, ale „Przywróć oryginał” wczyta plik od nowa.",
+        t!("Najlepiej działa na małych obszarach na jednolitym albo powtarzalnym tle. Duże obszary i fragmenty samego \
+         produktu mogą wyjść rozmyte – wtedy Cofnij nie pomoże, ale „Przywróć oryginał” wczyta plik od nowa."),
     );
     if !crate::ai::AVAILABLE {
-        ui.colored_label(pal.warning, "Retusz LaMa działa lokalnie na Linux, Windows i macOS – w tej wersji jest niedostępny.");
+        ui.colored_label(pal.warning, t!("Retusz LaMa działa lokalnie na Linux, Windows i macOS – w tej wersji jest niedostępny."));
     }
     ui.add_space(8.0);
-    ui.checkbox(&mut s.lama_enabled, egui::RichText::new("Używam retuszu LaMa").strong())
-        .on_hover_text("Odznacz („nie używam”): znikają wszystkie opcje LaMa – zakładka w „Narzędziach AI”, przycisk przy zaznaczeniu i pozycja w menu zdjęcia.");
+    ui.checkbox(&mut s.lama_enabled, egui::RichText::new(t!("Używam retuszu LaMa")).strong())
+        .on_hover_text(t!("Odznacz („nie używam”): znikają wszystkie opcje LaMa – zakładka w „Narzędziach AI”, przycisk przy zaznaczeniu i pozycja w menu zdjęcia."));
     ui.add_space(6.0);
     egui::Grid::new("prefs_lama").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
-        row(ui, "Model", |ui| {
+        row(ui, t!("Model"), |ui| {
             ui.horizontal(|ui| {
-                ui.label("Big-LaMa (Apache-2.0), wejście 512 × 512, kilka sekund na procesorze");
-                ui.hyperlink_to("strona modelu", crate::settings::LAMA_PAGE);
+                ui.label(t!("Big-LaMa (Apache-2.0), wejście 512 × 512, kilka sekund na procesorze"));
+                ui.hyperlink_to(t!("strona modelu"), crate::settings::LAMA_PAGE);
             });
         });
-        row(ui, "Plik modelu", |ui| {
+        row(ui, t!("Plik modelu"), |ui| {
             ui.horizontal(|ui| {
                 let default = crate::settings::default_models_dir().join(crate::settings::LAMA_FILE);
                 ui.add(egui::TextEdit::singleline(&mut s.lama_path).hint_text(default.display().to_string()).desired_width(300.0));
-                if crate::platform::CAN_PICK_FOLDER && ui.button("Wybierz…").clicked() {
+                if crate::platform::CAN_PICK_FOLDER && ui.button(t!("Wybierz…")).clicked() {
                     result.pick_model = Some(ModelFile::Lama);
                 }
             });
@@ -367,12 +378,12 @@ fn retouch_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, 
         row(ui, "", |ui| {
             match std::fs::metadata(s.lama_model_path()) {
                 Ok(m) if m.is_file() => {
-                    ui.colored_label(pal.ok(), format!("✔ Plik jest ({:.0} MB)", m.len() as f64 / 1_048_576.0))
+                    ui.colored_label(pal.ok(), t!("✔ Plik jest ({mb} MB)", mb = format!("{:.0}", m.len() as f64 / 1_048_576.0)))
                 }
-                _ => ui.colored_label(pal.warning, "Brak pliku – pobierz model poniżej (ok. 208 MB) albo wskaż plik .onnx"),
+                _ => ui.colored_label(pal.warning, t!("Brak pliku – pobierz model poniżej (ok. 208 MB) albo wskaż plik .onnx")),
             };
         });
-        row(ui, "Pobieranie", |ui| {
+        row(ui, t!("Pobieranie"), |ui| {
             ui.vertical(|ui| {
                 match download {
                     Some(d) if d.model == ModelFile::Lama => {
@@ -384,20 +395,20 @@ fn retouch_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, 
                         ui.add(egui::ProgressBar::new(frac).desired_width(300.0).text(format!("LaMa · {text}")));
                     }
                     _ => {
-                        if ui.add_enabled(crate::ai::AVAILABLE && download.is_none(), egui::Button::new("Pobierz model")).clicked() {
+                        if ui.add_enabled(crate::ai::AVAILABLE && download.is_none(), egui::Button::new(t!("Pobierz model"))).clicked() {
                             result.download = Some((ModelFile::Lama, s.lama_model_path(), String::new()));
                         }
                     }
                 }
                 ui.horizontal(|ui| {
-                    ui.small("lub pobierz ręcznie:");
+                    ui.small(t!("lub pobierz ręcznie:"));
                     ui.hyperlink_to(egui::RichText::new(crate::settings::LAMA_URL).small(), crate::settings::LAMA_URL);
                 });
             });
         });
     });
     ui.add_space(10.0);
-    if ui.button("Przywróć domyślne").clicked() {
+    if ui.button(t!("Przywróć domyślne")).clicked() {
         s.reset_section(PrefsSection::Retouch);
     }
 }
@@ -406,67 +417,68 @@ fn retouch_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, 
 fn upscale_page(ui: &mut Ui, s: &mut Settings) {
     use crate::waifu2x::{MAX_INPUT_SIDE, NOISE_LEVELS, Style, models_dir, noise_label};
     let pal = theme::p();
-    ui.heading("Powiększanie (waifu2x)");
+    ui.heading(t!("Powiększanie (waifu2x)"));
     ui.colored_label(
         pal.text_dim,
-        "waifu2x to sieć neuronowa autora nagadomi (model swin_unet z projektu nunif): powiększa 2× albo 4× z ostrymi \
+        t!("waifu2x to sieć neuronowa autora nagadomi (model swin_unet z projektu nunif): powiększa 2× albo 4× z ostrymi \
          krawędziami, bez jasnych obwódek, i usuwa artefakty JPEG. Najlepiej na małych zdjęciach i czystych tłach – \
-         np. zamiast dopełniać białym tłem do 500 px. Lokalnie, bez opłat.",
+         np. zamiast dopełniać białym tłem do 500 px. Lokalnie, bez opłat."),
     );
     ui.add_space(4.0);
     ui.colored_label(
         pal.text_dim,
-        format!(
+        t!(
             "Modele (ok. 20 MB na wariant) pobierają się same przy pierwszym użyciu z unlimited.waifu2x.net. \
-             Dłuższy bok zdjęcia najwyżej {MAX_INPUT_SIDE} px; czas: kilka–kilkadziesiąt sekund."
+             Dłuższy bok zdjęcia najwyżej {max} px; czas: kilka–kilkadziesiąt sekund.",
+            max = MAX_INPUT_SIDE
         ),
     );
     if !crate::ai::AVAILABLE {
-        ui.colored_label(pal.warning, "waifu2x działa lokalnie na Linux, Windows i macOS – w tej wersji jest niedostępny.");
+        ui.colored_label(pal.warning, t!("waifu2x działa lokalnie na Linux, Windows i macOS – w tej wersji jest niedostępny."));
     }
     ui.add_space(8.0);
-    ui.checkbox(&mut s.waifu2x_enabled, egui::RichText::new("Używam waifu2x").strong())
-        .on_hover_text("Odznacz („nie używam”): znikają wszystkie opcje waifu2x – zakładka w „Narzędziach AI” i pozycja w menu zdjęcia.");
+    ui.checkbox(&mut s.waifu2x_enabled, egui::RichText::new(t!("Używam waifu2x")).strong())
+        .on_hover_text(t!("Odznacz („nie używam”): znikają wszystkie opcje waifu2x – zakładka w „Narzędziach AI” i pozycja w menu zdjęcia."));
     ui.add_space(6.0);
     ui.add_enabled_ui(s.waifu2x_enabled, |ui| {
         egui::Grid::new("prefs_w2x").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
-            row(ui, "Rodzaj", |ui| {
+            row(ui, t!("Rodzaj"), |ui| {
                 ui.horizontal(|ui| {
                     for style in Style::ALL {
                         ui.radio_value(&mut s.waifu2x_style, style, style.label());
                     }
                 });
             });
-            row(ui, "Skala", |ui| {
+            row(ui, t!("Skala"), |ui| {
                 ui.horizontal(|ui| {
                     for scale in [2u32, 4] {
                         ui.radio_value(&mut s.waifu2x_scale, scale, format!("{scale}×"));
                     }
                 });
             });
-            row(ui, "Odszumianie", |ui| {
+            row(ui, t!("Odszumianie"), |ui| {
                 egui::ComboBox::from_id_salt("prefs_w2x_noise").selected_text(noise_label(s.waifu2x_noise)).show_ui(ui, |ui| {
                     for n in NOISE_LEVELS {
                         ui.selectable_value(&mut s.waifu2x_noise, n, noise_label(n));
                     }
                 });
             });
-            row(ui, "Modele", |ui| {
+            row(ui, t!("Modele"), |ui| {
                 ui.vertical(|ui| {
                     let dir = models_dir();
                     let count = std::fs::read_dir(&dir).map(|d| d.flatten().filter(|e| e.path().extension().is_some_and(|x| x == "onnx")).count()).unwrap_or(0);
-                    ui.small(format!("{} (pobrane warianty: {count})", dir.display()));
+                    ui.small(t!("{dir} (pobrane warianty: {count})", dir = dir.display(), count = count));
                     ui.horizontal_wrapped(|ui| {
                         ui.hyperlink_to(egui::RichText::new("unlimited.waifu2x.net").small(), "https://unlimited.waifu2x.net/");
                         ui.small("·");
-                        ui.hyperlink_to(egui::RichText::new("projekt nunif (MIT)").small(), "https://github.com/nagadomi/nunif");
+                        ui.hyperlink_to(egui::RichText::new(t!("projekt nunif (MIT)")).small(), "https://github.com/nagadomi/nunif");
                     });
                 });
             });
         });
     });
     ui.add_space(10.0);
-    if ui.button("Przywróć domyślne").clicked() {
+    if ui.button(t!("Przywróć domyślne")).clicked() {
         s.reset_section(PrefsSection::Upscale);
     }
 }
@@ -474,25 +486,25 @@ fn upscale_page(ui: &mut Ui, s: &mut Settings) {
 /// Replicate: jeden przełącznik dla wszystkich płatnych funkcji, klucz i model edycji.
 fn replicate_page(ui: &mut Ui, s: &mut Settings, result: &mut PrefsResult) {
     let pal = theme::p();
-    ui.heading("Replicate (edycja AI online)");
+    ui.heading(t!("Replicate (edycja AI online)"));
     ui.colored_label(
         pal.text_dim,
-        "Edycja zdjęcia poleceniem (np. białe tło z cieniem, usunięcie napisów). Płatne za każdy obraz z kredytu \
-         konta Replicate; zdjęcie jest wysyłane na serwery Replicate (dane zapytań kasowane po godzinie).",
+        t!("Edycja zdjęcia poleceniem (np. białe tło z cieniem, usunięcie napisów). Płatne za każdy obraz z kredytu \
+         konta Replicate; zdjęcie jest wysyłane na serwery Replicate (dane zapytań kasowane po godzinie)."),
     );
     ui.add_space(8.0);
-    ui.checkbox(&mut s.replicate_enabled, egui::RichText::new("Włącz funkcje Replicate").strong())
-        .on_hover_text("Wyłączone: znikają wszystkie płatne przyciski Replicate (panel „Edycja AI” i menu zdjęcia).");
+    ui.checkbox(&mut s.replicate_enabled, egui::RichText::new(t!("Włącz funkcje Replicate")).strong())
+        .on_hover_text(t!("Wyłączone: znikają wszystkie płatne przyciski Replicate (panel „Edycja AI” i menu zdjęcia)."));
     if !crate::ai::REPLICATE_AVAILABLE {
         ui.colored_label(
             pal.warning,
-            "W przeglądarce Replicate nie działa – blokuje zapytania ze stron WWW. Użyj wersji na komputer albo Androida.",
+            t!("W przeglądarce Replicate nie działa – blokuje zapytania ze stron WWW. Użyj wersji na komputer albo Androida."),
         );
     }
     ui.add_space(6.0);
     ui.add_enabled_ui(s.replicate_enabled, |ui| {
         egui::Grid::new("prefs_replicate").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
-            row(ui, "Klucz API", |ui| {
+            row(ui, t!("Klucz API"), |ui| {
                 ui.vertical(|ui| {
                     let field = ui.add(
                         egui::TextEdit::singleline(&mut s.replicate_key)
@@ -502,49 +514,49 @@ fn replicate_page(ui: &mut Ui, s: &mut Settings, result: &mut PrefsResult) {
                     );
                     native_text(ui, &field, crate::platform::TextTarget::ReplicateKey, &s.replicate_key, result);
                     ui.horizontal_wrapped(|ui| {
-                        ui.hyperlink_to(egui::RichText::new("utwórz klucz").small(), "https://replicate.com/account/api-tokens");
+                        ui.hyperlink_to(egui::RichText::new(t!("utwórz klucz")).small(), "https://replicate.com/account/api-tokens");
                         ui.small("·");
-                        ui.hyperlink_to(egui::RichText::new("kredyt i rozliczenia").small(), "https://replicate.com/account/billing");
+                        ui.hyperlink_to(egui::RichText::new(t!("kredyt i rozliczenia")).small(), "https://replicate.com/account/billing");
                     });
                     let key = s.replicate_api_key();
                     if key.is_empty() {
-                        ui.colored_label(pal.warning, egui::RichText::new("brak klucza – funkcje Replicate są ukryte").small());
+                        ui.colored_label(pal.warning, egui::RichText::new(t!("brak klucza – funkcje Replicate są ukryte")).small());
                     } else if s.replicate_key.trim().is_empty() {
                         ui.colored_label(
                             pal.ok(),
-                            egui::RichText::new(format!(
-                                "✔ klucz {} – z REPLICATE_API_TOKEN albo ~/.config/asone/replicate-token",
-                                crate::settings::masked_key(&key)
+                            egui::RichText::new(t!(
+                                "✔ klucz {key} – z REPLICATE_API_TOKEN albo ~/.config/asone/replicate-token",
+                                key = crate::settings::masked_key(&key)
                             ))
                             .small(),
                         );
                     } else {
-                        ui.colored_label(pal.ok(), egui::RichText::new(format!("✔ zapisany klucz {}", crate::settings::masked_key(&key))).small());
+                        ui.colored_label(pal.ok(), egui::RichText::new(t!("✔ zapisany klucz {key}", key = crate::settings::masked_key(&key))).small());
                     }
-                    ui.small("Klucz wpisany tutaj jest zapisywany tylko lokalnie, w ustawieniach AsOne.");
+                    ui.small(t!("Klucz wpisany tutaj jest zapisywany tylko lokalnie, w ustawieniach AsOne."));
                 });
             });
-            row(ui, "Model", |ui| {
+            row(ui, t!("Model"), |ui| {
                 ui.vertical(|ui| {
                     for model in EditModel::ALL {
                         ui.horizontal(|ui| {
-                            ui.radio_value(&mut s.replicate_model, model, format!("{} – {} za obraz", model.label(), model.price()));
+                            ui.radio_value(&mut s.replicate_model, model, t!("{model} – {price} za obraz", model = model.label(), price = model.price()));
                             ui.hyperlink_to(egui::RichText::new("strona").small(), model.page_url());
                         });
                     }
-                    ui.small("Ceny z cennika Replicate z 20.11.2026; wyniki wolno używać komercyjnie (strona modelu).");
+                    ui.small(t!("Ceny z cennika Replicate z 20.11.2026; wyniki wolno używać komercyjnie (strona modelu)."));
                 });
             });
-            row(ui, "Wysyłane", |ui| {
+            row(ui, t!("Wysyłane"), |ui| {
                 ui.vertical(|ui| {
-                    ui.small("obraz z zakładki (kadr, marginesy, smartfon) jako JPEG do 1536 px");
-                    ui.small("wynik (ok. 1 Mpx) zastępuje zdjęcie w zakładce – „Przywróć oryginał” wraca do pliku");
+                    ui.small(t!("obraz z zakładki (kadr, marginesy, smartfon) jako JPEG do 1536 px"));
+                    ui.small(t!("wynik (ok. 1 Mpx) zastępuje zdjęcie w zakładce – „Przywróć oryginał” wraca do pliku"));
                 });
             });
         });
     });
     ui.add_space(10.0);
-    if ui.button("Przywróć domyślne").clicked() {
+    if ui.button(t!("Przywróć domyślne")).clicked() {
         s.reset_section(PrefsSection::Replicate);
     }
 }
@@ -552,72 +564,72 @@ fn replicate_page(ui: &mut Ui, s: &mut Settings, result: &mut PrefsResult) {
 /// RMBG-3.0 online (fal.ai): koszt, klucz API, co jest wysyłane.
 fn online_rows(ui: &mut Ui, s: &mut Settings, result: &mut PrefsResult) {
     let pal = theme::p();
-    row(ui, "Wymagania", |ui| {
+    row(ui, t!("Wymagania"), |ui| {
         ui.vertical(|ui| {
-            ui.colored_label(pal.warning, "internet · konto fal.ai z doładowanymi kredytami");
+            ui.colored_label(pal.warning, t!("internet · konto fal.ai z doładowanymi kredytami"));
             ui.horizontal_wrapped(|ui| {
-                ui.small("0,018 USD za zdjęcie (cennik fal.ai z 20.11.2026) –");
-                ui.hyperlink_to(egui::RichText::new("aktualna cena").small(), s.ai_model.page_url());
+                ui.small(t!("0,018 USD za zdjęcie (cennik fal.ai z 20.11.2026) –"));
+                ui.hyperlink_to(egui::RichText::new(t!("aktualna cena")).small(), s.ai_model.page_url());
             });
-            ui.small("kilka–kilkanaście sekund na zdjęcie (wysyłanie + model na serwerze)");
+            ui.small(t!("kilka–kilkanaście sekund na zdjęcie (wysyłanie + model na serwerze)"));
         });
     });
-    row(ui, "Klucz fal.ai", |ui| {
+    row(ui, t!("Klucz fal.ai"), |ui| {
         ui.vertical(|ui| {
             let field = ui.add(
                 egui::TextEdit::singleline(&mut s.fal_key)
                     .password(true)
-                    .hint_text("klucz API fal.ai (albo zmienna FAL_KEY)")
+                    .hint_text(t!("klucz API fal.ai (albo zmienna FAL_KEY)"))
                     .desired_width(300.0),
             );
             native_text(ui, &field, crate::platform::TextTarget::FalKey, &s.fal_key, result);
             ui.horizontal_wrapped(|ui| {
-                ui.hyperlink_to(egui::RichText::new("utwórz klucz").small(), "https://fal.ai/dashboard/keys");
+                ui.hyperlink_to(egui::RichText::new(t!("utwórz klucz")).small(), "https://fal.ai/dashboard/keys");
                 ui.small("·");
-                ui.hyperlink_to(egui::RichText::new("saldo i zużycie").small(), "https://fal.ai/dashboard/usage-billing");
+                ui.hyperlink_to(egui::RichText::new(t!("saldo i zużycie")).small(), "https://fal.ai/dashboard/usage-billing");
                 ui.small("·");
-                ui.hyperlink_to(egui::RichText::new("historia zapytań").small(), "https://fal.ai/dashboard/requests");
+                ui.hyperlink_to(egui::RichText::new(t!("historia zapytań")).small(), "https://fal.ai/dashboard/requests");
             });
-            ui.small("Klucz jest zapisywany tylko lokalnie, w ustawieniach AsOne.");
+            ui.small(t!("Klucz jest zapisywany tylko lokalnie, w ustawieniach AsOne."));
             let key = s.fal_api_key();
             if !key.is_empty() {
-                let from = if s.fal_key.trim().is_empty() { " – ze zmiennej FAL_KEY" } else { "" };
-                ui.colored_label(pal.ok(), egui::RichText::new(format!("✔ zapisany klucz {}{from}", crate::settings::masked_key(&key))).small());
+                let from = if s.fal_key.trim().is_empty() { t!(" – ze zmiennej FAL_KEY") } else { "" };
+                ui.colored_label(pal.ok(), egui::RichText::new(format!("{}{from}", t!("✔ zapisany klucz {key}", key = crate::settings::masked_key(&key)))).small());
             }
         });
     });
-    row(ui, "Licencja", |ui| {
+    row(ui, t!("Licencja"), |ui| {
         ui.vertical(|ui| {
-            ui.colored_label(pal.ok(), "do zastosowań komercyjnych");
+            ui.colored_label(pal.ok(), t!("do zastosowań komercyjnych"));
             ui.horizontal_wrapped(|ui| {
-                ui.small("fal.ai: „Commercial use” – model trenowany wyłącznie na licencjonowanych danych –");
-                ui.hyperlink_to(egui::RichText::new("warunki na stronie modelu").small(), s.ai_model.page_url());
+                ui.small(t!("fal.ai: „Commercial use” – model trenowany wyłącznie na licencjonowanych danych –"));
+                ui.hyperlink_to(egui::RichText::new(t!("warunki na stronie modelu")).small(), s.ai_model.page_url());
             });
         });
     });
-    row(ui, "Wysyłane", |ui| {
+    row(ui, t!("Wysyłane"), |ui| {
         ui.vertical(|ui| {
-            ui.small(format!(
-                "zdjęcie jako JPEG (dłuższy bok do {} px, bez metadanych) do fal.ai, model bria/rmbg-3",
-                crate::ai::FAL_UPLOAD_SIDE
+            ui.small(t!(
+                "zdjęcie jako JPEG (dłuższy bok do {side} px, bez metadanych) do fal.ai, model bria/rmbg-3",
+                side = crate::ai::FAL_UPLOAD_SIDE
             ));
-            ui.small("wynik: maska przezroczystości w rozmiarze zdjęcia – dalej jak przy modelach lokalnych");
+            ui.small(t!("wynik: maska przezroczystości w rozmiarze zdjęcia – dalej jak przy modelach lokalnych"));
         });
     });
 }
 
 fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, result: &mut PrefsResult) {
     let pal = theme::p();
-    ui.heading("Usuwanie tła (AI)");
+    ui.heading(t!("Usuwanie tła (AI)"));
     if s.ai_model.is_online() {
-        ui.colored_label(pal.warning, "RMBG-3.0 online: zdjęcie jest wysyłane do fal.ai, każde usunięcie tła jest płatne.");
+        ui.colored_label(pal.warning, t!("RMBG-3.0 online: zdjęcie jest wysyłane do fal.ai, każde usunięcie tła jest płatne."));
     } else {
-        ui.colored_label(pal.text_dim, "Modele BRIA RMBG-1.4 i 2.0 działają lokalnie – zdjęcia nie są nigdzie wysyłane.");
+        ui.colored_label(pal.text_dim, t!("Modele BRIA RMBG-1.4 i 2.0 działają lokalnie – zdjęcia nie są nigdzie wysyłane."));
     }
     if !crate::ai::AVAILABLE {
         ui.colored_label(
             pal.warning,
-            "Na tej platformie działa model online RMBG-3.0 (fal.ai); modele lokalne – tylko na Linux, Windows i macOS.",
+            t!("Na tej platformie działa model online RMBG-3.0 (fal.ai); modele lokalne – tylko na Linux, Windows i macOS."),
         );
         // Model lokalny i tak by tu nie zadziałał – w szkicu od razu model online (zapis dopiero po OK).
         if !s.ai_model.is_online() {
@@ -626,7 +638,7 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
     }
     ui.add_space(6.0);
     egui::Grid::new("prefs_ai").num_columns(2).spacing(vec2(14.0, 8.0)).show(ui, |ui| {
-        row(ui, "Model", |ui| {
+        row(ui, t!("Model"), |ui| {
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("ai_model")
                     .width(220.0)
@@ -636,19 +648,19 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                             ui.selectable_value(&mut s.ai_model, m, m.label());
                         }
                     });
-                ui.hyperlink_to("strona modelu", s.ai_model.page_url());
+                ui.hyperlink_to(t!("strona modelu"), s.ai_model.page_url());
             });
         });
         if s.ai_model.is_online() {
             online_rows(ui, s, result);
             return;
         }
-        row(ui, "Wymagania", |ui| {
+        row(ui, t!("Wymagania"), |ui| {
             let (weights, run) = crate::ai::memory_need_gb(s.ai_model);
             let (text, color) = match s.ai_model {
-                AiModel::Rmbg14 => (format!("ok. {:.0} GB RAM · ok. 1 s na zdjęcie", weights + run), pal.text_dim),
+                AiModel::Rmbg14 => (t!("ok. {gb} GB RAM · ok. 1 s na zdjęcie", gb = format!("{:.0}", weights + run)), pal.text_dim),
                 AiModel::Rmbg20 => (
-                    format!("ok. {:.0} GB wolnej pamięci RAM · 15–20 s na zdjęcie (procesor)", (weights + run).ceil()),
+                    t!("ok. {gb} GB wolnej pamięci RAM · 15–20 s na zdjęcie (procesor)", gb = format!("{:.0}", (weights + run).ceil())),
                     pal.warning,
                 ),
                 AiModel::Rmbg30Fal => (String::new(), pal.text_dim),
@@ -656,11 +668,11 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
             ui.vertical(|ui| {
                 ui.colored_label(color, text);
                 if let Some(free) = crate::ai::free_memory_bytes() {
-                    ui.small(format!("teraz wolne: {:.1} GB (RAM + swap)", free as f64 / (1u64 << 30) as f64));
+                    ui.small(t!("teraz wolne: {gb} GB (RAM + swap)", gb = format!("{:.1}", free as f64 / (1u64 << 30) as f64)));
                 }
             });
         });
-        row(ui, "Plik modelu", |ui| {
+        row(ui, t!("Plik modelu"), |ui| {
             ui.horizontal(|ui| {
                 let default = crate::settings::default_models_dir().join(s.ai_model.file_name());
                 let field = match s.ai_model {
@@ -672,7 +684,7 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                         .hint_text(default.display().to_string())
                         .desired_width(300.0),
                 );
-                if crate::platform::CAN_PICK_FOLDER && ui.button("Wybierz…").clicked() {
+                if crate::platform::CAN_PICK_FOLDER && ui.button(t!("Wybierz…")).clicked() {
                     result.pick_model = Some(ModelFile::Rmbg(s.ai_model));
                 }
             });
@@ -681,12 +693,12 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
             let path = s.ai_model_path();
             match std::fs::metadata(&path) {
                 Ok(m) if m.is_file() => {
-                    ui.colored_label(pal.ok(), format!("✔ Plik jest ({:.0} MB)", m.len() as f64 / 1_048_576.0))
+                    ui.colored_label(pal.ok(), t!("✔ Plik jest ({mb} MB)", mb = format!("{:.0}", m.len() as f64 / 1_048_576.0)))
                 }
-                _ => ui.colored_label(pal.warning, "Brak pliku – pobierz model poniżej albo wskaż istniejący plik .onnx"),
+                _ => ui.colored_label(pal.warning, t!("Brak pliku – pobierz model poniżej albo wskaż istniejący plik .onnx")),
             };
         });
-        row(ui, "Pobieranie", |ui| {
+        row(ui, t!("Pobieranie"), |ui| {
             ui.vertical(|ui| {
                 match download {
                     Some(d) if matches!(d.model, ModelFile::Rmbg(_)) => {
@@ -699,9 +711,9 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                     }
                     _ => {
                         let needs_token = s.ai_model.needs_token() && s.hf_token.trim().is_empty();
-                        let button = ui.add_enabled(crate::ai::AVAILABLE && !needs_token, egui::Button::new("Pobierz model"));
+                        let button = ui.add_enabled(crate::ai::AVAILABLE && !needs_token, egui::Button::new(t!("Pobierz model")));
                         let button = if needs_token {
-                            button.on_disabled_hover_text("RMBG-2.0 wymaga tokenu Hugging Face (poniżej)")
+                            button.on_disabled_hover_text(t!("RMBG-2.0 wymaga tokenu Hugging Face (poniżej)"))
                         } else {
                             button
                         };
@@ -711,37 +723,37 @@ fn ai_page(ui: &mut Ui, s: &mut Settings, download: Option<&DownloadView>, resul
                     }
                 }
                 ui.horizontal(|ui| {
-                    ui.small("lub pobierz ręcznie:");
+                    ui.small(t!("lub pobierz ręcznie:"));
                     ui.hyperlink_to(egui::RichText::new(s.ai_model.download_url()).small(), s.ai_model.download_url());
                 });
             });
         });
-        row(ui, "Token Hugging Face", |ui| {
+        row(ui, t!("Token Hugging Face"), |ui| {
             ui.vertical(|ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut s.hf_token)
                         .password(true)
-                        .hint_text("hf_…  (potrzebny tylko dla RMBG-2.0)")
+                        .hint_text(t!("hf_…  (potrzebny tylko dla RMBG-2.0)"))
                         .desired_width(300.0),
                 );
                 ui.horizontal_wrapped(|ui| {
-                    ui.small("klucz (token) po rejestracji na huggingface.co jest darmowy –");
-                    ui.hyperlink_to(egui::RichText::new("utwórz token (Read)").small(), "https://huggingface.co/settings/tokens");
+                    ui.small(t!("klucz (token) po rejestracji na huggingface.co jest darmowy –"));
+                    ui.hyperlink_to(egui::RichText::new(t!("utwórz token (Read)")).small(), "https://huggingface.co/settings/tokens");
                 });
-                ui.small("dla RMBG-2.0 zaakceptuj też licencję na stronie modelu. Token jest zapisywany tylko lokalnie.");
+                ui.small(t!("dla RMBG-2.0 zaakceptuj też licencję na stronie modelu. Token jest zapisywany tylko lokalnie."));
             });
         });
     });
     ui.add_space(8.0);
     let note = if s.ai_model.is_online() {
-        "RMBG-3.0 przez fal.ai: także do zastosowań komercyjnych; zapytania rozlicza fal.ai (przedpłacone kredyty)."
+        t!("RMBG-3.0 przez fal.ai: także do zastosowań komercyjnych; zapytania rozlicza fal.ai (przedpłacone kredyty).")
     } else {
-        "Lokalne modele BRIA RMBG-1.4 i 2.0 są darmowe do użytku niekomercyjnego; do komercyjnego potrzebna jest umowa \
-         z BRIA – albo RMBG-3.0 przez fal.ai."
+        t!("Lokalne modele BRIA RMBG-1.4 i 2.0 są darmowe do użytku niekomercyjnego; do komercyjnego potrzebna jest umowa \
+         z BRIA – albo RMBG-3.0 przez fal.ai.")
     };
     ui.colored_label(pal.text_dim, egui::RichText::new(note).small());
     ui.add_space(6.0);
-    if ui.button("Przywróć domyślne").clicked() {
+    if ui.button(t!("Przywróć domyślne")).clicked() {
         s.reset_section(PrefsSection::Ai);
     }
 }

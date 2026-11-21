@@ -46,6 +46,9 @@ bytemuck = { version = "1.25", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 web-time = "1.1"
 
+# Język systemu (polski → polski interfejs, inny → angielski); w przeglądarce – język przeglądarki.
+sys-locale = { version = "0.3", features = ["js"] }
+
 # Desktop + Android: pule wątków; HTTP dla pobierania modeli i funkcji online (fal.ai, Replicate).
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rayon = "1.12"
@@ -75,6 +78,9 @@ eframe = { version = "0.36", default-features = false, features = ["accesskit", 
 # Linux/BSD: wybór X11 (XWayland) zamiast Waylanda – upuszczanie plików (winit na Waylandzie go nie ma).
 [target.'cfg(all(unix, not(any(target_os = "android", target_os = "macos"))))'.dependencies]
 winit = { version = "0.30", default-features = false, features = ["x11"] }
+# Jasny / ciemny wygląd pulpitu z portalu (org.freedesktop.appearance) – motyw „Jak w systemie”
+# (winit pod X11 nie podaje wyglądu systemu). zbus jest już w drzewie zależności (accesskit).
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # GameActivity (androidx.games:games-activity 4.4.0 – wersja z android-activity 0.6.1) z powłoką Kotlin

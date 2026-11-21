@@ -31,10 +31,10 @@ pub enum TextTarget {
 impl TextTarget {
     pub fn title(self) -> &'static str {
         match self {
-            TextTarget::Name => "Wklej nazwę",
-            TextTarget::FalKey => "Klucz API fal.ai",
-            TextTarget::ReplicateKey => "Klucz API Replicate (r8_…)",
-            TextTarget::AiPrompt => "Polecenie dla AI",
+            TextTarget::Name => t!("Wklej nazwę"),
+            TextTarget::FalKey => t!("Klucz API fal.ai"),
+            TextTarget::ReplicateKey => t!("Klucz API Replicate (r8_…)"),
+            TextTarget::AiPrompt => t!("Polecenie dla AI"),
         }
     }
 
@@ -114,7 +114,7 @@ impl Tasks {
             .thread_name(move |i| format!("asone-{name}-{i}"))
             .build()
             .unwrap_or_else(|_| {
-                rayon::ThreadPoolBuilder::new().num_threads(1).build().expect("pula wątków")
+                rayon::ThreadPoolBuilder::new().num_threads(1).build().expect(t!("pula wątków"))
             });
         Self(pool)
     }
@@ -258,8 +258,8 @@ impl Pickers {
             let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
             run_dialog(move || {
                 let files = rfd::FileDialog::new()
-                    .set_title("Dodaj zdjęcia")
-                    .add_filter("Obrazy", asone_core::imageio::SUPPORTED_EXTENSIONS)
+                    .set_title(t!("Dodaj zdjęcia"))
+                    .add_filter(t!("Obrazy"), asone_core::imageio::SUPPORTED_EXTENSIONS)
                     .pick_files();
                 if let Some(files) = files {
                     let _ = tx.send(PickerEvent::Files(files.into_iter().map(ImageSource::Path).collect(), 0));
@@ -272,7 +272,7 @@ impl Pickers {
             let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
             wasm_bindgen_futures::spawn_local(async move {
                 let picked = rfd::AsyncFileDialog::new()
-                    .add_filter("Obrazy", asone_core::imageio::SUPPORTED_EXTENSIONS)
+                    .add_filter(t!("Obrazy"), asone_core::imageio::SUPPORTED_EXTENSIONS)
                     .pick_files()
                     .await;
                 if let Some(files) = picked {
@@ -319,7 +319,7 @@ impl Pickers {
         {
             let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
             run_dialog(move || {
-                if let Some(dir) = rfd::FileDialog::new().set_title("Dodaj folder ze zdjęciami").pick_folder() {
+                if let Some(dir) = rfd::FileDialog::new().set_title(t!("Dodaj folder ze zdjęciami")).pick_folder() {
                     let files = asone_core::imageio::expand_paths([dir]);
                     let _ = tx.send(PickerEvent::Files(files.into_iter().map(ImageSource::Path).collect(), 0));
                     ctx.request_repaint();
@@ -334,7 +334,7 @@ impl Pickers {
         {
             let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
             run_dialog(move || {
-                let mut dialog = rfd::FileDialog::new().set_title("Plik modelu ONNX").add_filter("Model ONNX", &["onnx"]);
+                let mut dialog = rfd::FileDialog::new().set_title(t!("Plik modelu ONNX")).add_filter(t!("Model ONNX"), &["onnx"]);
                 if let Some(dir) = start.filter(|d| d.is_dir()) {
                     dialog = dialog.set_directory(dir);
                 }
@@ -355,8 +355,8 @@ impl Pickers {
             let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
             run_dialog(move || {
                 let (label, ext) = match kind {
-                    SaveKind::ZipSelected | SaveKind::ZipExport => ("Archiwum ZIP", "zip"),
-                    SaveKind::PdfSelected => ("Dokument PDF", "pdf"),
+                    SaveKind::ZipSelected | SaveKind::ZipExport => (t!("Archiwum ZIP"), "zip"),
+                    SaveKind::PdfSelected => (t!("Dokument PDF"), "pdf"),
                 };
                 let mut dialog = rfd::FileDialog::new().set_file_name(default_name).add_filter(label, &[ext]);
                 if let Some(dir) = start.filter(|d| d.is_dir()) {
@@ -416,7 +416,7 @@ impl Pickers {
             });
         }
         #[cfg(any(target_os = "android", target_arch = "wasm32"))]
-        self.inject(PickerEvent::OverlayImage(id, Err("Obraz ze schowka: tylko w wersji desktopowej – użyj „z pliku…”".into())));
+        self.inject(PickerEvent::OverlayImage(id, Err(t!("Obraz ze schowka: tylko w wersji desktopowej – użyj „z pliku…”").into())));
     }
 
     /// „Wklej smartfon z pliku…”.
@@ -426,8 +426,8 @@ impl Pickers {
             let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
             run_dialog(move || {
                 let file = rfd::FileDialog::new()
-                    .set_title("Zdjęcie smartfona")
-                    .add_filter("Obrazy", asone_core::imageio::SUPPORTED_EXTENSIONS)
+                    .set_title(t!("Zdjęcie smartfona"))
+                    .add_filter(t!("Obrazy"), asone_core::imageio::SUPPORTED_EXTENSIONS)
                     .pick_file();
                 if let Some(path) = file {
                     let _ = tx.send(PickerEvent::OverlayImage(id, asone_core::imageio::decode_path(&path)));
@@ -440,7 +440,7 @@ impl Pickers {
             let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
             wasm_bindgen_futures::spawn_local(async move {
                 let picked = rfd::AsyncFileDialog::new()
-                    .add_filter("Obrazy", asone_core::imageio::SUPPORTED_EXTENSIONS)
+                    .add_filter(t!("Obrazy"), asone_core::imageio::SUPPORTED_EXTENSIONS)
                     .pick_file()
                     .await;
                 if let Some(f) = picked {
@@ -451,7 +451,7 @@ impl Pickers {
             });
         }
         #[cfg(target_os = "android")]
-        self.inject(PickerEvent::OverlayImage(id, Err("Wklejanie smartfona: na razie w wersji desktopowej i w przeglądarce".into())));
+        self.inject(PickerEvent::OverlayImage(id, Err(t!("Wklejanie smartfona: na razie w wersji desktopowej i w przeglądarce").into())));
     }
 
     /// Okno wyboru folderu docelowego eksportu (desktop).
@@ -460,7 +460,7 @@ impl Pickers {
         {
             let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
             run_dialog(move || {
-                let mut dialog = rfd::FileDialog::new().set_title("Folder docelowy eksportu");
+                let mut dialog = rfd::FileDialog::new().set_title(t!("Folder docelowy eksportu"));
                 if let Some(dir) = start.filter(|d| d.is_dir()) {
                     dialog = dialog.set_directory(dir);
                 }
@@ -482,7 +482,7 @@ fn clipboard_image() -> Result<RgbaImage, String> {
     let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("Schowek: {e}"))?;
     if let Ok(img) = clipboard.get_image() {
         return RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.into_owned())
-            .ok_or_else(|| "Schowek: uszkodzony obraz".to_string());
+            .ok_or_else(|| t!("Schowek: uszkodzony obraz").to_string());
     }
     let text = clipboard.get_text().unwrap_or_default();
     for line in text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
@@ -491,7 +491,7 @@ fn clipboard_image() -> Result<RgbaImage, String> {
             return asone_core::imageio::decode_path(&path);
         }
     }
-    Err("W schowku nie ma obrazu – skopiuj zdjęcie smartfona (np. „Kopiuj obraz” albo Ctrl+C na pliku)".into())
+    Err(t!("W schowku nie ma obrazu – skopiuj zdjęcie smartfona (np. „Kopiuj obraz” albo Ctrl+C na pliku)").into())
 }
 
 /// `%20` → spacja itd. (adresy `file://` ze schowka).
@@ -566,7 +566,7 @@ pub fn open_in_gimp(path: &Path) -> Result<(), String> {
             vec![("open", vec!["-a".into(), "GIMP".into(), path.into()])]
         } else if in_flatpak {
             // Piaskownica Flatpaka nie uruchamia programów hosta (bez dodatkowego uprawnienia).
-            return Err("W wersji Flatpak otwórz zdjęcie w GIMP-ie ręcznie (Otwórz folder pliku)".into());
+            return Err(t!("W wersji Flatpak otwórz zdjęcie w GIMP-ie ręcznie (Otwórz folder pliku)").into());
         } else {
             vec![
                 ("gimp", vec![path.into()]),
@@ -578,12 +578,12 @@ pub fn open_in_gimp(path: &Path) -> Result<(), String> {
                 return Ok(());
             }
         }
-        Err("Nie znaleziono GIMP-a (gimp ani flatpak org.gimp.GIMP)".into())
+        Err(t!("Nie znaleziono GIMP-a (gimp ani flatpak org.gimp.GIMP)").into())
     }
     #[cfg(any(target_os = "android", target_arch = "wasm32"))]
     {
         let _ = path;
-        Err("Niedostępne na tej platformie".into())
+        Err(t!("Niedostępne na tej platformie").into())
     }
 }
 
@@ -596,7 +596,7 @@ pub fn move_to_trash(paths: &[PathBuf]) -> Result<(), String> {
     #[cfg(any(target_os = "android", target_arch = "wasm32"))]
     {
         let _ = paths;
-        Err("Kosz niedostępny na tej platformie".into())
+        Err(t!("Kosz niedostępny na tej platformie").into())
     }
 }
 
@@ -637,7 +637,7 @@ pub fn download_origin(path: &Path) -> Vec<(String, String)> {
     #[cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))]
     {
         let get = |name: &str| xattr::get(path, name).ok().flatten();
-        for (name, label) in [("user.xdg.origin.url", "Pobrano z"), ("user.xdg.referrer.url", "Strona, z której pobrano")] {
+        for (name, label) in [("user.xdg.origin.url", t!("Pobrano z")), ("user.xdg.referrer.url", t!("Strona, z której pobrano"))] {
             if let Some(v) = get(name) {
                 let v = String::from_utf8_lossy(&v).trim_matches(char::from(0)).trim().to_string();
                 if !v.is_empty() {
@@ -649,13 +649,13 @@ pub fn download_origin(path: &Path) -> Vec<(String, String)> {
         {
             if let Some(plist) = get("com.apple.metadata:kMDItemWhereFroms") {
                 for (i, url) in printable_urls(&plist).into_iter().enumerate() {
-                    out.push((if i == 0 { "Pobrano z" } else { "Strona, z której pobrano" }.into(), url));
+                    out.push((if i == 0 { t!("Pobrano z") } else { t!("Strona, z której pobrano") }.into(), url));
                 }
             }
             if let Some(q) = get("com.apple.quarantine") {
                 let q = String::from_utf8_lossy(&q).into_owned();
                 if let Some(agent) = q.split(';').nth(2).filter(|a| !a.is_empty()) {
-                    out.push(("Pobrane przez".into(), agent.to_string()));
+                    out.push((t!("Pobrane przez").into(), agent.to_string()));
                 }
             }
         }
@@ -666,11 +666,11 @@ pub fn download_origin(path: &Path) -> Vec<(String, String)> {
             for line in text.lines() {
                 let line = line.trim();
                 if let Some(v) = line.strip_prefix("HostUrl=") {
-                    out.push(("Pobrano z".into(), v.to_string()));
+                    out.push((t!("Pobrano z").into(), v.to_string()));
                 } else if let Some(v) = line.strip_prefix("ReferrerUrl=") {
-                    out.push(("Strona, z której pobrano".into(), v.to_string()));
+                    out.push((t!("Strona, z której pobrano").into(), v.to_string()));
                 } else if line == "ZoneId=3" {
-                    out.push(("Strefa".into(), "Internet".into()));
+                    out.push((t!("Strefa").into(), "Internet".into()));
                 }
             }
         }
@@ -693,6 +693,36 @@ fn printable_urls(bytes: &[u8]) -> Vec<String> {
 }
 
 /// Otwiera URL w domyślnej przeglądarce internetowej (desktop/flatpak/wasm).
+/// Linux/BSD: wygląd pulpitu z portalu (`org.freedesktop.appearance` / `color-scheme`):
+/// `Some(true)` – ciemny, `Some(false)` – jasny albo bez preferencji, `None` – brak portalu.
+#[cfg(all(unix, not(any(target_os = "android", target_os = "macos"))))]
+pub fn desktop_prefers_dark() -> Option<bool> {
+    use zbus::zvariant::{OwnedValue, Value};
+    fn number(v: &Value<'_>) -> Option<u32> {
+        match v {
+            Value::U32(n) => Some(*n),
+            Value::Value(inner) => number(inner),
+            _ => None,
+        }
+    }
+    let conn = zbus::blocking::Connection::session().ok()?;
+    let read = |method: &str| -> Option<u32> {
+        let reply = conn
+            .call_method(
+                Some("org.freedesktop.portal.Desktop"),
+                "/org/freedesktop/portal/desktop",
+                Some("org.freedesktop.portal.Settings"),
+                method,
+                &("org.freedesktop.appearance", "color-scheme"),
+            )
+            .ok()?;
+        let value: OwnedValue = reply.body().deserialize().ok()?;
+        number(&value)
+    };
+    // ReadOne (nowsze portale) albo Read (wartość w podwójnym wariancie).
+    read("ReadOne").or_else(|| read("Read")).map(|scheme| scheme == 1)
+}
+
 pub fn open_url(url: &str) {
     #[cfg(not(target_arch = "wasm32"))]
     {

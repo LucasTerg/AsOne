@@ -46,12 +46,12 @@ impl AsOneApp {
                 self.recent_previews.remove(dir);
             }
         }
-        let mut msg = format!("Dodano zdjęć: {added}");
+        let mut msg = t!("Dodano zdjęć: {n}", n = added);
         if dupes > 0 {
-            msg.push_str(&format!(" · pominięto duplikaty: {dupes}"));
+            msg.push_str(&t!(" · pominięto duplikaty: {n}", n = dupes));
         }
         if skipped > 0 {
-            msg.push_str(&format!(" · nieobsługiwane pliki: {skipped}"));
+            msg.push_str(&t!(" · nieobsługiwane pliki: {n}", n = skipped));
         }
         self.toast(msg, added == 0);
     }
@@ -81,7 +81,7 @@ impl AsOneApp {
         let dir = PathBuf::from(self.folder_input.trim());
         let files = asone_core::imageio::expand_paths([dir.clone()]);
         if files.is_empty() {
-            self.toast(format!("Brak zdjęć w {} (lub brak uprawnień)", dir.display()), true);
+            self.toast(t!("Brak zdjęć w {dir} (lub brak uprawnień)", dir = dir.display()), true);
         } else {
             self.add_sources(files.into_iter().map(ImageSource::Path).collect(), 0);
         }
@@ -144,7 +144,7 @@ impl AsOneApp {
         let all = self.order.clone();
         let n = all.len();
         self.remove_docs(&all);
-        self.toast(format!("Wyczyszczono listę ({n} zdjęć) – pliki na dysku zostały"), false);
+        self.toast(t!("Wyczyszczono listę ({n} zdjęć) – pliki na dysku zostały", n = n), false);
     }
 
     fn remove_docs(&mut self, ids: &[DocId]) {
@@ -214,7 +214,7 @@ impl AsOneApp {
                 Action::EditInGimp(id) => {
                     if let Some(p) = self.docs.get(&id).and_then(|d| d.source.path()).map(|p| p.to_path_buf()) {
                         match platform::open_in_gimp(&p) {
-                            Ok(()) => self.toast("Otwarto w GIMP – po zapisaniu użyj „Wczytaj ponownie z dysku”", false),
+                            Ok(()) => self.toast(t!("Otwarto w GIMP – po zapisaniu użyj „Wczytaj ponownie z dysku”"), false),
                             Err(e) => self.toast(e, true),
                         }
                     }
@@ -255,11 +255,11 @@ impl AsOneApp {
                     if path.is_dir() {
                         let files = asone_core::imageio::expand_paths([path]);
                         if files.is_empty() {
-                            self.toast(format!("W folderze nie ma zdjęć: {dir}"), true);
+                            self.toast(t!("W folderze nie ma zdjęć: {dir}", dir = dir), true);
                         }
                         self.add_sources(files.into_iter().map(ImageSource::Path).collect(), 0);
                     } else {
-                        self.toast(format!("Folder nie istnieje: {dir}"), true);
+                        self.toast(t!("Folder nie istnieje: {dir}", dir = dir), true);
                         self.recent_previews.insert(dir, RecentPreview::Missing);
                     }
                 }
@@ -290,7 +290,7 @@ impl AsOneApp {
                 let files = std::mem::take(&mut self.pending_save);
                 self.ops.spawn(move || {
                     let msg = match zip_files(&files, &target) {
-                        Ok(n) => OpsMsg::Toast(format!("ZIP: {n} plików → {}", target.display()), false),
+                        Ok(n) => OpsMsg::Toast(t!("ZIP: {n} plików → {path}", n = n, path = target.display()), false),
                         Err(e) => OpsMsg::Toast(format!("ZIP: {e}"), true),
                     };
                     let _ = tx.send(msg);
@@ -321,7 +321,7 @@ impl AsOneApp {
                         let n = p.len();
                         std::fs::write(&target, images_to_pdf(&p)).map(|()| n).map_err(|e| e.to_string())
                     }) {
-                        Ok(n) => OpsMsg::Toast(format!("PDF: {n} stron → {}", target.display()), false),
+                        Ok(n) => OpsMsg::Toast(t!("PDF: {n} stron → {path}", n = n, path = target.display()), false),
                         Err(e) => OpsMsg::Toast(format!("PDF: {e}"), true),
                     };
                     let _ = tx.send(msg);
@@ -341,8 +341,12 @@ impl AsOneApp {
         match result {
             Ok(()) => {
                 self.remove_docs(ids);
-                let how = if trash { "przeniesiono do kosza" } else { "usunięto trwale" };
-                self.toast(format!("{} plików {how}", paths.len()), false);
+                let msg = if trash {
+                    t!("Przeniesiono do kosza: {n}", n = paths.len())
+                } else {
+                    t!("Usunięto trwale: {n}", n = paths.len())
+                };
+                self.toast(msg, false);
             }
             Err(e) => self.toast(e, true),
         }
@@ -376,17 +380,17 @@ impl AsOneApp {
 
     pub(super) fn export_blocker(&self, open: &[DocId]) -> Option<&'static str> {
         if self.export.is_some() {
-            Some("Trwa eksport")
+            Some(t!("Trwa eksport"))
         } else if open.is_empty() {
-            Some("Otwórz zdjęcia w zakładkach (kliknij miniaturę)")
+            Some(t!("Otwórz zdjęcia w zakładkach (kliknij miniaturę)"))
         } else if slugify(&self.base_name).is_empty() {
-            Some("Wklej lub wpisz nazwę")
+            Some(t!("Wklej lub wpisz nazwę"))
         } else if self.gpu.is_none() {
-            Some("Brak GPU (wgpu)")
+            Some(t!("Brak GPU (wgpu)"))
         } else if open.iter().any(|id| self.docs.get(id).is_none_or(|d| !d.is_ready())) {
-            Some("Poczekaj, aż wszystkie otwarte zdjęcia się wczytają")
+            Some(t!("Poczekaj, aż wszystkie otwarte zdjęcia się wczytają"))
         } else if platform::EXPORT_TO_FOLDER && self.default_out_dir(open).is_none() {
-            Some("Wybierz folder docelowy")
+            Some(t!("Wybierz folder docelowy"))
         } else {
             None
         }
@@ -395,15 +399,15 @@ impl AsOneApp {
     /// Dlaczego „Zmień tylko nazwę” jest nieaktywne (`None` = można).
     pub(super) fn rename_blocker(&self, open: &[DocId]) -> Option<&'static str> {
         if !platform::FILE_OPS {
-            Some("Zmiana nazw plików działa w wersji desktopowej")
+            Some(t!("Zmiana nazw plików działa w wersji desktopowej"))
         } else if self.export.is_some() {
-            Some("Trwa eksport")
+            Some(t!("Trwa eksport"))
         } else if open.is_empty() {
-            Some("Otwórz zdjęcia w zakładkach (kliknij miniaturę)")
+            Some(t!("Otwórz zdjęcia w zakładkach (kliknij miniaturę)"))
         } else if slugify(&self.base_name).is_empty() {
-            Some("Wklej lub wpisz nazwę")
+            Some(t!("Wklej lub wpisz nazwę"))
         } else if open.iter().any(|id| self.docs.get(id).is_none_or(|d| d.source.path().is_none())) {
-            Some("Zdjęcia muszą być plikami na dysku")
+            Some(t!("Zdjęcia muszą być plikami na dysku"))
         } else {
             None
         }
@@ -444,8 +448,8 @@ impl AsOneApp {
             }
         }
         match errors.as_slice() {
-            [] => self.toast(format!("Zmieniono nazwy plików: {changed}"), false),
-            [first, ..] => self.toast(format!("Zmieniono: {changed} · błędy: {} – {first}", errors.len()), true),
+            [] => self.toast(t!("Zmieniono nazwy plików: {n}", n = changed), false),
+            [first, ..] => self.toast(t!("Zmieniono: {n} · błędy: {errors} – {first}", n = changed, errors = errors.len(), first = first), true),
         }
     }
 

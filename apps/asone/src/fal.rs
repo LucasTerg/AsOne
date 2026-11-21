@@ -29,7 +29,7 @@ const MAX_RESPONSE: u64 = 128 * 1024 * 1024;
 /// Treść zapytania (JSON) albo błąd braku klucza.
 fn request_body(image: &RgbaImage, key: &str) -> Result<String, String> {
     if key.trim().is_empty() {
-        return Err("Brak klucza fal.ai – wpisz go w Ustawienia › Preferencje › Usuwanie tła (AI)".into());
+        return Err(t!("Brak klucza fal.ai – wpisz go w Ustawienia › Preferencje › Usuwanie tła (AI)").into());
     }
     Ok(serde_json::json!({ "image_url": jpeg_data_uri(image)?, "sync_mode": true }).to_string())
 }
@@ -39,19 +39,19 @@ fn output_url(status: u16, text: &str) -> Result<String, String> {
     if status != 200 {
         return Err(error_message(status, text));
     }
-    let json: serde_json::Value = serde_json::from_str(text).map_err(|e| format!("fal.ai: nieczytelna odpowiedź ({e})"))?;
-    json.pointer("/image/url").and_then(|v| v.as_str()).map(String::from).ok_or_else(|| "fal.ai: odpowiedź bez obrazu".into())
+    let json: serde_json::Value = serde_json::from_str(text).map_err(|e| t!("fal.ai: nieczytelna odpowiedź ({e})", e = e))?;
+    json.pointer("/image/url").and_then(|v| v.as_str()).map(String::from).ok_or_else(|| t!("fal.ai: odpowiedź bez obrazu").into())
 }
 
 /// Bajty z `data:…;base64,…` (`sync_mode`); `None`, gdy to zwykły adres.
 fn data_uri_bytes(url: &str) -> Option<Result<Vec<u8>, String>> {
     let rest = url.strip_prefix("data:")?;
     Some((|| {
-        let (head, data) = rest.split_once(',').ok_or("fal.ai: uszkodzony data URI")?;
+        let (head, data) = rest.split_once(',').ok_or(t!("fal.ai: uszkodzony data URI"))?;
         if !head.ends_with(";base64") {
-            return Err("fal.ai: nieobsługiwany data URI".to_string());
+            return Err(t!("fal.ai: nieobsługiwany data URI").to_string());
         }
-        base64::engine::general_purpose::STANDARD.decode(data.trim()).map_err(|e| format!("fal.ai: uszkodzony data URI ({e})"))
+        base64::engine::general_purpose::STANDARD.decode(data.trim()).map_err(|e| t!("fal.ai: uszkodzony data URI ({e})", e = e))
     })())
 }
 
@@ -69,7 +69,7 @@ pub async fn remove_background_async(image: &RgbaImage, key: &str) -> Result<Gra
         None => {
             let (status, bytes) = web_fetch("GET", &url, None, &[]).await?;
             if status != 200 {
-                return Err(format!("fal.ai: pobieranie wyniku (HTTP {status})"));
+                return Err(t!("fal.ai: pobieranie wyniku (HTTP {status})", status = status));
             }
             bytes
         }
@@ -91,7 +91,7 @@ async fn web_fetch(method: &str, url: &str, body: Option<&str>, headers: &[(&str
     for (k, v) in headers {
         request.headers().set(k, v).map_err(js)?;
     }
-    let window = web_sys::window().ok_or("fal.ai: brak okna przeglądarki")?;
+    let window = web_sys::window().ok_or(t!("fal.ai: brak okna przeglądarki"))?;
     let response: web_sys::Response =
         wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request)).await.map_err(js)?.dyn_into().map_err(js)?;
     let buffer = wasm_bindgen_futures::JsFuture::from(response.array_buffer().map_err(js)?).await.map_err(js)?;
@@ -111,14 +111,14 @@ pub fn remove_background(image: &RgbaImage, key: &str) -> Result<GrayImage, Stri
         .header("Authorization", &format!("Key {key}"))
         .header("Content-Type", "application/json")
         .send(body.as_bytes())
-        .map_err(|e| format!("fal.ai: brak połączenia ({e})"))?;
+        .map_err(|e| t!("fal.ai: brak połączenia ({e})", e = e))?;
     let status = resp.status().as_u16();
     let text = resp
         .body_mut()
         .with_config()
         .limit(MAX_RESPONSE)
         .read_to_string()
-        .map_err(|e| format!("fal.ai: przerwana odpowiedź ({e})"))?;
+        .map_err(|e| t!("fal.ai: przerwana odpowiedź ({e})", e = e))?;
     let url = output_url(status, &text)?;
     let png = fetch(&url)?;
     matte(&png)
@@ -145,7 +145,7 @@ fn jpeg_data_uri(image: &RgbaImage) -> Result<String, String> {
     let mut jpeg = Vec::new();
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 92)
         .encode(&rgb, img.width(), img.height(), image::ExtendedColorType::Rgb8)
-        .map_err(|e| format!("fal.ai: kodowanie zdjęcia ({e})"))?;
+        .map_err(|e| t!("fal.ai: kodowanie zdjęcia ({e})", e = e))?;
     Ok(format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(jpeg)))
 }
 
@@ -160,23 +160,23 @@ fn fetch(url: &str) -> Result<Vec<u8>, String> {
         .timeout_global(Some(TIMEOUT))
         .build()
         .call()
-        .map_err(|e| format!("fal.ai: pobieranie wyniku ({e})"))?;
+        .map_err(|e| t!("fal.ai: pobieranie wyniku ({e})", e = e))?;
     resp.body_mut()
         .with_config()
         .limit(MAX_RESPONSE)
         .read_to_vec()
-        .map_err(|e| format!("fal.ai: pobieranie wyniku ({e})"))
+        .map_err(|e| t!("fal.ai: pobieranie wyniku ({e})", e = e))
 }
 
 /// Maska z PNG: kanał alfa, a gdy go nie ma (albo jest pełny) – jasność (biały = obiekt).
 fn matte(bytes: &[u8]) -> Result<GrayImage, String> {
-    let img = image::load_from_memory(bytes).map_err(|e| format!("fal.ai: nieczytelny wynik ({e})"))?;
+    let img = image::load_from_memory(bytes).map_err(|e| t!("fal.ai: nieczytelny wynik ({e})", e = e))?;
     if img.color().has_alpha() {
         let rgba = img.to_rgba8();
         if rgba.pixels().any(|p| p[3] < 255) {
             let (w, h) = rgba.dimensions();
             let alpha = rgba.pixels().map(|p| p[3]).collect();
-            return GrayImage::from_raw(w, h, alpha).ok_or_else(|| "fal.ai: zły rozmiar maski".to_string());
+            return GrayImage::from_raw(w, h, alpha).ok_or_else(|| t!("fal.ai: zły rozmiar maski").to_string());
         }
     }
     Ok(img.to_luma8())
@@ -199,11 +199,11 @@ fn error_message(status: u16, body: &str) -> String {
         .unwrap_or_else(|| body.trim().to_string());
     let detail: String = detail.chars().take(300).collect();
     match status {
-        401 => "fal.ai: nieprawidłowy klucz API (401)".into(),
-        403 => format!("fal.ai: brak dostępu (403) – sprawdź saldo konta fal.ai. {detail}"),
-        422 => format!("fal.ai: zdjęcie odrzucone (422). {detail}"),
-        429 => "fal.ai: za dużo zapytań naraz (429) – spróbuj za chwilę".into(),
-        _ => format!("fal.ai: błąd {status}. {detail}"),
+        401 => t!("fal.ai: nieprawidłowy klucz API (401)").into(),
+        403 => t!("fal.ai: brak dostępu (403) – sprawdź saldo konta fal.ai. {detail}", detail = detail),
+        422 => t!("fal.ai: zdjęcie odrzucone (422). {detail}", detail = detail),
+        429 => t!("fal.ai: za dużo zapytań naraz (429) – spróbuj za chwilę").into(),
+        _ => t!("fal.ai: błąd {status}. {detail}", status = status, detail = detail),
     }
 }
 

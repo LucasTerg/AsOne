@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ThemeKind {
+    /// Jasny albo ciemny – jak ustawiono w systemie (domyślny).
     #[default]
+    System,
     AsOne,
     Pro,
     ProMedium,
@@ -29,7 +31,8 @@ pub enum ThemeKind {
 }
 
 impl ThemeKind {
-    pub const ALL: [ThemeKind; 16] = [
+    pub const ALL: [ThemeKind; 17] = [
+        ThemeKind::System,
         ThemeKind::AsOne,
         ThemeKind::Pro,
         ThemeKind::ProMedium,
@@ -50,21 +53,22 @@ impl ThemeKind {
 
     pub fn label(self) -> &'static str {
         match self {
-            ThemeKind::AsOne => "AsOne (ciemny)",
-            ThemeKind::Pro => "Pro (ciemny)",
-            ThemeKind::ProMedium => "Pro (średni szary)",
-            ThemeKind::ProLightGray => "Pro (jasnoszary)",
-            ThemeKind::ProLight => "Pro (jasny)",
-            ThemeKind::Studio => "Studio (ciemny)",
-            ThemeKind::StudioLight => "Studio (jasny)",
-            ThemeKind::Classic => "Klasyczny",
-            ThemeKind::Adwaita => "Adwaita (jasny)",
-            ThemeKind::AdwaitaDark => "Adwaita (ciemny)",
+            ThemeKind::System => t!("Jak w systemie (jasny / ciemny)"),
+            ThemeKind::AsOne => t!("AsOne (ciemny)"),
+            ThemeKind::Pro => t!("Pro (ciemny)"),
+            ThemeKind::ProMedium => t!("Pro (średni szary)"),
+            ThemeKind::ProLightGray => t!("Pro (jasnoszary)"),
+            ThemeKind::ProLight => t!("Pro (jasny)"),
+            ThemeKind::Studio => t!("Studio (ciemny)"),
+            ThemeKind::StudioLight => t!("Studio (jasny)"),
+            ThemeKind::Classic => t!("Klasyczny"),
+            ThemeKind::Adwaita => t!("Adwaita (jasny)"),
+            ThemeKind::AdwaitaDark => t!("Adwaita (ciemny)"),
             ThemeKind::SolarizedDark => "Solarized Dark",
-            ThemeKind::BreezeLight => "Breeze (jasny)",
-            ThemeKind::BreezeDark => "Breeze (ciemny)",
-            ThemeKind::SoftDark => "Soft (ciemny)",
-            ThemeKind::SoftLight => "Soft (jasny)",
+            ThemeKind::BreezeLight => t!("Breeze (jasny)"),
+            ThemeKind::BreezeDark => t!("Breeze (ciemny)"),
+            ThemeKind::SoftDark => t!("Soft (ciemny)"),
+            ThemeKind::SoftLight => t!("Soft (jasny)"),
             ThemeKind::Sepia => "Sepia",
         }
     }
@@ -158,7 +162,8 @@ impl Palette {
     /// Kolory wygenerowane z tokenów motywów (`Tokens::for_kind`, z rozwiniętym dziedziczeniem).
     pub fn for_kind(kind: ThemeKind) -> Palette {
         match kind {
-            ThemeKind::AsOne => ASONE,
+            // Rozstrzygany wcześniej (`ThemeKind::resolve`); tu – ciemny jak dotąd.
+            ThemeKind::System | ThemeKind::AsOne => ASONE,
             ThemeKind::Sepia => SEPIA,
         ThemeKind::Pro => Palette {
             chrome: rgb(50, 50, 50),
@@ -553,16 +558,79 @@ pub fn p() -> Palette {
     *CURRENT.read().unwrap_or_else(|e| e.into_inner())
 }
 
+impl ThemeKind {
+    /// Motyw do narysowania: „Jak w systemie” → AsOne (ciemny) albo Pro (jasny).
+    pub fn resolve(self, system_dark: bool) -> ThemeKind {
+        match self {
+            ThemeKind::System if system_dark => ThemeKind::AsOne,
+            ThemeKind::System => ThemeKind::ProLight,
+            kind => kind,
+        }
+    }
+}
+
+/// Wygląd pulpitu z portalu: 0 – nieznany, 1 – ciemny, 2 – jasny albo bez preferencji.
+static DESKTOP_SCHEME: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+/// Czy system prosi o ciemny wygląd: portal pulpitu (Linux/BSD), inaczej informacja od okna
+/// (Windows, macOS, przeglądarka). Bez żadnej informacji – jasny.
+pub fn system_dark(ctx: &egui::Context) -> bool {
+    match DESKTOP_SCHEME.load(std::sync::atomic::Ordering::Relaxed) {
+        1 => true,
+        2 => false,
+        _ => ctx.system_theme() == Some(egui::Theme::Dark),
+    }
+}
+
+/// Linux/BSD: odczyt wyglądu pulpitu w tle co 5 s (zmiana w systemie przełącza motyw
+/// „Jak w systemie”). Czeka do 300 ms na pierwszą odpowiedź – pierwsza klatka ma już właściwy motyw.
+pub fn watch_system_scheme(ctx: &egui::Context) {
+    #[cfg(all(unix, not(any(target_os = "android", target_os = "macos"))))]
+    {
+        use std::sync::atomic::Ordering;
+        static STARTED: std::sync::Once = std::sync::Once::new();
+        STARTED.call_once(|| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let ctx = ctx.clone();
+            let _ = std::thread::Builder::new().name("system-theme".into()).spawn(move || {
+                let mut first = Some(tx);
+                loop {
+                    let scheme = match crate::platform::desktop_prefers_dark() {
+                        Some(true) => 1,
+                        Some(false) => 2,
+                        None => 0,
+                    };
+                    if DESKTOP_SCHEME.swap(scheme, Ordering::Relaxed) != scheme {
+                        ctx.request_repaint();
+                    }
+                    if let Some(tx) = first.take() {
+                        let _ = tx.send(());
+                    }
+                    if scheme == 0 {
+                        break; // brak portalu – zostaje informacja od okna
+                    }
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                }
+            });
+            let _ = rx.recv_timeout(std::time::Duration::from_millis(300));
+        });
+    }
+    #[cfg(not(all(unix, not(any(target_os = "android", target_os = "macos")))))]
+    let _ = ctx;
+}
+
 /// Opcje wyglądu z Preferencji › Interfejs.
 pub struct Appearance {
     pub kind: ThemeKind,
+    /// System prosi o ciemny wygląd (dla motywu „Jak w systemie”).
+    pub system_dark: bool,
     pub canvas: Option<Color32>,
     pub show_tooltips: bool,
     pub animations: bool,
 }
 
 pub fn apply(ctx: &egui::Context, a: &Appearance) {
-    let mut pal = Palette::for_kind(a.kind);
+    let mut pal = Palette::for_kind(a.kind.resolve(a.system_dark));
     if let Some(c) = a.canvas {
         pal.canvas = c;
     }
@@ -679,5 +747,21 @@ mod tests {
         }
         assert!(!Palette::for_kind(ThemeKind::Sepia).is_dark());
         assert!(Palette::for_kind(ThemeKind::AsOne).is_dark());
+    }
+
+    /// Wygląd pulpitu z portalu na tym komputerze: `cargo test -p asone wyglad_pulpitu -- --ignored --nocapture`
+    #[test]
+    #[ignore = "odpytuje portal pulpitu (sesja graficzna)"]
+    fn wyglad_pulpitu_na_zywo() {
+        #[cfg(all(unix, not(any(target_os = "android", target_os = "macos"))))]
+        eprintln!("portal: ciemny = {:?}", crate::platform::desktop_prefers_dark());
+    }
+
+    #[test]
+    fn motyw_jak_w_systemie() {
+        assert_eq!(ThemeKind::System.resolve(true), ThemeKind::AsOne);
+        assert_eq!(ThemeKind::System.resolve(false), ThemeKind::ProLight);
+        assert_eq!(ThemeKind::Sepia.resolve(true), ThemeKind::Sepia);
+        assert_eq!(crate::settings::Settings::default().theme, ThemeKind::System);
     }
 }

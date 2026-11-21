@@ -13,8 +13,10 @@ use crate::document::{AiState, BOTTOM, DocId, LEFT, LoadState, PxRect, RIGHT, TO
 use crate::theme;
 
 /// Podpowiedź przycisku „Spłaszcz zdjęcie”.
-const FLATTEN_HINT: &str = "Scala zdjęcie, marginesy, smartfon i usunięte tło (na tle) w jeden obraz – \
-     potem kadr, marginesy i gumka działają na całości. Bez cofania: „Przywróć oryginał” wczytuje plik od nowa.";
+fn flatten_hint() -> &'static str {
+    t!("Scala zdjęcie, marginesy, smartfon i usunięte tło (na tle) w jeden obraz – \
+        potem kadr, marginesy i gumka działają na całości. Bez cofania: „Przywróć oryginał” wczytuje plik od nowa.")
+}
 
 const MARGIN_STEP: u32 = 10;
 
@@ -29,7 +31,7 @@ impl AsOneApp {
             // Zakładki panelu: narzędzia edycji albo podgląd metadanych pliku.
             ui.horizontal(|ui| {
                 let w = (ui.available_width() - ui.spacing().item_spacing.x) / 2.0;
-                for (tab, label) in [(InspectorTab::Tools, "Narzędzia"), (InspectorTab::Metadata, "Metadane")] {
+                for (tab, label) in [(InspectorTab::Tools, t!("Narzędzia")), (InspectorTab::Metadata, t!("Metadane"))] {
                     let button = egui::Button::selectable(self.inspector_tab == tab, label).min_size(vec2(w, 24.0));
                     if ui.add(button).clicked() {
                         self.inspector_tab = tab;
@@ -52,7 +54,7 @@ impl AsOneApp {
             ui.add_space(2.0);
         };
         let Some(id) = self.active_doc.filter(|id| self.docs.contains_key(id)) else {
-            ui.colored_label(pal.text_dim, "Kliknij zdjęcie na liście plików, aby otworzyć je w zakładce i edytować.");
+            ui.colored_label(pal.text_dim, t!("Kliknij zdjęcie na liście plików, aby otworzyć je w zakładce i edytować."));
             return;
         };
         let max_long = self.settings.limit_long_side.then_some(self.settings.max_long_side);
@@ -89,7 +91,7 @@ impl AsOneApp {
             let Some(doc) = self.docs.get_mut(&id) else { return };
             ui.label(RichText::new(&doc.file_name).strong().size(14.0));
             if let Some((n, name)) = numbering.get(&id) {
-                ui.colored_label(pal.accent, format!("#{n} » {}", name.as_deref().unwrap_or("(wklej nazwę)")));
+                ui.colored_label(pal.accent, format!("#{n} » {}", name.as_deref().unwrap_or(t!("(wklej nazwę)"))));
             }
             let Some(src) = doc.src_size() else {
                 match &doc.load {
@@ -97,7 +99,7 @@ impl AsOneApp {
                     _ => {
                         ui.horizontal(|ui| {
                             ui.spinner();
-                            ui.label("Wczytywanie…");
+                            ui.label(t!("Wczytywanie…"));
                         })
                         .response
                     }
@@ -106,15 +108,15 @@ impl AsOneApp {
             };
             let out = doc.edits.output_size(src);
             egui::Grid::new("info").num_columns(2).spacing(vec2(10.0, 2.0)).show(ui, |ui| {
-                ui.colored_label(pal.text_dim, "Źródło");
+                ui.colored_label(pal.text_dim, t!("Źródło"));
                 ui.label(format!("{} × {} px", src[0], src[1]));
                 ui.end_row();
                 if let Some([w, h]) = doc.downscaled_from {
-                    ui.colored_label(pal.text_dim, "Oryginał");
-                    ui.label(format!("{w} × {h} (limit GPU)"));
+                    ui.colored_label(pal.text_dim, t!("Oryginał"));
+                    ui.label(t!("{w} × {h} (limit GPU)", w = w, h = h));
                     ui.end_row();
                 }
-                ui.colored_label(pal.text_dim, "Wynik");
+                ui.colored_label(pal.text_dim, t!("Wynik"));
                 ui.label(format!("{} × {} px", out[0], out[1]));
                 ui.end_row();
                 let mut saved = max_long.map_or(out, |m| fit_within(out, m));
@@ -124,7 +126,7 @@ impl AsOneApp {
                 if let Some(min) = limits.min_side {
                     saved = [saved[0].max(min), saved[1].max(min)];
                 }
-                ui.colored_label(pal.text_dim, "Zapis");
+                ui.colored_label(pal.text_dim, t!("Zapis"));
                 let capped = saved != out && max_long.is_none_or(|m| fit_within(out, m) != saved);
                 let text = format!("{} × {} px", saved[0], saved[1]);
                 if capped {
@@ -136,51 +138,51 @@ impl AsOneApp {
             });
             ui.separator();
 
-            section(ui, "Tło");
+            section(ui, t!("Tło"));
             match doc.ai.clone() {
                 AiState::Running => {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label(if ai_model.is_online() { "Usuwanie tła (fal.ai)…" } else { "Usuwanie tła…" });
+                        ui.label(if ai_model.is_online() { t!("Usuwanie tła (fal.ai)…") } else { t!("Usuwanie tła…") });
                     });
                 }
                 state => {
                     ui.horizontal(|ui| {
                         let tip = if ai_model.is_online() {
-                            format!("{} – zdjęcie zostanie wysłane do fal.ai (płatne za zdjęcie)", ai_model.label())
+                            t!("{model} – zdjęcie zostanie wysłane do fal.ai (płatne za zdjęcie)", model = ai_model.label())
                         } else {
                             format!("{} · {}", ai_model.label(), ai_path.display())
                         };
-                        if ui.button("Usuń tło").on_hover_text(tip).clicked() {
+                        if ui.button(t!("Usuń tło")).on_hover_text(tip).clicked() {
                             remove_bg = true;
                         }
-                        if ui.small_button("⚙").on_hover_text("Model i plik: Ustawienia › Preferencje › Usuwanie tła (AI)").clicked() {
+                        if ui.small_button("⚙").on_hover_text(t!("Model i plik: Ustawienia › Preferencje › Usuwanie tła (AI)")).clicked() {
                             open_ai_prefs = true;
                         }
                     });
                     if let AiState::Failed(e) = state {
                         ui.colored_label(pal.danger, &e);
-                        if crate::ai::AVAILABLE && !ai_model.is_online() && !ai_path.is_file() && ui.button("Pobierz model…").clicked() {
+                        if crate::ai::AVAILABLE && !ai_model.is_online() && !ai_path.is_file() && ui.button(t!("Pobierz model…")).clicked() {
                             open_ai_prefs = true;
                         }
                     }
                 }
             }
             let mut white = doc.edits.bg_color.is_some();
-            if ui.checkbox(&mut white, "Białe tło").changed() {
+            if ui.checkbox(&mut white, t!("Białe tło")).changed() {
                 doc.edits.bg_color = white.then_some(WHITE);
             }
             // „Maska aktywna” tylko tam, gdzie maska coś zmienia (PNG z przezroczystością, gumka, AI).
             let show_mask = !hide_mask && doc.mask_touched;
             if show_mask {
-                ui.checkbox(&mut doc.edits.use_bg_removal, "Maska aktywna (usunięte tło)");
+                ui.checkbox(&mut doc.edits.use_bg_removal, t!("Maska aktywna (usunięte tło)"));
             }
             if !white {
-                ui.colored_label(pal.text_dim, "JPEG nie ma przezroczystości – w pliku tło będzie białe.");
+                ui.colored_label(pal.text_dim, t!("JPEG nie ma przezroczystości – w pliku tło będzie białe."));
             }
             if show_mask || !hide_inspection {
                 ui.horizontal(|ui| {
-                    if show_mask && ui.button("Resetuj maskę").clicked() {
+                    if show_mask && ui.button(t!("Resetuj maskę")).clicked() {
                         doc.begin_mask_change();
                         doc.mask_cpu.fill(255);
                         doc.mask_dirty = Some(PxRect { x0: 0, y0: 0, x1: src[0], y1: src[1] });
@@ -188,53 +190,53 @@ impl AsOneApp {
                         doc.mask_touched = false;
                     }
                     if !hide_inspection {
-                        ui.toggle_value(&mut self.inspection, "Inspekcja tła (I)")
-                            .on_hover_text("Ekstremalny kontrast przy bieli: czyste białe zostaje białe, każdy szary piksel tła (cień, kurz, obwódka) od razu widać. Tylko podgląd.");
+                        ui.toggle_value(&mut self.inspection, t!("Inspekcja tła (I)"))
+                            .on_hover_text(t!("Ekstremalny kontrast przy bieli: czyste białe zostaje białe, każdy szary piksel tła (cień, kurz, obwódka) od razu widać. Tylko podgląd."));
                     }
                 });
             }
             ui.separator();
 
-            section(ui, "Kadrowanie");
+            section(ui, t!("Kadrowanie"));
             let c = doc.edits.crop_px(src);
-            ui.label(format!("Kadr: {} × {} px (od {}, {})", c.width(), c.height(), c.x0, c.y0));
+            ui.label(t!("Kadr: {w} × {h} px (od {x}, {y})", w = c.width(), h = c.height(), x = c.x0, y = c.y0));
             if doc.edits.overlay.is_some() {
                 ui.horizontal_wrapped(|ui| {
-                    ui.colored_label(pal.text_dim, "Kadr obejmuje samo zdjęcie –");
-                    if ui.small_button("Spłaszcz").on_hover_text(FLATTEN_HINT).clicked() {
+                    ui.colored_label(pal.text_dim, t!("Kadr obejmuje samo zdjęcie –"));
+                    if ui.small_button(t!("Spłaszcz")).on_hover_text(flatten_hint()).clicked() {
                         phone = Some(CanvasAction::Flatten);
                     }
-                    ui.colored_label(pal.text_dim, "aby kadrować razem ze smartfonem.");
+                    ui.colored_label(pal.text_dim, t!("aby kadrować razem ze smartfonem."));
                 });
             }
             if doc.content.is_some() {
                 ui.horizontal_wrapped(|ui| {
-                    ui.colored_label(pal.text_dim, "Zdjęcie zmienione (spłaszczenie, retusz albo AI).");
-                    if ui.small_button("Przywróć oryginał").on_hover_text("Wczytuje plik od nowa (bez spłaszczenia i zmian)").clicked() {
+                    ui.colored_label(pal.text_dim, t!("Zdjęcie zmienione (spłaszczenie, retusz albo AI)."));
+                    if ui.small_button(t!("Przywróć oryginał")).on_hover_text(t!("Wczytuje plik od nowa (bez spłaszczenia i zmian)")).clicked() {
                         phone = Some(CanvasAction::RestoreOriginal);
                     }
                 });
             }
             ui.horizontal(|ui| {
-                if ui.add_enabled(tool != Tool::Crop, egui::Button::new("Kadruj (C)")).clicked() {
+                if ui.add_enabled(tool != Tool::Crop, egui::Button::new(t!("Kadruj (C)"))).clicked() {
                     switch_tool = Some(Tool::Crop);
                 }
-                if ui.button("Kadruj (auto)").on_hover_text("Kadr do obiektu na jasnym tle (lub do maski, jeśli tło usunięte)").clicked() {
+                if ui.button(t!("Kadruj (auto)")).on_hover_text(t!("Kadr do obiektu na jasnym tle (lub do maski, jeśli tło usunięte)")).clicked() {
                     auto_crop = true;
                 }
-                if ui.add_enabled(!doc.edits.crop_is_full(src), egui::Button::new("Resetuj")).clicked() {
+                if ui.add_enabled(!doc.edits.crop_is_full(src), egui::Button::new(t!("Resetuj"))).clicked() {
                     doc.edits.crop = [0.0, 0.0, 1.0, 1.0];
                 }
             });
             ui.separator();
 
-            section(ui, "Marginesy (px)");
+            section(ui, t!("Marginesy (px)"));
             let shift = ui.input(|i| i.modifiers.shift);
             let step = if shift { 1 } else { MARGIN_STEP };
             let mut m = doc.edits.margins;
             let mut changed_side = None;
             egui::Grid::new("margins").num_columns(2).spacing(vec2(10.0, 4.0)).show(ui, |ui| {
-                for (label, side) in [("Góra", TOP), ("Dół", BOTTOM), ("Lewo", LEFT), ("Prawo", RIGHT)] {
+                for (label, side) in [(t!("Góra"), TOP), (t!("Dół"), BOTTOM), (t!("Lewo"), LEFT), (t!("Prawo"), RIGHT)] {
                     ui.label(label);
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 3.0;
@@ -261,25 +263,25 @@ impl AsOneApp {
                 m = [m[side]; 4];
             }
             doc.edits.margins = m;
-            let lock = if doc.margins_linked { "🔒 Spnij wszystkie boki" } else { "🔓 Spnij wszystkie boki" };
+            let lock = if doc.margins_linked { t!("🔒 Spnij wszystkie boki") } else { t!("🔓 Spnij wszystkie boki") };
             if ui.toggle_value(&mut doc.margins_linked, lock).changed() && doc.margins_linked {
                 doc.edits.margins = [doc.edits.margins[TOP]; 4];
             }
             ui.horizontal(|ui| {
-                if ui.button("Dopasuj do kwadratu 1:1").clicked() {
+                if ui.button(t!("Dopasuj do kwadratu 1:1")).clicked() {
                     doc.edits.fit_square(src);
                     let m = doc.edits.margins;
                     if m.iter().any(|&v| v != m[0]) {
                         doc.margins_linked = false;
                     }
                 }
-                if ui.button("Zeruj").clicked() {
+                if ui.button(t!("Zeruj")).clicked() {
                     doc.edits.margins = [0; 4];
                 }
             });
             ui.separator();
 
-            section(ui, "Szybkie operacje");
+            section(ui, t!("Szybkie operacje"));
             ui.horizontal_wrapped(|ui| {
                 let mut add = |sides: &[usize], px: u32| {
                     for s in sides {
@@ -290,18 +292,18 @@ impl AsOneApp {
                         doc.margins_linked = false;
                     }
                 };
-                if ui.button("Ramka 5 px").on_hover_text("+5 px marginesu z każdej strony").clicked() {
+                if ui.button(t!("Ramka 5 px")).on_hover_text(t!("+5 px marginesu z każdej strony")).clicked() {
                     add(&[TOP, RIGHT, BOTTOM, LEFT], 5);
                 }
-                if ui.button("Paski 5 px L+P").clicked() {
+                if ui.button(t!("Paski 5 px L+P")).clicked() {
                     add(&[LEFT, RIGHT], 5);
                 }
-                if ui.button("Paski 5 px G+D").clicked() {
+                if ui.button(t!("Paski 5 px G+D")).clicked() {
                     add(&[TOP, BOTTOM], 5);
                 }
                 if ui
                     .button("Min. 500 px")
-                    .on_hover_text("Dopełnia tłem do co najmniej 500 × 500 px (bez powiększania pikseli)")
+                    .on_hover_text(t!("Dopełnia tłem do co najmniej 500 × 500 px (bez powiększania pikseli)"))
                     .clicked()
                 {
                     let [w, h] = doc.edits.output_size(src);
@@ -317,17 +319,17 @@ impl AsOneApp {
                 }
                 if doc.edits.overlay.is_none() {
                     if ui
-                        .add_enabled(crate::platform::CAN_PASTE_IMAGE, egui::Button::new("Wklej smartfon"))
-                        .on_hover_text(format!(
-                            "Dokłada {} px białego tła z lewej i wkleja tam zdjęcie smartfona ze schowka \
+                        .add_enabled(crate::platform::CAN_PASTE_IMAGE, egui::Button::new(t!("Wklej smartfon")))
+                        .on_hover_text(t!(
+                            "Dokłada {px} px białego tła z lewej i wkleja tam zdjęcie smartfona ze schowka \
                              (do przesunięcia i skalowania na zdjęciu)",
-                            crate::document::PHONE_STRIP
+                            px = crate::document::PHONE_STRIP
                         ))
                         .clicked()
                     {
                         phone = Some(CanvasAction::PastePhone);
                     }
-                    if ui.add_enabled(crate::platform::CAN_PICK_OVERLAY, egui::Button::new("Smartfon z pliku…")).clicked() {
+                    if ui.add_enabled(crate::platform::CAN_PICK_OVERLAY, egui::Button::new(t!("Smartfon z pliku…"))).clicked() {
                         phone = Some(CanvasAction::PickPhone);
                     }
                 }
@@ -337,17 +339,17 @@ impl AsOneApp {
             if doc.overlay_image.is_some()
                 && let Some([x, y, w, h]) = doc.edits.overlay
             {
-                section(ui, "Smartfon (warstwa)");
+                section(ui, t!("Smartfon (warstwa)"));
                 let aspect = w / h.max(1.0);
                 let (mut nx, mut ny, mut nw) = (x, y, w);
                 egui::Grid::new("phone_layer").num_columns(2).spacing(vec2(10.0, 4.0)).show(ui, |ui| {
-                    ui.label("Szerokość");
+                    ui.label(t!("Szerokość"));
                     ui.add(egui::DragValue::new(&mut nw).range(16.0..=20000.0).speed(1.0).max_decimals(0).suffix(" px"));
                     ui.end_row();
-                    ui.label("Od lewej");
+                    ui.label(t!("Od lewej"));
                     ui.add(egui::DragValue::new(&mut nx).speed(1.0).max_decimals(0).suffix(" px"));
                     ui.end_row();
-                    ui.label("Od góry");
+                    ui.label(t!("Od góry"));
                     ui.add(egui::DragValue::new(&mut ny).speed(1.0).max_decimals(0).suffix(" px"));
                     ui.end_row();
                 });
@@ -359,32 +361,32 @@ impl AsOneApp {
                     doc.edits.overlay = Some([nx, ny, w, h]);
                 }
                 ui.horizontal_wrapped(|ui| {
-                    if ui.add_enabled(crate::platform::CAN_PASTE_IMAGE, egui::Button::new("Podmień ze schowka")).clicked() {
+                    if ui.add_enabled(crate::platform::CAN_PASTE_IMAGE, egui::Button::new(t!("Podmień ze schowka"))).clicked() {
                         phone = Some(CanvasAction::PastePhone);
                     }
-                    if ui.add_enabled(crate::platform::CAN_PICK_OVERLAY, egui::Button::new("Z pliku…")).clicked() {
+                    if ui.add_enabled(crate::platform::CAN_PICK_OVERLAY, egui::Button::new(t!("Z pliku…"))).clicked() {
                         phone = Some(CanvasAction::PickPhone);
                     }
-                    if ui.button("Dopasuj do pasa").clicked() {
+                    if ui.button(t!("Dopasuj do pasa")).clicked() {
                         doc.fit_overlay_to_strip();
                     }
-                    if ui.button("Usuń smartfon").on_hover_text(format!("Usuwa warstwę i pas {} px", crate::document::PHONE_STRIP)).clicked() {
+                    if ui.button(t!("Usuń smartfon")).on_hover_text(t!("Usuwa warstwę i pas {px} px", px = crate::document::PHONE_STRIP)).clicked() {
                         doc.remove_overlay();
                     }
                 });
                 if ui
-                    .button("Spłaszcz zdjęcie")
-                    .on_hover_text(FLATTEN_HINT)
+                    .button(t!("Spłaszcz zdjęcie"))
+                    .on_hover_text(flatten_hint())
                     .clicked()
                 {
                     phone = Some(CanvasAction::Flatten);
                 }
-                ui.colored_label(pal.text_dim, "Na zdjęciu (Przesuwanie): przeciągnij, aby przesunąć; rogi – rozmiar.");
+                ui.colored_label(pal.text_dim, t!("Na zdjęciu (Przesuwanie): przeciągnij, aby przesunąć; rogi – rozmiar."));
                 ui.separator();
             }
 
             if !ai_tools.is_empty() {
-                section(ui, "Narzędzia AI");
+                section(ui, t!("Narzędzia AI"));
                 ui.horizontal(|ui| {
                     for tool in &ai_tools {
                         let label = match tool {
@@ -398,11 +400,11 @@ impl AsOneApp {
                 ui.add_space(2.0);
             }
             if lama && self.ai_tool == super::AiTool::Lama {
-                ui.colored_label(pal.text_dim, "Usuwa kurz, rysy, napisy i metki – lokalnie, bez opłat.");
+                ui.colored_label(pal.text_dim, t!("Usuwa kurz, rysy, napisy i metki – lokalnie, bez opłat."));
                 if !lama_ready {
                     ui.horizontal_wrapped(|ui| {
-                        ui.colored_label(pal.warning, "Brak modelu (ok. 208 MB) –");
-                        if ui.small_button("Pobierz…").clicked() {
+                        ui.colored_label(pal.warning, t!("Brak modelu (ok. 208 MB) –"));
+                        if ui.small_button(t!("Pobierz…")).clicked() {
                             open_retouch_prefs = true;
                         }
                     });
@@ -410,18 +412,18 @@ impl AsOneApp {
                 let busy = doc.busy.is_some();
                 ui.horizontal_wrapped(|ui| {
                     if ui
-                        .add_enabled(tool != Tool::RectCut, egui::Button::new("Zaznacz (M)"))
-                        .on_hover_text("Narzędzie prostokąta: przeciągnij po kurzu, napisie albo metce")
+                        .add_enabled(tool != Tool::RectCut, egui::Button::new(t!("Zaznacz (M)")))
+                        .on_hover_text(t!("Narzędzie prostokąta: przeciągnij po kurzu, napisie albo metce"))
                         .clicked()
                     {
                         switch_tool = Some(Tool::RectCut);
                     }
                     let can = lama_ready && doc.selection.is_some() && !busy;
-                    let run = ui.add_enabled(can, egui::Button::new("Usuń obiekt (LaMa)"));
+                    let run = ui.add_enabled(can, egui::Button::new(t!("Usuń obiekt (LaMa)")));
                     let run = if doc.selection.is_none() {
-                        run.on_disabled_hover_text("Najpierw zaznacz obszar narzędziem M")
+                        run.on_disabled_hover_text(t!("Najpierw zaznacz obszar narzędziem M"))
                     } else {
-                        run.on_hover_text("Dorysowuje zaznaczony fragment z otoczenia. Cofnięcie: „Przywróć oryginał”.")
+                        run.on_hover_text(t!("Dorysowuje zaznaczony fragment z otoczenia. Cofnięcie: „Przywróć oryginał”."))
                     };
                     if run.clicked() {
                         phone = Some(CanvasAction::Inpaint);
@@ -434,23 +436,23 @@ impl AsOneApp {
             }
             if w2x && self.ai_tool == super::AiTool::Waifu2x {
                 use crate::waifu2x::{MAX_INPUT_SIDE, NOISE_LEVELS, Style, noise_label};
-                ui.colored_label(pal.text_dim, "Powiększa z ostrymi krawędziami i usuwa artefakty JPEG – lokalnie, bez opłat.");
+                ui.colored_label(pal.text_dim, t!("Powiększa z ostrymi krawędziami i usuwa artefakty JPEG – lokalnie, bez opłat."));
                 egui::Grid::new("w2x").num_columns(2).spacing(vec2(8.0, 4.0)).show(ui, |ui| {
-                    ui.label("Rodzaj");
+                    ui.label(t!("Rodzaj"));
                     ui.horizontal(|ui| {
                         for style in Style::ALL {
                             ui.selectable_value(&mut self.settings.waifu2x_style, style, style.label());
                         }
                     });
                     ui.end_row();
-                    ui.label("Skala");
+                    ui.label(t!("Skala"));
                     ui.horizontal(|ui| {
                         for scale in [2u32, 4] {
                             ui.selectable_value(&mut self.settings.waifu2x_scale, scale, format!("{scale}×"));
                         }
                     });
                     ui.end_row();
-                    ui.label("Odszumianie");
+                    ui.label(t!("Odszumianie"));
                     egui::ComboBox::from_id_salt("w2x_noise")
                         .selected_text(noise_label(self.settings.waifu2x_noise))
                         .show_ui(ui, |ui| {
@@ -464,15 +466,15 @@ impl AsOneApp {
                 let new = [src[0] * variant.scale, src[1] * variant.scale];
                 let too_big = src[0].max(src[1]) > MAX_INPUT_SIDE;
                 if src[0].min(src[1]) < asone_core::finish::MIN_SIDE && !too_big {
-                    ui.colored_label(pal.accent, "Zdjęcie ma mniej niż 500 px – powiększ zamiast dopełniać białym tłem.");
+                    ui.colored_label(pal.accent, t!("Zdjęcie ma mniej niż 500 px – powiększ zamiast dopełniać białym tłem."));
                 }
                 let busy = doc.busy.is_some();
                 ui.horizontal_wrapped(|ui| {
-                    let run = ui.add_enabled(!busy && !too_big, egui::Button::new(format!("Powiększ → {} × {} px", new[0], new[1])));
+                    let run = ui.add_enabled(!busy && !too_big, egui::Button::new(t!("Powiększ → {w} × {h} px", w = new[0], h = new[1])));
                     let run = if too_big {
-                        run.on_disabled_hover_text(format!("waifu2x jest dla mniejszych zdjęć – dłuższy bok najwyżej {MAX_INPUT_SIDE} px"))
+                        run.on_disabled_hover_text(t!("waifu2x jest dla mniejszych zdjęć – dłuższy bok najwyżej {max} px", max = MAX_INPUT_SIDE))
                     } else {
-                        run.on_hover_text("Zastępuje zdjęcie powiększonym; kadr, marginesy i maska skalują się razem z nim.")
+                        run.on_hover_text(t!("Zastępuje zdjęcie powiększonym; kadr, marginesy i maska skalują się razem z nim."))
                     };
                     if run.clicked() {
                         phone = Some(CanvasAction::Upscale);
@@ -482,14 +484,14 @@ impl AsOneApp {
                     }
                 });
                 if !crate::waifu2x::models_dir().join(variant.file_name()).is_file() {
-                    ui.colored_label(pal.text_dim, egui::RichText::new("Pierwsze użycie tego wariantu: pobranie modelu (ok. 20 MB).").small());
+                    ui.colored_label(pal.text_dim, egui::RichText::new(t!("Pierwsze użycie tego wariantu: pobranie modelu (ok. 20 MB).")).small());
                 }
                 ui.separator();
             }
             if replicate && self.ai_tool == super::AiTool::Replicate {
                 let field = ui.add(
                     egui::TextEdit::multiline(&mut self.ai_prompt)
-                        .hint_text("Co zrobić ze zdjęciem – najlepiej po angielsku, np. „place the product on a white background”")
+                        .hint_text(t!("Co zrobić ze zdjęciem – najlepiej po angielsku, np. „place the product on a white background”"))
                         .desired_rows(2)
                         .desired_width(f32::INFINITY),
                 );
@@ -497,16 +499,16 @@ impl AsOneApp {
                 #[cfg(target_os = "android")]
                 if field.gained_focus() {
                     self.text_target = crate::platform::TextTarget::AiPrompt;
-                    crate::android::edit_text("Polecenie dla AI", &self.ai_prompt, false);
+                    crate::android::edit_text(t!("Polecenie dla AI"), &self.ai_prompt, false);
                     ui.memory_mut(|m| m.surrender_focus(field.id));
                 }
                 #[cfg(not(target_os = "android"))]
                 let _ = field;
                 let busy = doc.busy.is_some();
                 ui.horizontal_wrapped(|ui| {
-                    ui.menu_button("Gotowe polecenia", |ui| {
+                    ui.menu_button(t!("Gotowe polecenia"), |ui| {
                         ui.set_min_width(220.0);
-                        for (label, prompt) in crate::settings::AI_PRESETS {
+                        for (label, prompt) in crate::settings::ai_presets() {
                             if ui.button(label).on_hover_text(prompt).clicked() {
                                 self.ai_prompt = prompt.to_string();
                                 ui.close();
@@ -514,12 +516,12 @@ impl AsOneApp {
                         }
                     });
                     let run = ui
-                        .add_enabled(!busy && !self.ai_prompt.trim().is_empty(), egui::Button::new(format!("Wykonaj ({})", edit_model.price())))
-                        .on_hover_text(format!(
-                            "{} na Replicate: zdjęcie z zakładki (z kadrem, marginesami i smartfonem) zostanie wysłane, \
-                             a wynik (ok. 1 Mpx) zastąpi zdjęcie. Płatne: {} za obraz.",
-                            edit_model.label(),
-                            edit_model.price()
+                        .add_enabled(!busy && !self.ai_prompt.trim().is_empty(), egui::Button::new(t!("Wykonaj ({price})", price = edit_model.price())))
+                        .on_hover_text(t!(
+                            "{model} na Replicate: zdjęcie z zakładki (z kadrem, marginesami i smartfonem) zostanie wysłane, \
+                             a wynik (ok. 1 Mpx) zastąpi zdjęcie. Płatne: {price} za obraz.",
+                            model = edit_model.label(),
+                            price = edit_model.price()
                         ));
                     if run.clicked() {
                         phone = Some(CanvasAction::AiEdit);
@@ -528,24 +530,24 @@ impl AsOneApp {
                         ui.spinner();
                     }
                 });
-                ui.colored_label(pal.text_dim, "Wynik zastępuje zdjęcie; „Przywróć oryginał” wraca do pliku.");
+                ui.colored_label(pal.text_dim, t!("Wynik zastępuje zdjęcie; „Przywróć oryginał” wraca do pliku."));
                 ui.separator();
             }
 
             match tool {
                 Tool::Eraser => {
-                    section(ui, "Gumka");
-                    ui.add(egui::Slider::new(&mut self.brush.radius, 1.0..=1000.0).logarithmic(true).text("promień px"));
-                    ui.colored_label(pal.text_dim, "LPM usuwa, PPM / Alt+LPM przywraca · [ ] albo Ctrl+kółko – rozmiar");
+                    section(ui, t!("Gumka"));
+                    ui.add(egui::Slider::new(&mut self.brush.radius, 1.0..=1000.0).logarithmic(true).text(t!("promień px")));
+                    ui.colored_label(pal.text_dim, t!("LPM usuwa, PPM / Alt+LPM przywraca · [ ] albo Ctrl+kółko – rozmiar"));
                     ui.separator();
                 }
                 Tool::RectCut => {
-                    section(ui, "Zaznaczenie");
+                    section(ui, t!("Zaznaczenie"));
                     match doc.selection {
                         Some(sel) => {
-                            ui.label(format!("{} × {} px (od {}, {})", sel.width(), sel.height(), sel.x0, sel.y0));
+                            ui.label(t!("{w} × {h} px (od {x}, {y})", w = sel.width(), h = sel.height(), x = sel.x0, y = sel.y0));
                             ui.horizontal(|ui| {
-                                for (label, value) in [("Wytnij (Delete)", 0u8), ("Przywróć", 255u8)] {
+                                for (label, value) in [(t!("Wytnij (Delete)"), 0u8), (t!("Przywróć"), 255u8)] {
                                     if ui.button(label).clicked() {
                                         doc.begin_mask_change();
                                         let dirty = fill_rect(&mut doc.mask_cpu, src, sel, value);
@@ -558,22 +560,22 @@ impl AsOneApp {
                             if lama {
                                 let busy = doc.busy.is_some();
                                 if ui
-                                    .add_enabled(!busy, egui::Button::new("Usuń obiekt (LaMa)"))
-                                    .on_hover_text(
+                                    .add_enabled(!busy, egui::Button::new(t!("Usuń obiekt (LaMa)")))
+                                    .on_hover_text(t!(
                                         "Dorysowuje zaznaczony fragment z otoczenia: kurz, rysy, napisy, metki. \
-                                         Lokalnie, bez opłat. Cofnięcie: „Przywróć oryginał”.",
-                                    )
+                                         Lokalnie, bez opłat. Cofnięcie: „Przywróć oryginał”."
+                                    ))
                                     .clicked()
                                 {
                                     phone = Some(CanvasAction::Inpaint);
                                 }
                             }
-                            if ui.button("Odznacz (Esc)").clicked() {
+                            if ui.button(t!("Odznacz (Esc)")).clicked() {
                                 doc.selection = None;
                             }
                         }
                         None => {
-                            ui.colored_label(pal.text_dim, "Przeciągnij po zdjęciu, aby zaznaczyć obszar.");
+                            ui.colored_label(pal.text_dim, t!("Przeciągnij po zdjęciu, aby zaznaczyć obszar."));
                         }
                     }
                     ui.separator();
@@ -581,15 +583,15 @@ impl AsOneApp {
                 _ => {}
             }
 
-            section(ui, "Wszystkie otwarte");
+            section(ui, t!("Wszystkie otwarte"));
             if ui
-                .add_enabled(open.len() > 1, egui::Button::new("Zastosuj ustawienia do wszystkich otwartych"))
-                .on_hover_text("Kopiuje marginesy, kłódkę i białe tło na pozostałe zakładki")
+                .add_enabled(open.len() > 1, egui::Button::new(t!("Zastosuj ustawienia do wszystkich otwartych")))
+                .on_hover_text(t!("Kopiuje marginesy, kłódkę i białe tło na pozostałe zakładki"))
                 .clicked()
             {
                 apply_all = true;
             }
-            ui.checkbox(&mut self.copy_crop_too, "razem z kadrowaniem");
+            ui.checkbox(&mut self.copy_crop_too, t!("razem z kadrowaniem"));
         }
 
         if remove_bg {
@@ -623,7 +625,7 @@ impl AsOneApp {
                     }
                 }
             }
-            self.toast(format!("Skopiowano ustawienia na {} zdjęć", open.len() - 1), false);
+            self.toast(t!("Skopiowano ustawienia na {n} zdjęć", n = open.len() - 1), false);
         }
     }
 
@@ -651,7 +653,7 @@ impl AsOneApp {
         doc.commit_history();
         let overlay = doc.overlay_image.clone().filter(|_| doc.edits.overlay.is_some());
         self.loader.request_flatten(id, doc.pixel_source(), doc.mask_cpu.clone(), doc.edits.clone(), overlay);
-        doc.busy = Some(crate::document::Busy::new("Spłaszczanie…"));
+        doc.busy = Some(crate::document::Busy::new(t!("Spłaszczanie…")));
     }
 
     /// waifu2x: powiększenie zdjęcia (wariant z panelu), lokalnie.
@@ -662,12 +664,12 @@ impl AsOneApp {
             return;
         }
         doc.commit_history();
-        let (busy, progress) = crate::document::Busy::with_progress("Powiększanie (waifu2x)…");
+        let (busy, progress) = crate::document::Busy::with_progress(t!("Powiększanie (waifu2x)…"));
         self.loader.request_upscale(id, doc.pixel_source(), doc.mask_cpu.clone(), variant, progress);
         doc.busy = Some(busy);
         let first = !crate::waifu2x::models_dir().join(variant.file_name()).is_file();
         self.toast(
-            if first { "waifu2x – pobieram model (ok. 20 MB) i powiększam…" } else { "waifu2x – powiększanie…" },
+            if first { t!("waifu2x – pobieram model (ok. 20 MB) i powiększam…") } else { t!("waifu2x – powiększanie…") },
             false,
         );
     }
@@ -676,13 +678,13 @@ impl AsOneApp {
     pub(super) fn start_inpaint(&mut self, id: DocId) {
         let model = self.settings.lama_model_path();
         if !model.is_file() {
-            self.toast("Brak modelu LaMa – pobierz go w Ustawienia › Preferencje › Retusz (LaMa)", true);
+            self.toast(t!("Brak modelu LaMa – pobierz go w Ustawienia › Preferencje › Retusz (LaMa)"), true);
             self.prefs.open(crate::settings::PrefsSection::Retouch, &self.settings);
             return;
         }
         let Some(doc) = self.docs.get_mut(&id) else { return };
         let Some(rect) = doc.selection else {
-            self.toast("Zaznacz obszar do usunięcia narzędziem M (prostokąt)", true);
+            self.toast(t!("Zaznacz obszar do usunięcia narzędziem M (prostokąt)"), true);
             return;
         };
         if !matches!(doc.load, LoadState::Ready) || doc.gpu.is_none() || doc.busy.is_some() {
@@ -690,18 +692,18 @@ impl AsOneApp {
         }
         doc.commit_history();
         self.loader.request_inpaint(id, doc.pixel_source(), doc.mask_cpu.clone(), rect, model);
-        doc.busy = Some(crate::document::Busy::new("Usuwanie obiektu (LaMa)…"));
-        self.toast("Retusz LaMa – kilka sekund…", false);
+        doc.busy = Some(crate::document::Busy::new(t!("Usuwanie obiektu (LaMa)…")));
+        self.toast(t!("Retusz LaMa – kilka sekund…"), false);
     }
 
     /// Edycja AI (Replicate): obraz z zakładki + polecenie; wynik zastąpi zdjęcie.
     pub(super) fn start_ai_edit(&mut self, id: DocId, prompt: String) {
         if !self.settings.replicate_active() {
-            self.toast("Funkcje Replicate są wyłączone albo brak klucza – Ustawienia › Preferencje › Replicate", true);
+            self.toast(t!("Funkcje Replicate są wyłączone albo brak klucza – Ustawienia › Preferencje › Replicate"), true);
             return;
         }
         if prompt.trim().is_empty() {
-            self.toast("Wpisz polecenie dla AI (co zrobić ze zdjęciem)", true);
+            self.toast(t!("Wpisz polecenie dla AI (co zrobić ze zdjęciem)"), true);
             return;
         }
         let (key, model) = (self.settings.replicate_api_key(), self.settings.replicate_model);
@@ -712,8 +714,8 @@ impl AsOneApp {
         doc.commit_history();
         let overlay = doc.overlay_image.clone().filter(|_| doc.edits.overlay.is_some());
         self.loader.request_ai_edit(id, doc.pixel_source(), doc.mask_cpu.clone(), doc.edits.clone(), overlay, prompt, model.id(), key);
-        doc.busy = Some(crate::document::Busy::new("Edycja AI (Replicate)…"));
-        self.toast(format!("Edycja AI ({}, {}) – zwykle kilkanaście sekund…", model.label(), model.price()), false);
+        doc.busy = Some(crate::document::Busy::new(t!("Edycja AI (Replicate)…")));
+        self.toast(t!("Edycja AI ({model}, {price}) – zwykle kilkanaście sekund…", model = model.label(), price = model.price()), false);
     }
 
     /// Polecenia z menu kontekstowego zdjęcia i przycisków „Smartfon”.
@@ -723,7 +725,7 @@ impl AsOneApp {
             CanvasAction::Upscale => self.start_upscale(id),
             CanvasAction::AiEdit => self.start_ai_edit(id, self.ai_prompt.clone()),
             CanvasAction::AiPreset(i) => {
-                if let Some((_, prompt)) = crate::settings::AI_PRESETS.get(i as usize) {
+                if let Some((_, prompt)) = crate::settings::ai_presets().get(i as usize) {
                     self.ai_prompt = prompt.to_string();
                     self.start_ai_edit(id, prompt.to_string());
                 }

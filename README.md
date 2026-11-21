@@ -5,6 +5,9 @@ produktu do publikacji w sieci. Kadr, marginesy, białe tło, kwadrat 1:1, usuwa
 model AI, gumka, prostokąt), nazwy przyjazne dla URL i eksport do Progressive JPEG bez metadanych
 z limitami pilnowanymi przy każdym zapisie.
 
+Interfejs po polsku albo po angielsku – według języka systemu (zmiana: Preferencje › Interfejs ›
+Język / Language); motyw jasny albo ciemny – jak w systemie. English: [README.en.md](README.en.md).
+
 ## Pobierz
 
 Najnowsza wersja – wybierz swój system:
@@ -105,7 +108,7 @@ wraca do domyślnego, a jego nazwę zmienia się w Preferencjach › Eksport i l
 Eksport nigdy nie modyfikuje ani nie nadpisuje oryginałów; „Zmień tylko nazwę” zmienia wyłącznie
 ich nazwy i nie nadpisuje istniejących plików.
 
-**Ustawienia › Preferencje** (jak w PhotoCrafcie): *Interfejs* (16 motywów, w tym Sepia, kolor
+**Ustawienia › Preferencje**: *Interfejs* (język: jak w systemie, polski albo angielski; 17 motywów z „Jak w systemie” – jasny albo ciemny według ustawień systemu, w tym Sepia, kolor
 płótna, skala interfejsu − / +, zakładki zdjęć na górze lub na dole, na zakładce pełna nazwa albo
 tylko numer `#1`, pasek menu: płaski z linią, połysk albo bez efektu, systemowy pasek tytułu, „Ukryj”), *Eksport i limity* (maks. 3000 ×
 3600 px i 3 MB, pilnowane przy każdym zapisie – najpierw spada jakość, potem wymiary; min. bok
@@ -209,7 +212,10 @@ packaging/linux/package.sh              # dist/AsOne-<wersja>-x86_64.AppImage + 
   (pobieranie modelu AI), foldery Obrazy / Pobrane / Dokumenty / Pulpit – bez wychodzenia poza
   piaskownicę (dlatego „Edytuj w GIMP” w Flatpaku tylko podpowiada, jak otworzyć plik).
 
-Binarki zbudowane w kontenerze Debian 13 wymagają glibc ≥ 2.39 (GUI) / 2.34 (CLI).
+Wydania z GitHuba są budowane na Ubuntu 22.04 i wymagają tylko glibc ≥ 2.35 (np. Ubuntu 22.04,
+Debian 12, Linux Mint 21); libstdc++ z GCC 13 potrzebna gotowej bibliotece ONNX Runtime jest dołączona
+statycznie (`ORT_CXX_STDLIB=static=stdc++`). Lokalne budowanie na nowszym systemie działa bez tych
+ustawień, ale binarka wymaga wtedy glibc z tego systemu.
 
 MozJPEG to biblioteka C – potrzebny jest kompilator C (`cc`/`gcc`/`clang`/MSVC) i `cmake`.
 Funkcja `nasm` włącza wstawki SIMD (szybsza kompresja), jeśli `nasm` jest zainstalowany:

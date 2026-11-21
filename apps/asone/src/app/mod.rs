@@ -92,6 +92,8 @@ pub struct AsOneApp {
 
     settings: Settings,
     applied_scale: u32,
+    /// Wygląd systemu przy ostatnim ustawieniu motywu (motyw „Jak w systemie” śledzi zmiany).
+    applied_system_dark: bool,
     applied_decorations: Option<bool>,
     prefs: PrefsDialog,
 
@@ -184,24 +186,28 @@ pub(crate) enum AiTool {
 /// Telefon: wszystko jako zakładki na jednym pasku (bez wąskich kolumn).
 fn default_dock() -> DockState<AppTab> {
     if platform::COMPACT_LAYOUT {
-        return DockState::new(vec![AppTab::FileList, AppTab::ListTools]).with_translations(polish_translations());
+        return DockState::new(vec![AppTab::FileList, AppTab::ListTools]).with_translations(dock_translations());
     }
-    let mut dock = DockState::new(vec![AppTab::FileList]).with_translations(polish_translations());
+    let mut dock = DockState::new(vec![AppTab::FileList]).with_translations(dock_translations());
     // Ułamek dotyczy górnej części (tu: Opcje listy).
     dock.main_surface_mut().split_above(egui_dock::NodeIndex::root(), 0.2, vec![AppTab::ListTools]);
     dock
 }
 
-fn polish_translations() -> egui_dock::Translations {
+/// Napisy menu doku w bieżącym języku (egui_dock ma tylko angielskie – polskie uzupełniamy).
+fn dock_translations() -> egui_dock::Translations {
     let mut t = egui_dock::Translations::english();
-    t.tab_context_menu.close_button = "Zamknij".into();
-    t.tab_context_menu.eject_button = "Odłącz".into();
-    t.tab_context_menu.hide_tab_bar_button = "Ukryj pasek zakładek".into();
-    t.tab_context_menu.show_tab_bar_button = "Pokaż pasek zakładek".into();
-    t.leaf.close_button_disabled_tooltip = "Tej zakładki nie można zamknąć".into();
-    t.leaf.close_all_button = "Zamknij wszystkie".into();
-    t.leaf.close_all_button_disabled_tooltip = "Niektórych zakładek nie można zamknąć".into();
-    t.leaf.minimize_button = "Zwiń".into();
+    if crate::i18n::is_english() {
+        return t;
+    }
+    t.tab_context_menu.close_button = t!("Zamknij").into();
+    t.tab_context_menu.eject_button = t!("Odłącz").into();
+    t.tab_context_menu.hide_tab_bar_button = t!("Ukryj pasek zakładek").into();
+    t.tab_context_menu.show_tab_bar_button = t!("Pokaż pasek zakładek").into();
+    t.leaf.close_button_disabled_tooltip = t!("Tej zakładki nie można zamknąć").into();
+    t.leaf.close_all_button = t!("Zamknij wszystkie").into();
+    t.leaf.close_all_button_disabled_tooltip = t!("Niektórych zakładek nie można zamknąć").into();
+    t.leaf.minimize_button = t!("Zwiń").into();
     t
 }
 
@@ -210,6 +216,7 @@ impl AsOneApp {
         let ctx = &cc.egui_ctx;
         #[allow(unused_mut)]
         let mut settings: Settings = cc.storage.and_then(|s| eframe::get_value(s, STORAGE_KEY)).unwrap_or_default();
+        crate::i18n::set_language(settings.language);
         if settings.hf_token.trim().is_empty() {
             if let Ok(tok) = std::env::var("HF_TOKEN") {
                 settings.hf_token = tok;
@@ -235,7 +242,8 @@ impl AsOneApp {
                 settings.theme = theme;
             }
         }
-        theme::apply(ctx, &settings.appearance());
+        theme::watch_system_scheme(ctx);
+        theme::apply(ctx, &settings.appearance(theme::system_dark(ctx)));
         egui_extras::install_image_loaders(ctx);
         // Ctrl+0 / Ctrl+1 / Ctrl± obsługujemy sami (zdjęcie vs. skala interfejsu).
         ctx.options_mut(|o| o.zoom_with_keyboard = false);
@@ -254,6 +262,7 @@ impl AsOneApp {
             selected: HashSet::new(),
             next_id: 1,
             applied_scale: 0,
+            applied_system_dark: false,
             applied_decorations: None,
             prefs: PrefsDialog::default(),
             base_name: String::new(),
@@ -350,7 +359,9 @@ impl AsOneApp {
 
     /// Motyw, skala interfejsu i pasek tytułu wg ustawień.
     fn apply_view_settings(&mut self, ctx: &egui::Context) {
-        theme::apply(ctx, &self.settings.appearance());
+        let system_dark = theme::system_dark(ctx);
+        self.applied_system_dark = system_dark;
+        theme::apply(ctx, &self.settings.appearance(system_dark));
         self.dock_style = theme::dock_style(&theme::current_style(ctx));
         if self.applied_scale != self.settings.ui_scale {
             ctx.set_zoom_factor(self.settings.ui_scale as f32 / 100.0);
@@ -453,9 +464,9 @@ impl AsOneApp {
                         let size = format!("{}×{}", doc.dims.map_or(0, |d| d[0]), doc.dims.map_or(0, |d| d[1]));
                         self.toast(
                             if ai {
-                                format!("Edycja AI gotowa ({size} px) – oryginał: „Przywróć oryginał”")
+                                t!("Edycja AI gotowa ({size} px) – oryginał: „Przywróć oryginał”", size = size)
                             } else {
-                                "Zdjęcie spłaszczone – kadr obejmuje teraz całość (oryginał: „Przywróć oryginał”)".to_string()
+                                t!("Zdjęcie spłaszczone – kadr obejmuje teraz całość (oryginał: „Przywróć oryginał”)").to_string()
                             },
                             false,
                         );
@@ -472,7 +483,7 @@ impl AsOneApp {
                         doc.selection = None;
                         doc.load = LoadState::Ready;
                     }
-                    self.toast(format!("Retusz LaMa gotowy ({seconds:.1} s) – oryginał: „Przywróć oryginał”"), false);
+                    self.toast(t!("Retusz LaMa gotowy ({s} s) – oryginał: „Przywróć oryginał”", s = format!("{seconds:.1}")), false);
                 }
                 LoadResult::Upscaled { id, gpu, ai_proxy, content, thumb, mask, scale, seconds } => {
                     if let Some(doc) = self.docs.get_mut(&id) {
@@ -493,7 +504,7 @@ impl AsOneApp {
                         doc.load = LoadState::Ready;
                         doc.camera.needs_fit = true;
                         doc.reset_history();
-                        self.toast(format!("waifu2x: {}×{} px ({seconds:.1} s) – oryginał: „Przywróć oryginał”", size[0], size[1]), false);
+                        self.toast(t!("waifu2x: {w}×{h} px ({s} s) – oryginał: „Przywróć oryginał”", w = size[0], h = size[1], s = format!("{seconds:.1}")), false);
                     }
                 }
                 LoadResult::FlattenFailed { id, error } => {
@@ -576,7 +587,7 @@ impl AsOneApp {
                 PickerEvent::Pasted(text) => {
                     let line = text.split_whitespace().collect::<Vec<_>>().join(" ");
                     if line.is_empty() {
-                        self.toast("Schowek jest pusty", true);
+                        self.toast(t!("Schowek jest pusty"), true);
                     } else {
                         self.base_name = line;
                     }
@@ -593,11 +604,11 @@ impl AsOneApp {
                     (Some(r), Some(doc)) => {
                         if let Some(src) = doc.src_size() {
                             doc.edits.set_crop_px(r, src);
-                            let msg = format!("Kadr do obiektu: {} × {} px", r.width(), r.height());
+                            let msg = t!("Kadr do obiektu: {w} × {h} px", w = r.width(), h = r.height());
                             self.toast(msg, false);
                         }
                     }
-                    (None, Some(_)) => self.toast("Nie znaleziono obiektu na jasnym tle", true),
+                    (None, Some(_)) => self.toast(t!("Nie znaleziono obiektu na jasnym tle"), true),
                     _ => {}
                 },
             }
@@ -618,7 +629,7 @@ impl AsOneApp {
             match finished {
                 Some(Ok(path)) => {
                     self.ai_download = None;
-                    self.toast(format!("Model zapisany: {}", path.display()), false);
+                    self.toast(t!("Model zapisany: {path}", path = path.display()), false);
                 }
                 Some(Err(e)) => {
                     self.ai_download = None;
@@ -709,7 +720,7 @@ impl AsOneApp {
                     self.check_updates(ctx, true);
                 } else {
                     crate::platform::open_url(crate::update::RELEASES_PAGE);
-                    self.toast("Aktualizuje się sama wersja AppImage – pozostałe: strona wydań na GitHubie", false);
+                    self.toast(t!("Aktualizuje się sama wersja AppImage – pozostałe: strona wydań na GitHubie"), false);
                 }
             }
         }
@@ -841,7 +852,7 @@ impl AsOneApp {
         #[cfg(not(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos"))))]
         {
             let _ = (ctx, model, path, token);
-            self.toast("Pobieranie modeli AI działa w wersji desktopowej", true);
+            self.toast(t!("Pobieranie modeli AI działa w wersji desktopowej"), true);
         }
     }
 
@@ -856,7 +867,7 @@ impl AsOneApp {
         });
         self.update_rx = Some(rx);
         if manual {
-            self.toast("Sprawdzanie aktualizacji…", false);
+            self.toast(t!("Sprawdzanie aktualizacji…"), false);
         }
     }
 
@@ -869,7 +880,7 @@ impl AsOneApp {
                 UpdateMsg::Checked { result: Ok(Some(release)), .. } => self.update = Some(UpdateState::Available(release)),
                 UpdateMsg::Checked { result: Ok(None), manual } => {
                     if manual {
-                        self.toast(format!("Masz najnowszą wersję AsOne ({})", env!("CARGO_PKG_VERSION")), false);
+                        self.toast(t!("Masz najnowszą wersję AsOne ({version})", version = env!("CARGO_PKG_VERSION")), false);
                     }
                 }
                 UpdateMsg::Checked { result: Err(e), manual } => {
@@ -894,38 +905,38 @@ impl AsOneApp {
         egui::Panel::top("update_bar").frame(frame).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| match state {
                 UpdateState::Available(r) => {
-                    ui.label(format!("Dostępna nowa wersja AsOne {} (masz {}).", r.version, env!("CARGO_PKG_VERSION")));
-                    if ui.button(egui::RichText::new("Zaktualizuj").strong()).clicked() {
+                    ui.label(t!("Dostępna nowa wersja AsOne {new} (masz {current}).", new = r.version, current = env!("CARGO_PKG_VERSION")));
+                    if ui.button(egui::RichText::new(t!("Zaktualizuj")).strong()).clicked() {
                         action = Some(0);
                     }
-                    if ui.button("Później").clicked() {
+                    if ui.button(t!("Później")).clicked() {
                         action = Some(1);
                     }
-                    if ui.link("Co nowego").clicked() {
+                    if ui.link(t!("Co nowego")).clicked() {
                         action = Some(3);
                     }
                 }
                 UpdateState::Downloading { version, progress } => {
-                    ui.label(format!("Pobieranie AsOne {version}…"));
+                    ui.label(t!("Pobieranie AsOne {version}…", version = version));
                     let f = progress.load(std::sync::atomic::Ordering::Relaxed) as f32 / 1000.0;
                     ui.add(egui::ProgressBar::new(f).desired_width(240.0).show_percentage());
                     ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
                 }
                 UpdateState::Ready { version, .. } => {
-                    ui.label(format!("AsOne {version} jest gotowy."));
-                    if ui.button(egui::RichText::new("Uruchom ponownie").strong()).clicked() {
+                    ui.label(t!("AsOne {version} jest gotowy.", version = version));
+                    if ui.button(egui::RichText::new(t!("Uruchom ponownie")).strong()).clicked() {
                         action = Some(2);
                     }
-                    if ui.button("Później").clicked() {
+                    if ui.button(t!("Później")).clicked() {
                         action = Some(1);
                     }
                 }
                 UpdateState::Failed(e) => {
-                    ui.colored_label(pal.danger, format!("Aktualizacja nie powiodła się: {e}"));
-                    if ui.link("Strona wydań").clicked() {
+                    ui.colored_label(pal.danger, t!("Aktualizacja nie powiodła się: {error}", error = e));
+                    if ui.link(t!("Strona wydań")).clicked() {
                         action = Some(3);
                     }
-                    if ui.button("Zamknij").clicked() {
+                    if ui.button(t!("Zamknij")).clicked() {
                         action = Some(1);
                     }
                 }
@@ -964,7 +975,7 @@ impl AsOneApp {
     fn window_title(&self) -> String {
         match self.active_doc.and_then(|id| self.docs.get(&id)) {
             Some(doc) => format!("AsOne — {}", doc.file_name),
-            None => "AsOne — zdjęcia produktowe do internetu".into(),
+            None => t!("AsOne — zdjęcia produktowe do internetu").into(),
         }
     }
 }
@@ -1057,6 +1068,7 @@ impl AsOneApp {
         let prefs = self.prefs.show(&ctx, view.as_ref());
         if let Some(new) = prefs.apply {
             self.settings = new;
+            crate::i18n::set_language(self.settings.language);
             self.apply_view_settings(&ctx);
         }
         if let Some(target) = prefs.pick_model {
@@ -1115,6 +1127,9 @@ impl eframe::App for AsOneApp {
     }
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if self.settings.theme == theme::ThemeKind::System && theme::system_dark(ctx) != self.applied_system_dark {
+            self.apply_view_settings(ctx);
+        }
         // W przeglądarce zadania „w tle” wykonujemy między klatkami.
         if platform::run_pending_tasks(12.0) {
             ctx.request_repaint();

@@ -119,11 +119,11 @@ impl Loader {
         let (tx, ctx, gpu) = (self.tx.clone(), self.ctx.clone(), self.gpu.clone());
         self.tasks.spawn(move || {
             let result = (|| -> Result<LoadResult, String> {
-                let gpu = gpu.ok_or("Brak GPU (wgpu)")?;
+                let gpu = gpu.ok_or(t!("Brak GPU (wgpu)"))?;
                 let image = compose_output(&source, &mask, &edits, overlay.as_deref(), gpu.max_texture_dim)?;
                 new_content(&gpu, id, image, false)
             })();
-            let _ = tx.send(result.unwrap_or_else(|e| LoadResult::FlattenFailed { id, error: format!("Spłaszczanie: {e}") }));
+            let _ = tx.send(result.unwrap_or_else(|e| LoadResult::FlattenFailed { id, error: t!("Spłaszczanie: {e}", e = e) }));
             ctx.request_repaint();
         });
     }
@@ -144,14 +144,14 @@ impl Loader {
         let (tx, ctx, gpu) = (self.tx.clone(), self.ctx.clone(), self.gpu.clone());
         self.tasks.spawn(move || {
             let result = (|| -> Result<LoadResult, String> {
-                let gpu = gpu.ok_or("Brak GPU (wgpu)")?;
+                let gpu = gpu.ok_or(t!("Brak GPU (wgpu)"))?;
                 let input = compose_output(&source, &mask, &edits, overlay.as_deref(), gpu.max_texture_dim)?;
                 #[cfg(not(target_arch = "wasm32"))]
                 let image = crate::replicate::edit_image(&input, &prompt, model, &key);
                 #[cfg(target_arch = "wasm32")]
                 let image: Result<RgbaImage, String> = {
                     let _ = (&input, &prompt, model, &key);
-                    Err("Edycja przez Replicate nie działa w przeglądarce (Replicate blokuje takie zapytania)".to_string())
+                    Err(t!("Edycja przez Replicate nie działa w przeglądarce (Replicate blokuje takie zapytania)").to_string())
                 };
                 new_content(&gpu, id, image?, true)
             })();
@@ -166,7 +166,7 @@ impl Loader {
         self.tasks.spawn(move || {
             let started = crate::platform::Instant::now();
             let result = (|| -> Result<LoadResult, String> {
-                let gpu = gpu.ok_or("Brak GPU (wgpu)")?;
+                let gpu = gpu.ok_or(t!("Brak GPU (wgpu)"))?;
                 let (img, _) = decode_for_gpu(&source, gpu.max_texture_dim)?;
                 let out = crate::lama::inpaint(&model, &img, rect)?;
                 drop(img);
@@ -176,7 +176,7 @@ impl Loader {
                 let seconds = started.elapsed().as_secs_f32();
                 Ok(LoadResult::Repainted { id, gpu: full.gpu, ai_proxy: full.ai_proxy, content, thumb, seconds })
             })();
-            let _ = tx.send(result.unwrap_or_else(|e| LoadResult::FlattenFailed { id, error: format!("Retusz LaMa: {e}") }));
+            let _ = tx.send(result.unwrap_or_else(|e| LoadResult::FlattenFailed { id, error: t!("Retusz LaMa: {e}", e = e) }));
             ctx.request_repaint();
         });
     }
@@ -194,12 +194,12 @@ impl Loader {
         self.tasks.spawn(move || {
             let started = crate::platform::Instant::now();
             let result = (|| -> Result<LoadResult, String> {
-                let gpu = gpu.ok_or("Brak GPU (wgpu)")?;
+                let gpu = gpu.ok_or(t!("Brak GPU (wgpu)"))?;
                 let (img, _) = decode_for_gpu(&source, gpu.max_texture_dim)?;
                 let size = [img.width(), img.height()];
                 let new = [size[0] * variant.scale, size[1] * variant.scale];
                 if new[0].max(new[1]) > gpu.max_texture_dim {
-                    return Err(format!("wynik {}×{} px przekracza limit karty graficznej ({} px)", new[0], new[1], gpu.max_texture_dim));
+                    return Err(t!("wynik {w}×{h} px przekracza limit karty graficznej ({max} px)", w = new[0], h = new[1], max = gpu.max_texture_dim));
                 }
                 let out = crate::waifu2x::upscale(&img, variant, Some(&progress))?;
                 drop(img);
@@ -214,7 +214,7 @@ impl Loader {
                 let seconds = started.elapsed().as_secs_f32();
                 Ok(LoadResult::Upscaled { id, gpu: full.gpu, ai_proxy: full.ai_proxy, content, thumb, mask, scale: variant.scale, seconds })
             })();
-            let _ = tx.send(result.unwrap_or_else(|e| LoadResult::FlattenFailed { id, error: format!("waifu2x: {e}") }));
+            let _ = tx.send(result.unwrap_or_else(|e| LoadResult::FlattenFailed { id, error: t!("waifu2x: {e}", e = e) }));
             ctx.request_repaint();
         });
     }
@@ -236,7 +236,7 @@ impl Loader {
         let (tx, ctx, gpu) = (self.tx.clone(), self.ctx.clone(), self.gpu.clone());
         self.tasks.spawn(move || {
             let result = match gpu {
-                None => LoadResult::Failed { id, thumbnail: false, error: "Brak GPU (wgpu)".into() },
+                None => LoadResult::Failed { id, thumbnail: false, error: t!("Brak GPU (wgpu)").into() },
                 Some(gpu) => match load_full(&gpu, &source) {
                     Ok(full) => LoadResult::Full {
                         id,
@@ -307,7 +307,7 @@ fn compose_output(
         asone_core::compose::draw_overlay(size, &mut rgb, layer, rect)?;
     }
     let rgba: Vec<u8> = rgb.as_chunks::<3>().0.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect();
-    RgbaImage::from_raw(size[0], size[1], rgba).ok_or_else(|| "Błąd bufora".to_string())
+    RgbaImage::from_raw(size[0], size[1], rgba).ok_or_else(|| t!("Błąd bufora").to_string())
 }
 
 /// Nowa zawartość zakładki z gotowego obrazu (w limicie tekstury GPU).

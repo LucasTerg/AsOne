@@ -581,7 +581,7 @@ pub fn render_offscreen_tiled(
                 .map_err(|e| format!("GPU: {e}"))?;
             done_rx
                 .recv()
-                .map_err(|_| "GPU: przerwano odczyt".to_string())?
+                .map_err(|_| t!("GPU: przerwano odczyt").to_string())?
                 .map_err(|e| format!("GPU: odczyt bufora: {e}"))?;
             {
                 let data = slice.get_mapped_range().map_err(|e| format!("GPU: mapowanie bufora: {e}"))?;

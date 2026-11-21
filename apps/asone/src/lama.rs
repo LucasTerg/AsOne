@@ -32,15 +32,15 @@ pub fn context_rect(sel: PxRect, size: [u32; 2]) -> PxRect {
 /// Zdjęcie z zaznaczonym prostokątem dorysowanym przez LaMa (rozmiar i kanał alfa bez zmian).
 pub fn inpaint(model: &Path, image: &RgbaImage, sel: PxRect) -> Result<RgbaImage, String> {
     if !model.is_file() {
-        return Err(format!(
-            "Brak pliku modelu LaMa: {} – pobierz go w Ustawienia › Preferencje › Retusz (LaMa)",
-            model.display()
+        return Err(t!(
+            "Brak pliku modelu LaMa: {path} – pobierz go w Ustawienia › Preferencje › Retusz (LaMa)",
+            path = model.display()
         ));
     }
     let size = [image.width(), image.height()];
     let sel = PxRect { x0: sel.x0.min(size[0]), y0: sel.y0.min(size[1]), x1: sel.x1.min(size[0]), y1: sel.y1.min(size[1]) };
     if sel.is_empty() {
-        return Err("Zaznacz obszar do usunięcia narzędziem M (prostokąt)".into());
+        return Err(t!("Zaznacz obszar do usunięcia narzędziem M (prostokąt)").into());
     }
     let crop = context_rect(sel, size);
     let region = image::imageops::crop_imm(image, crop.x0, crop.y0, crop.width(), crop.height()).to_image();
@@ -124,7 +124,7 @@ fn run_model(model: &Path, image: Vec<f32>, mask: Vec<f32>) -> Result<Vec<f32>, 
     let n = SIZE as usize;
     let image = ort::value::Tensor::from_array(([1usize, 3, n, n], image.into_boxed_slice())).map_err(err)?;
     let mask = ort::value::Tensor::from_array(([1usize, 1, n, n], mask.into_boxed_slice())).map_err(err)?;
-    let output_name = session.outputs().first().map(|o| o.name().to_string()).ok_or("LaMa: model bez wyjść")?;
+    let output_name = session.outputs().first().map(|o| o.name().to_string()).ok_or(t!("LaMa: model bez wyjść"))?;
     let outputs = if mask_first {
         session.run(ort::inputs![mask, image]).map_err(err)?
     } else {
@@ -132,14 +132,14 @@ fn run_model(model: &Path, image: Vec<f32>, mask: Vec<f32>) -> Result<Vec<f32>, 
     };
     let (_, raw) = outputs[output_name.as_str()].try_extract_tensor::<f32>().map_err(err)?;
     if raw.len() != 3 * n * n {
-        return Err(format!("LaMa: nieoczekiwany rozmiar wyniku ({} wartości)", raw.len()));
+        return Err(t!("LaMa: nieoczekiwany rozmiar wyniku ({n} wartości)", n = raw.len()));
     }
     Ok(raw.to_vec())
 }
 
 #[cfg(not(all(feature = "ai", any(target_os = "linux", target_os = "windows", target_os = "macos"))))]
 fn run_model(_model: &Path, _image: Vec<f32>, _mask: Vec<f32>) -> Result<Vec<f32>, String> {
-    Err("Retusz LaMa działa lokalnie w wersji na Linux, Windows i macOS".into())
+    Err(t!("Retusz LaMa działa lokalnie w wersji na Linux, Windows i macOS").into())
 }
 
 #[cfg(test)]

@@ -23,7 +23,9 @@ mod git_stats {
 
 /// Współtwórcy w „O programie”: (login GitHub, imię, rola / wkład).
 /// Dopisujemy tylko osoby z realnym wkładem – np. przyjętym pull requestem – nigdy „na zapas”.
-const CONTRIBUTORS: &[(&str, &str, &str)] = &[("LucasTerg", "Lucas", "Twórca i główny deweloper")];
+fn contributors() -> [(&'static str, &'static str, &'static str); 1] {
+    [("LucasTerg", "Lucas", t!("Twórca i główny deweloper"))]
+}
 
 /// Tekst w jednej linii (bez łamania) – kolumna i okno poszerzają się do jego długości.
 fn one_line(ui: &mut Ui, text: RichText) {
@@ -56,57 +58,57 @@ impl AsOneApp {
             .stroke(egui::Stroke::new(1.0, pal.separator));
         egui::Panel::top("top_bar").frame(frame).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label("Wklej nazwę:");
+                ui.label(t!("Wklej nazwę:"));
                 let field = ui.add(
                     egui::TextEdit::singleline(&mut self.base_name)
-                        .hint_text("np.: Nazwa-MARKA-Model")
+                        .hint_text(t!("np.: Nazwa-MARKA-Model"))
                         .desired_width(210.0),
                 );
                 // Android: klawiatura systemowa w oknie edycji (GameActivity nie podaje tekstu do egui).
                 #[cfg(target_os = "android")]
                 if field.gained_focus() {
                     self.text_target = platform::TextTarget::Name;
-                    crate::android::edit_text("Wklej nazwę", &self.base_name, false);
+                    crate::android::edit_text(t!("Wklej nazwę"), &self.base_name, false);
                     ui.memory_mut(|m| m.surrender_focus(field.id));
                 }
                 field.context_menu(|ui| {
-                    if platform::CAN_PASTE && ui.button("Wklej").clicked() {
+                    if platform::CAN_PASTE && ui.button(t!("Wklej")).clicked() {
                         self.pickers.paste_text();
                         ui.close();
                     }
-                    if ui.button("Kopiuj").clicked() {
+                    if ui.button(t!("Kopiuj")).clicked() {
                         ui.ctx().copy_text(self.base_name.clone());
                         ui.close();
                     }
-                    if ui.button("Wytnij").clicked() {
+                    if ui.button(t!("Wytnij")).clicked() {
                         ui.ctx().copy_text(std::mem::take(&mut self.base_name));
                         ui.close();
                     }
-                    if ui.button("Wyczyść").clicked() {
+                    if ui.button(t!("Wyczyść")).clicked() {
                         self.base_name.clear();
                         ui.close();
                     }
                 });
                 if platform::CAN_PASTE
-                    && ui.button("Wklej").on_hover_text("Wkleja nazwę ze schowka (zastępuje obecną)").clicked()
+                    && ui.button(t!("Wklej")).on_hover_text(t!("Wkleja nazwę ze schowka (zastępuje obecną)")).clicked()
                 {
                     self.pickers.paste_text();
                 }
-                if !self.base_name.is_empty() && ui.small_button("×").on_hover_text("Wyczyść").clicked() {
+                if !self.base_name.is_empty() && ui.small_button("×").on_hover_text(t!("Wyczyść")).clicked() {
                     self.base_name.clear();
                 }
-                ui.label("Start nr:");
+                ui.label(t!("Start nr:"));
                 ui.add(egui::DragValue::new(&mut self.settings.start_number).range(1..=99_999))
-                    .on_hover_text("Numer pierwszego zdjęcia w paczce");
+                    .on_hover_text(t!("Numer pierwszego zdjęcia w paczce"));
                 let slug = slugify(&self.base_name);
                 let first = self.settings.start_number.max(1);
                 let preview = if slug.is_empty() { "» …".to_string() } else { format!("» {slug}-{first}.jpg") };
                 ui.colored_label(pal.text_dim, preview);
                 ui.separator();
 
-                ui.label("Jakość");
+                ui.label(t!("Jakość"));
                 ui.add(egui::Slider::new(&mut self.settings.quality, 1..=100).suffix(" %"));
-                ui.checkbox(&mut self.settings.limit_long_side, "Max dłuższy bok");
+                ui.checkbox(&mut self.settings.limit_long_side, t!("Max dłuższy bok"));
                 ui.add_enabled(
                     self.settings.limit_long_side,
                     egui::DragValue::new(&mut self.settings.max_long_side).range(16..=16384).suffix(" px"),
@@ -126,31 +128,35 @@ impl AsOneApp {
                         ui.add(
                             egui::ProgressBar::new(done as f32 / job.total.max(1) as f32)
                                 .desired_width(170.0)
-                                .text(format!("Zapisywanie {done}/{}", job.total)),
+                                .text(t!("Zapisywanie {done}/{total}", done = done, total = job.total)),
                         );
                     } else {
                         let blocker = self.export_blocker(open);
                         let button = egui::Button::new(
-                            RichText::new(format!("Zapisz z zakładek ({})", open.len())).strong().color(pal.on_accent),
+                            RichText::new(t!("Zapisz z zakładek ({n})", n = open.len())).strong().color(pal.on_accent),
                         )
                         .fill(pal.accent)
                         .min_size(vec2(170.0, 26.0));
                         let response = ui.add_enabled(blocker.is_none(), button);
                         let limits = self.settings.limits();
                         let limit_info = match (limits.max_width, limits.max_bytes) {
-                            (Some(w), Some(b)) => format!(
-                                "\nLimity: {w}×{} px, {:.1} MB (Ustawienia › Preferencje › Eksport)",
-                                limits.max_height.unwrap_or(w),
-                                b as f64 / 1_048_576.0
+                            (Some(w), Some(b)) => t!(
+                                "\nLimity: {w}×{h} px, {mb} MB (Ustawienia › Preferencje › Eksport)",
+                                w = w,
+                                h = limits.max_height.unwrap_or(w),
+                                mb = format!("{:.1}", b as f64 / 1_048_576.0)
                             ),
                             _ => String::new(),
                         };
                         let response = match blocker {
                             Some(reason) => response.on_disabled_hover_text(reason),
                             None => response.on_hover_text(format!(
-                                "Eksport {} zdjęć w kolejności zakładek ({}, Progressive JPEG, bez metadanych) · Ctrl+S{limit_info}",
-                                open.len(),
-                                asone_core::jpeg::ENCODER_NAME
+                                "{}{limit_info}",
+                                t!(
+                                    "Eksport {n} zdjęć w kolejności zakładek ({encoder}, Progressive JPEG, bez metadanych) · Ctrl+S",
+                                    n = open.len(),
+                                    encoder = asone_core::jpeg::ENCODER_NAME
+                                )
                             )),
                         };
                         if response.clicked() {
@@ -159,13 +165,13 @@ impl AsOneApp {
                         }
                         if platform::FILE_OPS {
                             let blocker = self.rename_blocker(open);
-                            let response = ui.add_enabled(blocker.is_none(), egui::Button::new("Zmień tylko nazwę").min_size(vec2(0.0, 26.0)));
+                            let response = ui.add_enabled(blocker.is_none(), egui::Button::new(t!("Zmień tylko nazwę")).min_size(vec2(0.0, 26.0)));
                             let response = match blocker {
                                 Some(reason) => response.on_disabled_hover_text(reason),
-                                None => response.on_hover_text(format!(
-                                    "Zmienia nazwy {} plików na dysku (w ich folderach) według wklejonej nazwy i kolejności zakładek – \
+                                None => response.on_hover_text(t!(
+                                    "Zmienia nazwy {n} plików na dysku (w ich folderach) według wklejonej nazwy i kolejności zakładek – \
                                      bez zapisu nowych JPG. Najpierw pokaże listę zmian.",
-                                    open.len()
+                                    n = open.len()
                                 )),
                             };
                             if response.clicked() {
@@ -183,10 +189,11 @@ impl AsOneApp {
                         let custom = self.out_dir.is_some();
                         let response = ui.add_enabled(custom, reset);
                         let response = if custom {
-                            response.on_hover_text(format!("Przywróć domyślny folder: „{sub}” obok zdjęć"))
+                            response.on_hover_text(t!("Przywróć domyślny folder: „{sub}” obok zdjęć", sub = sub))
                         } else {
-                            response.on_disabled_hover_text(format!(
-                                "Zapis do domyślnego folderu „{sub}” obok zdjęć (nazwa: Ustawienia › Preferencje › Eksport)"
+                            response.on_disabled_hover_text(t!(
+                                "Zapis do domyślnego folderu „{sub}” obok zdjęć (nazwa: Ustawienia › Preferencje › Eksport)",
+                                sub = sub
                             ))
                         };
                         if response.clicked() {
@@ -197,21 +204,21 @@ impl AsOneApp {
                             .as_ref()
                             .and_then(|d| d.file_name())
                             .map(|n| format!("Folder: {}", n.to_string_lossy()))
-                            .unwrap_or_else(|| "Folder: …".into());
+                            .unwrap_or_else(|| t!("Folder: …").into());
                         let hover = dir
                             .as_ref()
-                            .map(|d| format!("Zapis do: {}\nKliknij, aby zmienić", d.display()))
-                            .unwrap_or_else(|| "Domyślnie podfolder obok zdjęć".into());
+                            .map(|d| t!("Zapis do: {dir}\nKliknij, aby zmienić", dir = d.display()))
+                            .unwrap_or_else(|| t!("Domyślnie podfolder obok zdjęć").into());
                         if ui.button(label).on_hover_text(hover).clicked() {
                             self.pickers.pick_output_folder(dir);
                         }
                     } else if cfg!(target_os = "android") {
-                        ui.colored_label(pal.text_dim, "Zapis: Galeria › Pictures/AsOne");
+                        ui.colored_label(pal.text_dim, t!("Zapis: Galeria › Pictures/AsOne"));
                     } else if platform::EXPORT_TO_FOLDER {
                         let dir = self.out_dir.clone().unwrap_or_default();
-                        ui.colored_label(pal.text_dim, format!("Zapis: {}", dir.display()));
+                        ui.colored_label(pal.text_dim, t!("Zapis: {dir}", dir = dir.display()));
                     } else {
-                        ui.colored_label(pal.text_dim, "Zapis: pobierane pliki");
+                        ui.colored_label(pal.text_dim, t!("Zapis: pobierane pliki"));
                     }
                     let width = ui.min_rect().width();
                     ui.ctx().data_mut(|d| d.insert_temp(group_id, width));
@@ -251,8 +258,8 @@ impl AsOneApp {
                 let history = self.active_doc.and_then(|id| self.docs.get(&id)).map(|d| &d.history);
                 let (can_undo, can_redo) = (history.is_some_and(|h| h.can_undo()), history.is_some_and(|h| h.can_redo()));
                 for (redo, icon, enabled, hint) in [
-                    (false, egui::include_image!("../../assets/icons/undo.svg"), can_undo, "Cofnij (Ctrl+Z)"),
-                    (true, egui::include_image!("../../assets/icons/redo.svg"), can_redo, "Ponów (Ctrl+Shift+Z)"),
+                    (false, egui::include_image!("../../assets/icons/undo.svg"), can_undo, t!("Cofnij (Ctrl+Z)")),
+                    (true, egui::include_image!("../../assets/icons/redo.svg"), can_redo, t!("Ponów (Ctrl+Shift+Z)")),
                 ] {
                     let image = egui::Image::new(icon).fit_to_exact_size(vec2(20.0, 20.0)).tint(pal.icon);
                     let button = egui::Button::image(image).min_size(vec2(34.0, 34.0)).corner_radius(CornerRadius::same(pal.radius));
@@ -271,7 +278,7 @@ impl AsOneApp {
         let pal = theme::p();
         let mut open = true;
         let (mut close, mut zip) = (false, false);
-        egui::Window::new("Eksport zakończony")
+        egui::Window::new(t!("Eksport zakończony"))
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
@@ -285,11 +292,12 @@ impl AsOneApp {
                     .iter()
                     .map(|e| if let ReportEntry::Saved { bytes, .. } = e { *bytes } else { 0 })
                     .sum();
-                ui.label(format!(
-                    "Zapisano {saved} z {} plików · {:.0} KB · {:.1} s",
-                    report.entries.len(),
-                    total_bytes as f64 / 1024.0,
-                    report.elapsed.as_secs_f64()
+                ui.label(t!(
+                    "Zapisano {saved} z {total} plików · {kb} KB · {s} s",
+                    saved = saved,
+                    total = report.entries.len(),
+                    kb = format!("{:.0}", total_bytes as f64 / 1024.0),
+                    s = format!("{:.1}", report.elapsed.as_secs_f64())
                 ));
                 if let Some(dir) = &report.out_dir {
                     ui.colored_label(pal.text_dim, dir.display().to_string());
@@ -309,11 +317,12 @@ impl AsOneApp {
                                     });
                                     one_line(
                                         ui,
-                                        RichText::new(format!(
-                                            "{}×{} · {:.0} KB · jakość {quality}",
-                                            size[0],
-                                            size[1],
-                                            *bytes as f64 / 1024.0
+                                        RichText::new(t!(
+                                            "{w}×{h} · {kb} KB · jakość {quality}",
+                                            w = size[0],
+                                            h = size[1],
+                                            kb = format!("{:.0}", *bytes as f64 / 1024.0),
+                                            quality = quality
                                         )),
                                     );
                                 }
@@ -330,14 +339,14 @@ impl AsOneApp {
                 ui.separator();
                 ui.horizontal(|ui| {
                     if let Some(dir) = report.out_dir.as_ref().filter(|_| platform::CAN_PICK_FOLDER) {
-                        if ui.button("Otwórz folder").clicked() {
+                        if ui.button(t!("Otwórz folder")).clicked() {
                             platform::open_in_file_manager(dir);
                         }
-                        if saved > 0 && ui.button("Spakuj do ZIP…").clicked() {
+                        if saved > 0 && ui.button(t!("Spakuj do ZIP…")).clicked() {
                             zip = true;
                         }
                     }
-                    if ui.button("Zamknij").clicked() {
+                    if ui.button(t!("Zamknij")).clicked() {
                         close = true;
                     }
                 });
@@ -355,15 +364,15 @@ impl AsOneApp {
         if let Some(ids) = self.dialogs.delete.clone() {
             let mut open = true;
             let mut choice = None;
-            egui::Window::new("Usuń z dysku")
+            egui::Window::new(t!("Usuń z dysku"))
                 .open(&mut open)
                 .collapsible(false)
                 .resizable(true)
                 .movable(true)
                 .default_pos(ctx.content_rect().center() - vec2(220.0, 150.0))
                 .show(ctx, |ui| {
-                    ui.colored_label(pal.danger, RichText::new("Ostrzeżenie").strong());
-                    ui.label(format!("Pliki ({}) zostaną usunięte z dysku i z listy:", ids.len()));
+                    ui.colored_label(pal.danger, RichText::new(t!("Ostrzeżenie")).strong());
+                    ui.label(t!("Pliki ({n}) zostaną usunięte z dysku i z listy:", n = ids.len()));
                     egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
                         for id in &ids {
                             if let Some(p) = self.docs.get(id).and_then(|d| d.source.path()) {
@@ -373,15 +382,15 @@ impl AsOneApp {
                     });
                     ui.add_space(6.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Przenieś do kosza").clicked() {
+                        if ui.button(t!("Przenieś do kosza")).clicked() {
                             choice = Some(true);
                         }
-                        let danger = egui::Button::new(RichText::new("Usuń trwale (nieodwracalne)").color(Color32::WHITE))
+                        let danger = egui::Button::new(RichText::new(t!("Usuń trwale (nieodwracalne)")).color(Color32::WHITE))
                             .fill(pal.danger);
                         if ui.add(danger).clicked() {
                             choice = Some(false);
                         }
-                        if ui.button("Anuluj").clicked() {
+                        if ui.button(t!("Anuluj")).clicked() {
                             self.dialogs.delete = None;
                         }
                     });
@@ -399,15 +408,15 @@ impl AsOneApp {
             let mut open = true;
             let mut confirm = false;
             let changes = plans.iter().filter(|(_, p)| !p.is_noop()).count();
-            egui::Window::new("Zmień tylko nazwę")
+            egui::Window::new(t!("Zmień tylko nazwę"))
                 .open(&mut open)
                 .collapsible(false)
                 .resizable(true)
                 .default_width(560.0)
                 .default_pos(ctx.content_rect().center() - vec2(280.0, 180.0))
                 .show(ctx, |ui| {
-                    ui.label(format!("Pliki na dysku dostaną nowe nazwy ({changes} z {}). Zawartość i folder się nie zmieniają.", plans.len()));
-                    ui.colored_label(pal.text_dim, "Istniejące pliki o tych nazwach nie zostaną nadpisane.");
+                    ui.label(t!("Pliki na dysku dostaną nowe nazwy ({changes} z {total}). Zawartość i folder się nie zmieniają.", changes = changes, total = plans.len()));
+                    ui.colored_label(pal.text_dim, t!("Istniejące pliki o tych nazwach nie zostaną nadpisane."));
                     ui.add_space(4.0);
                     egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
                         egui::Grid::new("rename_preview").num_columns(3).striped(true).spacing(vec2(10.0, 4.0)).show(ui, |ui| {
@@ -416,7 +425,7 @@ impl AsOneApp {
                                 ui.monospace(name(&p.from));
                                 ui.label("»");
                                 if p.is_noop() {
-                                    ui.colored_label(pal.text_dim, "bez zmian");
+                                    ui.colored_label(pal.text_dim, t!("bez zmian"));
                                 } else {
                                     ui.colored_label(pal.accent, RichText::new(name(&p.to)).monospace());
                                 }
@@ -426,11 +435,11 @@ impl AsOneApp {
                     });
                     ui.add_space(6.0);
                     ui.horizontal(|ui| {
-                        let ok = egui::Button::new(RichText::new(format!("Zmień nazwy ({changes})")).color(pal.on_accent)).fill(pal.accent);
+                        let ok = egui::Button::new(RichText::new(t!("Zmień nazwy ({changes})", changes = changes)).color(pal.on_accent)).fill(pal.accent);
                         if ui.add_enabled(changes > 0, ok).clicked() {
                             confirm = true;
                         }
-                        if ui.button("Anuluj").clicked() {
+                        if ui.button(t!("Anuluj")).clicked() {
                             self.dialogs.rename = None;
                         }
                     });
@@ -448,21 +457,21 @@ impl AsOneApp {
             let mut open = true;
             let mut confirm = false;
             let n = self.order.len();
-            egui::Window::new("Wyczyść listę")
+            egui::Window::new(t!("Wyczyść listę"))
                 .open(&mut open)
                 .collapsible(false)
                 .resizable(true)
                 .movable(true)
                 .default_pos(ctx.content_rect().center() - vec2(200.0, 120.0))
                 .show(ctx, |ui| {
-                    ui.label(format!("Usunąć z listy wszystkie zdjęcia ({n})?"));
-                    ui.colored_label(pal.text_dim, "Pliki na dysku zostają; tracisz tylko ustawienia kadru, marginesów i maski.");
+                    ui.label(t!("Usunąć z listy wszystkie zdjęcia ({n})?", n = n));
+                    ui.colored_label(pal.text_dim, t!("Pliki na dysku zostają; tracisz tylko ustawienia kadru, marginesów i maski."));
                     ui.add_space(6.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Wyczyść listę").clicked() {
+                        if ui.button(t!("Wyczyść listę")).clicked() {
                             confirm = true;
                         }
-                        if ui.button("Anuluj").clicked() {
+                        if ui.button(t!("Anuluj")).clicked() {
                             self.dialogs.clear_list = false;
                         }
                     });
@@ -478,7 +487,7 @@ impl AsOneApp {
 
         if self.dialogs.shortcuts {
             let mut open = true;
-            egui::Window::new("Skróty klawiszowe")
+            egui::Window::new(t!("Skróty klawiszowe"))
                 .open(&mut open)
                 .collapsible(false)
                 .resizable(true)
@@ -487,18 +496,18 @@ impl AsOneApp {
                 .show(ctx, |ui| {
                     egui::Grid::new("shortcuts").num_columns(2).striped(true).show(ui, |ui| {
                         for (k, v) in [
-                            ("H / C / E / M", "Przesuwanie / Kadrowanie / Gumka / Wycinanie prostokątem"),
-                            ("I", "Inspekcja tła"),
-                            ("Kółko myszy", "Zoom zdjęcia w punkt kursora"),
-                            ("Spacja + LPM, środkowy", "Przesuwanie widoku"),
-                            ("Ctrl+0 / Ctrl+1", "Dopasuj zdjęcie / 100 %"),
-                            ("Ctrl++ / Ctrl+−", "Skala interfejsu"),
-                            ("[ ]  ·  Ctrl+kółko", "Rozmiar pędzla (gumka)"),
-                            ("LPM / PPM (Alt+LPM)", "Gumka: usuń / przywróć"),
-                            ("Delete / Shift+Delete / Esc", "Wytnij / przywróć zaznaczenie, odznacz"),
-                            ("Enter, dwuklik", "Zatwierdź kadr"),
-                            ("Ctrl/Shift+klik", "Zaznaczanie na liście plików"),
-                            ("Ctrl+O / Ctrl+S / Ctrl+Q", "Dodaj zdjęcia / Zapisz z zakładek / Zakończ"),
+                            ("H / C / E / M", t!("Przesuwanie / Kadrowanie / Gumka / Wycinanie prostokątem")),
+                            ("I", t!("Inspekcja tła")),
+                            (t!("Kółko myszy"), t!("Zoom zdjęcia w punkt kursora")),
+                            (t!("Spacja + LPM, środkowy"), t!("Przesuwanie widoku")),
+                            ("Ctrl+0 / Ctrl+1", t!("Dopasuj zdjęcie / 100 %")),
+                            ("Ctrl++ / Ctrl+−", t!("Skala interfejsu")),
+                            (t!("[ ]  ·  Ctrl+kółko"), t!("Rozmiar pędzla (gumka)")),
+                            (t!("LPM / PPM (Alt+LPM)"), t!("Gumka: usuń / przywróć")),
+                            ("Delete / Shift+Delete / Esc", t!("Wytnij / przywróć zaznaczenie, odznacz")),
+                            (t!("Enter, dwuklik"), t!("Zatwierdź kadr")),
+                            (t!("Ctrl/Shift+klik"), t!("Zaznaczanie na liście plików")),
+                            ("Ctrl+O / Ctrl+S / Ctrl+Q", t!("Dodaj zdjęcia / Zapisz z zakładek / Zakończ")),
                         ] {
                             ui.monospace(k);
                             ui.label(v);
@@ -511,7 +520,7 @@ impl AsOneApp {
 
         if self.dialogs.about {
             let mut open = true;
-            egui::Window::new("O programie AsOne")
+            egui::Window::new(t!("O programie AsOne"))
                 .open(&mut open)
                 .collapsible(false)
                 .resizable(true)
@@ -524,9 +533,9 @@ impl AsOneApp {
                         // Pasek zakładek okna
                         ui.horizontal(|ui| {
                             for (tab, label) in [
-                                (AboutTab::About, "O programie"),
-                                (AboutTab::Contributors, "Współtwórcy"),
-                                (AboutTab::Models, "Modele"),
+                                (AboutTab::About, t!("O programie")),
+                                (AboutTab::Contributors, t!("Współtwórcy")),
+                                (AboutTab::Models, t!("Modele")),
                             ] {
                                 if ui.add_sized(vec2(120.0, 26.0), egui::Button::selectable(self.dialogs.about_tab == tab, label)).clicked() {
                                     self.dialogs.about_tab = tab;
@@ -540,71 +549,71 @@ impl AsOneApp {
                             AboutTab::About => {
                                 ui.heading(format!("AsOne {}", env!("CARGO_PKG_VERSION")));
                                 ui.add_space(4.0);
-                                ui.label("Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, limity, usuwanie tła przez modele AI (BRIA RMBG) i Progressive JPEG bez metadanych.");
+                                ui.label(t!("Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, limity, usuwanie tła przez modele AI (BRIA RMBG) i Progressive JPEG bez metadanych."));
                                 ui.add_space(8.0);
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Wersja:").strong());
+                                    ui.label(RichText::new(t!("Wersja:")).strong());
                                     ui.monospace(env!("CARGO_PKG_VERSION"));
                                 });
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Kod źródłowy:").strong());
-                                    if ui.link("https://github.com/LucasTerg/AsOne").on_hover_text("Otwórz repozytorium GitHub").clicked() {
+                                    ui.label(RichText::new(t!("Kod źródłowy:")).strong());
+                                    if ui.link("https://github.com/LucasTerg/AsOne").on_hover_text(t!("Otwórz repozytorium GitHub")).clicked() {
                                         crate::platform::open_url("https://github.com/LucasTerg/AsOne");
                                     }
                                 });
                                 ui.add_space(6.0);
                                 ui.separator();
                                 ui.add_space(4.0);
-                                ui.label(RichText::new("Komponenty systemowe:").strong());
-                                ui.colored_label(pal.text_dim, format!("• Kompresja: {}", asone_core::jpeg::ENCODER_NAME));
-                                ui.colored_label(pal.text_dim, "• Silnik AI: ONNX Runtime (ort) – RMBG 1.4 & 2.0 BiRefNet");
+                                ui.label(RichText::new(t!("Komponenty systemowe:")).strong());
+                                ui.colored_label(pal.text_dim, t!("• Kompresja: {encoder}", encoder = asone_core::jpeg::ENCODER_NAME));
+                                ui.colored_label(pal.text_dim, t!("• Silnik AI: ONNX Runtime (ort) – RMBG 1.4 & 2.0 BiRefNet"));
                                 if let Some(g) = &self.gpu {
-                                    ui.colored_label(pal.text_dim, format!("• Akceleracja graficzna: wgpu (maks. tekstura GPU: {} px)", g.max_texture_dim));
+                                    ui.colored_label(pal.text_dim, t!("• Akceleracja graficzna: wgpu (maks. tekstura GPU: {px} px)", px = g.max_texture_dim));
                                 }
                             }
                             AboutTab::Contributors => {
-                                ui.heading("Współtwórcy");
+                                ui.heading(t!("Współtwórcy"));
                                 ui.add_space(4.0);
                                 ui.colored_label(
                                     pal.text_dim,
-                                    "Twórca projektu i osoby, które wniosły do AsOne realny wkład – np. przyjętym pull requestem:",
+                                    t!("Twórca projektu i osoby, które wniosły do AsOne realny wkład – np. przyjętym pull requestem:"),
                                 );
                                 ui.add_space(8.0);
                                 egui::Grid::new("about_contributors").striped(true).num_columns(3).spacing(vec2(20.0, 10.0)).show(ui, |ui| {
-                                    ui.label(RichText::new("Użytkownik").strong());
-                                    ui.label(RichText::new("Imię").strong());
-                                    ui.label(RichText::new("Rola / Wkład").strong());
+                                    ui.label(RichText::new(t!("Użytkownik")).strong());
+                                    ui.label(RichText::new(t!("Imię")).strong());
+                                    ui.label(RichText::new(t!("Rola / Wkład")).strong());
                                     ui.end_row();
-                                    for (login, name, role) in CONTRIBUTORS {
+                                    for (login, name, role) in contributors() {
                                         let url = format!("https://github.com/{login}");
                                         if ui.link(format!("@{login}")).on_hover_text(format!("GitHub: {login}")).clicked() {
                                             crate::platform::open_url(&url);
                                         }
-                                        ui.label(*name);
-                                        ui.label(*role);
+                                        ui.label(name);
+                                        ui.label(role);
                                         ui.end_row();
                                     }
                                 });
                                 ui.add_space(10.0);
                                 ui.horizontal(|ui| {
-                                    ui.label("Chcesz pomóc?");
-                                    if ui.link("Pull requesty na GitHubie").clicked() {
+                                    ui.label(t!("Chcesz pomóc?"));
+                                    if ui.link(t!("Pull requesty na GitHubie")).clicked() {
                                         crate::platform::open_url("https://github.com/LucasTerg/AsOne/pulls");
                                     }
                                 });
                             }
                             AboutTab::Models => {
                                 use git_stats::{MODEL_STATS, STATS_HEAD, TOTAL_COMMITS};
-                                ui.heading("Modele AI");
+                                ui.heading(t!("Modele AI"));
                                 ui.add_space(4.0);
-                                ui.colored_label(pal.text_dim, "Udział modeli AI w kodzie – wyliczone z git log przy budowaniu programu:");
+                                ui.colored_label(pal.text_dim, t!("Udział modeli AI w kodzie – wyliczone z git log przy budowaniu programu:"));
                                 ui.add_space(8.0);
                                 if MODEL_STATS.is_empty() {
-                                    ui.colored_label(pal.warning, "Brak danych (program zbudowany bez repozytorium git).");
+                                    ui.colored_label(pal.warning, t!("Brak danych (program zbudowany bez repozytorium git)."));
                                 } else {
                                     egui::ScrollArea::horizontal().show(ui, |ui| {
                                         egui::Grid::new("about_models").striped(true).num_columns(6).spacing(vec2(16.0, 8.0)).show(ui, |ui| {
-                                            for h in ["Firma", "Model", "Commity", "% commitów", "Wiersze +/−", "Okres"] {
+                                            for h in [t!("Firma"), t!("Model"), t!("Commity"), t!("% commitów"), t!("Wiersze +/−"), t!("Okres")] {
                                                 ui.label(RichText::new(h).strong());
                                             }
                                             ui.end_row();
@@ -620,9 +629,11 @@ impl AsOneApp {
                                         });
                                     });
                                     ui.add_space(8.0);
-                                    ui.small(format!(
-                                        "Wszystkich commitów: {TOTAL_COMMITS} · ostatni: {STATS_HEAD}. Model = stopka „Co-Authored-By” commita \
-                                         lub wpis w ai-coauthors.txt; wiersze bez vendor/ i Cargo.lock."
+                                    ui.small(t!(
+                                        "Wszystkich commitów: {total} · ostatni: {head}. Model = stopka „Co-Authored-By” commita \
+                                         lub wpis w ai-coauthors.txt; wiersze bez vendor/ i Cargo.lock.",
+                                        total = TOTAL_COMMITS,
+                                        head = STATS_HEAD
                                     ));
                                 }
                             }
@@ -643,7 +654,7 @@ impl AsOneApp {
             painter.text(
                 rect.center(),
                 Align2::CENTER_CENTER,
-                "Upuść, aby dodać do listy plików",
+                t!("Upuść, aby dodać do listy plików"),
                 egui::FontId::proportional(22.0),
                 Color32::WHITE,
             );

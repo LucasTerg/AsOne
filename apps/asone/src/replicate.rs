@@ -25,11 +25,11 @@ const MAX_RESPONSE: u64 = 64 * 1024 * 1024;
 pub fn edit_image(image: &RgbaImage, prompt: &str, model: &str, key: &str) -> Result<RgbaImage, String> {
     let key = key.trim();
     if key.is_empty() {
-        return Err("Brak klucza Replicate – Ustawienia › Preferencje › Replicate".into());
+        return Err(t!("Brak klucza Replicate – Ustawienia › Preferencje › Replicate").into());
     }
     let prompt = prompt.trim();
     if prompt.is_empty() {
-        return Err("Wpisz polecenie dla AI (co zrobić ze zdjęciem)".into());
+        return Err(t!("Wpisz polecenie dla AI (co zrobić ze zdjęciem)").into());
     }
     let body = serde_json::json!({
         "input": {
@@ -47,13 +47,13 @@ pub fn edit_image(image: &RgbaImage, prompt: &str, model: &str, key: &str) -> Re
         match prediction.get("status").and_then(Value::as_str) {
             Some("succeeded") => break,
             Some("failed") | Some("canceled") | Some("aborted") => {
-                let why = prediction.get("error").and_then(Value::as_str).unwrap_or("model zgłosił błąd");
-                return Err(format!("Replicate: {why}"));
+                let why = prediction.get("error").and_then(Value::as_str).unwrap_or(t!("model zgłosił błąd"));
+                return Err(t!("Replicate: {why}", why = why));
             }
             _ => {}
         }
         if started.elapsed() > TOTAL_TIMEOUT {
-            return Err("Replicate: model nie skończył w 5 minut".into());
+            return Err(t!("Replicate: model nie skończył w 5 minut").into());
         }
         std::thread::sleep(Duration::from_secs(2));
         let url = prediction
@@ -61,18 +61,18 @@ pub fn edit_image(image: &RgbaImage, prompt: &str, model: &str, key: &str) -> Re
             .and_then(Value::as_str)
             .map(String::from)
             .or_else(|| prediction.get("id").and_then(Value::as_str).map(|id| format!("{API}/predictions/{id}")))
-            .ok_or("Replicate: odpowiedź bez identyfikatora zadania")?;
+            .ok_or(t!("Replicate: odpowiedź bez identyfikatora zadania"))?;
         prediction = send(None, &url, key)?;
     }
     let output = match prediction.get("output") {
         Some(Value::String(s)) => s.clone(),
-        Some(Value::Array(a)) => a.first().and_then(Value::as_str).map(String::from).ok_or("Replicate: pusty wynik")?,
-        _ => return Err("Replicate: odpowiedź bez obrazu".into()),
+        Some(Value::Array(a)) => a.first().and_then(Value::as_str).map(String::from).ok_or(t!("Replicate: pusty wynik"))?,
+        _ => return Err(t!("Replicate: odpowiedź bez obrazu").into()),
     };
     let bytes = download(&output, key)?;
     image::load_from_memory(&bytes)
         .map(|img| img.to_rgba8())
-        .map_err(|e| format!("Replicate: nieczytelny wynik ({e})"))
+        .map_err(|e| t!("Replicate: nieczytelny wynik ({e})", e = e))
 }
 
 /// POST (z `body`) albo GET zadania; zwraca JSON odpowiedzi albo czytelny błąd.
@@ -96,18 +96,18 @@ fn send(body: Option<&str>, url: &str, key: &str) -> Result<Value, String> {
             .header("Authorization", &auth)
             .call(),
     };
-    let mut resp = result.map_err(|e| format!("Replicate: brak połączenia ({e})"))?;
+    let mut resp = result.map_err(|e| t!("Replicate: brak połączenia ({e})", e = e))?;
     let status = resp.status().as_u16();
     let text = resp
         .body_mut()
         .with_config()
         .limit(MAX_RESPONSE)
         .read_to_string()
-        .map_err(|e| format!("Replicate: przerwana odpowiedź ({e})"))?;
+        .map_err(|e| t!("Replicate: przerwana odpowiedź ({e})", e = e))?;
     if !(200..300).contains(&status) {
         return Err(error_message(status, &text));
     }
-    serde_json::from_str(&text).map_err(|e| format!("Replicate: nieczytelna odpowiedź ({e})"))
+    serde_json::from_str(&text).map_err(|e| t!("Replicate: nieczytelna odpowiedź ({e})", e = e))
 }
 
 fn download(url: &str, key: &str) -> Result<Vec<u8>, String> {
@@ -117,12 +117,12 @@ fn download(url: &str, key: &str) -> Result<Vec<u8>, String> {
         .build()
         .header("Authorization", &format!("Bearer {key}"))
         .call()
-        .map_err(|e| format!("Replicate: pobieranie wyniku ({e})"))?;
+        .map_err(|e| t!("Replicate: pobieranie wyniku ({e})", e = e))?;
     resp.body_mut()
         .with_config()
         .limit(MAX_RESPONSE)
         .read_to_vec()
-        .map_err(|e| format!("Replicate: pobieranie wyniku ({e})"))
+        .map_err(|e| t!("Replicate: pobieranie wyniku ({e})", e = e))
 }
 
 /// Zdjęcie jako `data:image/jpeg;base64,…` mieszczące się w [`MAX_DATA_URI`]
@@ -145,14 +145,14 @@ fn jpeg_data_uri(image: &RgbaImage) -> Result<String, String> {
             let mut jpeg = Vec::new();
             image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, quality)
                 .encode(&rgb, size[0], size[1], image::ExtendedColorType::Rgb8)
-                .map_err(|e| format!("Replicate: kodowanie zdjęcia ({e})"))?;
+                .map_err(|e| t!("Replicate: kodowanie zdjęcia ({e})", e = e))?;
             let uri = format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(&jpeg));
             if uri.len() <= MAX_DATA_URI {
                 return Ok(uri);
             }
         }
         if side <= 512 {
-            return Err("Replicate: zdjęcie nie mieści się w limicie przesyłania".into());
+            return Err(t!("Replicate: zdjęcie nie mieści się w limicie przesyłania").into());
         }
         side = side * 4 / 5;
     }
@@ -166,11 +166,11 @@ fn error_message(status: u16, body: &str) -> String {
         .unwrap_or_else(|| body.trim().to_string());
     let detail: String = detail.chars().take(300).collect();
     match status {
-        401 => "Replicate: nieprawidłowy klucz API (401)".into(),
-        402 => format!("Replicate: brak środków na koncie (402) – doładuj kredyt na replicate.com/account/billing. {detail}"),
-        422 => format!("Replicate: odrzucone dane (422). {detail}"),
-        429 => "Replicate: za dużo zapytań naraz (429) – spróbuj za chwilę".into(),
-        _ => format!("Replicate: błąd {status}. {detail}"),
+        401 => t!("Replicate: nieprawidłowy klucz API (401)").into(),
+        402 => t!("Replicate: brak środków na koncie (402) – doładuj kredyt na replicate.com/account/billing. {detail}", detail = detail),
+        422 => t!("Replicate: odrzucone dane (422). {detail}", detail = detail),
+        429 => t!("Replicate: za dużo zapytań naraz (429) – spróbuj za chwilę").into(),
+        _ => t!("Replicate: błąd {status}. {detail}", status = status, detail = detail),
     }
 }
 

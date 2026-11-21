@@ -24,6 +24,29 @@
     </ul>
   </description>
   <launchable type="desktop-id">io.github.lucasterg.AsOne.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Photo list, a product with the background removed and the tools panel</caption>
+      <caption xml:lang="pl">Lista zdjęć, produkt z usuniętym tłem i panel narzędzi</caption>
+      <image type="source" width="1440" height="900">https://raw.githubusercontent.com/LucasTerg/AsOne/main/docs/screenshots/en-editor.png</image>
+      <image type="source" width="1440" height="900" xml:lang="pl">https://raw.githubusercontent.com/LucasTerg/AsOne/main/docs/screenshots/edytor.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Before and after: background removed, cropped to the product, square, 5 px frame</caption>
+      <caption xml:lang="pl">Przed i po: usunięte tło, kadr do produktu, kwadrat, ramka 5 px</caption>
+      <image type="source" width="794" height="632">https://raw.githubusercontent.com/LucasTerg/AsOne/main/docs/screenshots/przed-po.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Export summary with file names, sizes and quality</caption>
+      <caption xml:lang="pl">Podsumowanie eksportu: nazwy plików, rozmiary i jakość</caption>
+      <image type="source" width="1440" height="900">https://raw.githubusercontent.com/LucasTerg/AsOne/main/docs/screenshots/eksport.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Version suffix (-ver2) from the thumbnail context menu</caption>
+      <caption xml:lang="pl">Dopisek wersji (-ver2) z menu kontekstowego miniatury</caption>
+      <image type="source" width="1440" height="900">https://raw.githubusercontent.com/LucasTerg/AsOne/main/docs/screenshots/ver2.png</image>
+    </screenshot>
+  </screenshots>
   <icon type="stock">io.github.lucasterg.AsOne</icon>
   <url type="homepage">https://github.com/LucasTerg/AsOne</url>
   <url type="bugtracker">https://github.com/LucasTerg/AsOne/issues</url>

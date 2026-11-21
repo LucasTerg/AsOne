@@ -48,7 +48,7 @@ fn agent() -> ureq::Agent {
 /// Najnowsze wydanie, jeśli jest nowsze od tej wersji i ma AppImage dla tej architektury.
 pub fn check() -> Result<Option<Release>, String> {
     let json = latest_json()?;
-    let tag = json.get("tag_name").and_then(Value::as_str).ok_or("Sprawdzanie aktualizacji: brak wersji w odpowiedzi")?;
+    let tag = json.get("tag_name").and_then(Value::as_str).ok_or(t!("Sprawdzanie aktualizacji: brak wersji w odpowiedzi"))?;
     if !is_newer(tag, env!("CARGO_PKG_VERSION")) {
         return Ok(None);
     }
@@ -61,23 +61,23 @@ fn latest_json() -> Result<Value, String> {
         .header("User-Agent", "AsOne-updater")
         .header("Accept", "application/vnd.github+json")
         .call()
-        .map_err(|e| format!("Sprawdzanie aktualizacji: {e}"))?;
-    let text = resp.body_mut().read_to_string().map_err(|e| format!("Sprawdzanie aktualizacji: {e}"))?;
-    serde_json::from_str(&text).map_err(|e| format!("Sprawdzanie aktualizacji: {e}"))
+        .map_err(|e| t!("Sprawdzanie aktualizacji: {e}", e = e))?;
+    let text = resp.body_mut().read_to_string().map_err(|e| t!("Sprawdzanie aktualizacji: {e}", e = e))?;
+    serde_json::from_str(&text).map_err(|e| t!("Sprawdzanie aktualizacji: {e}", e = e))
 }
 
 /// Plik AppImage tej architektury i sumy kontrolne z opisu wydania (JSON API GitHuba).
 fn release_from(json: &Value) -> Result<Release, String> {
-    let tag = json.get("tag_name").and_then(Value::as_str).ok_or("Sprawdzanie aktualizacji: brak wersji w odpowiedzi")?;
+    let tag = json.get("tag_name").and_then(Value::as_str).ok_or(t!("Sprawdzanie aktualizacji: brak wersji w odpowiedzi"))?;
     let version = tag.trim_start_matches('v').to_string();
     let assets = json.get("assets").and_then(Value::as_array).cloned().unwrap_or_default();
     let find = |name: &str| assets.iter().find(|a| a.get("name").and_then(Value::as_str) == Some(name));
     let appimage_name = format!("AsOne-{version}-{}.AppImage", std::env::consts::ARCH);
-    let asset = find(&appimage_name).ok_or_else(|| format!("Wydanie {version} nie ma pliku {appimage_name}"))?;
+    let asset = find(&appimage_name).ok_or_else(|| t!("Wydanie {version} nie ma pliku {appimage_name}", version = version, appimage_name = appimage_name))?;
     let url = |a: &Value| a.get("browser_download_url").and_then(Value::as_str).map(String::from);
     Ok(Release {
         version,
-        appimage_url: url(asset).ok_or("Sprawdzanie aktualizacji: brak adresu pliku")?,
+        appimage_url: url(asset).ok_or(t!("Sprawdzanie aktualizacji: brak adresu pliku"))?,
         size: asset.get("size").and_then(Value::as_u64).unwrap_or(0),
         sums_url: find("SHA256SUMS.txt").and_then(url),
         appimage_name,
@@ -100,7 +100,7 @@ pub fn install(release: &Release, current: &Path, progress: &AtomicU32) -> Resul
             .get(&release.appimage_url)
             .header("User-Agent", "AsOne-updater")
             .call()
-            .map_err(|e| format!("Pobieranie: {e}"))?;
+            .map_err(|e| t!("Pobieranie: {e}", e = e))?;
         let total = resp
             .headers()
             .get("content-length")
@@ -114,32 +114,32 @@ pub fn install(release: &Release, current: &Path, progress: &AtomicU32) -> Resul
         let mut buf = vec![0u8; 256 * 1024];
         let mut done = 0u64;
         loop {
-            let n = reader.read(&mut buf).map_err(|e| format!("Pobieranie: {e}"))?;
+            let n = reader.read(&mut buf).map_err(|e| t!("Pobieranie: {e}", e = e))?;
             if n == 0 {
                 break;
             }
             hasher.update(&buf[..n]);
-            file.write_all(&buf[..n]).map_err(|e| format!("Zapis: {e}"))?;
+            file.write_all(&buf[..n]).map_err(|e| t!("Zapis: {e}", e = e))?;
             done += n as u64;
             progress.store(((done * 1000) / total).min(999) as u32, Ordering::Relaxed);
         }
-        file.flush().map_err(|e| format!("Zapis: {e}"))?;
+        file.flush().map_err(|e| t!("Zapis: {e}", e = e))?;
         drop(file);
         if let Some(sums) = &release.sums_url {
-            let mut resp = agent().get(sums).header("User-Agent", "AsOne-updater").call().map_err(|e| format!("Sumy kontrolne: {e}"))?;
-            let text = resp.body_mut().read_to_string().map_err(|e| format!("Sumy kontrolne: {e}"))?;
-            let expected = expected_sum(&text, &release.appimage_name).ok_or("Sumy kontrolne: brak pliku w SHA256SUMS.txt")?;
+            let mut resp = agent().get(sums).header("User-Agent", "AsOne-updater").call().map_err(|e| t!("Sumy kontrolne: {e}", e = e))?;
+            let text = resp.body_mut().read_to_string().map_err(|e| t!("Sumy kontrolne: {e}", e = e))?;
+            let expected = expected_sum(&text, &release.appimage_name).ok_or(t!("Sumy kontrolne: brak pliku w SHA256SUMS.txt"))?;
             let got: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
             if !got.eq_ignore_ascii_case(&expected) {
-                return Err("Pobrany plik ma złą sumę kontrolną – aktualizacja przerwana".into());
+                return Err(t!("Pobrany plik ma złą sumę kontrolną – aktualizacja przerwana").into());
             }
         }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&part, std::fs::Permissions::from_mode(0o755)).map_err(|e| format!("Uprawnienia: {e}"))?;
+            std::fs::set_permissions(&part, std::fs::Permissions::from_mode(0o755)).map_err(|e| t!("Uprawnienia: {e}", e = e))?;
         }
-        std::fs::rename(&part, &target).map_err(|e| format!("Zapis: {e}"))?;
+        std::fs::rename(&part, &target).map_err(|e| t!("Zapis: {e}", e = e))?;
         Ok(())
     })();
     if let Err(e) = result {

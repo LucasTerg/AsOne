@@ -43,7 +43,7 @@ impl Default for MetaChannel {
 fn read_view(source: &ImageSource) -> Result<MetaView, String> {
     let (bytes, path, origin) = match source {
         ImageSource::Path(p) => {
-            let bytes = std::fs::read(p).map_err(|e| format!("Nie można odczytać pliku: {e}"))?;
+            let bytes = std::fs::read(p).map_err(|e| t!("Nie można odczytać pliku: {e}", e = e))?;
             (bytes, Some(p.display().to_string()), platform::download_origin(p))
         }
         ImageSource::Bytes { bytes, .. } => (bytes.to_vec(), None, Vec::new()),
@@ -82,7 +82,7 @@ impl AsOneApp {
     pub(super) fn metadata_panel(&mut self, ui: &mut Ui) {
         let pal = theme::p();
         let Some(id) = self.active_doc.filter(|id| self.docs.contains_key(id)) else {
-            ui.colored_label(pal.text_dim, "Kliknij zdjęcie na liście plików, aby zobaczyć jego metadane.");
+            ui.colored_label(pal.text_dim, t!("Kliknij zdjęcie na liście plików, aby zobaczyć jego metadane."));
             return;
         };
         if !self.meta.contains_key(&id) {
@@ -100,7 +100,7 @@ impl AsOneApp {
             _ => {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label("Czytanie metadanych…");
+                    ui.label(t!("Czytanie metadanych…"));
                 });
                 return;
             }
@@ -120,7 +120,7 @@ impl AsOneApp {
             ui.label(RichText::new(label).small().color(pal.text_dim));
             if value.starts_with("http") {
                 let link = egui::Label::new(RichText::new(value).color(pal.accent).underline()).wrap().sense(egui::Sense::click());
-                if ui.add(link).on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text("Otwórz w przeglądarce").clicked() {
+                if ui.add(link).on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(t!("Otwórz w przeglądarce")).clicked() {
                     platform::open_url(value);
                 }
             } else {
@@ -129,14 +129,14 @@ impl AsOneApp {
         }
 
         ui.add_space(8.0);
-        ui.label(RichText::new("Podsumowanie").strong());
+        ui.label(RichText::new(t!("Podsumowanie")).strong());
         ui.add_space(2.0);
         for n in &view.report.notices {
             let (tag, color) = match n.kind {
-                NoticeKind::Rights => ("Prawa", pal.warning),
+                NoticeKind::Rights => (t!("Prawa"), pal.warning),
                 NoticeKind::Ai => ("AI", pal.warning),
                 NoticeKind::Location => ("GPS", pal.warning),
-                NoticeKind::Personal => ("Osoba", pal.text),
+                NoticeKind::Personal => (t!("Osoba"), pal.text),
                 NoticeKind::Info => ("Info", pal.text_dim),
             };
             ui.horizontal_top(|ui| {
@@ -160,7 +160,7 @@ impl AsOneApp {
         }
 
         ui.add_space(10.0);
-        if ui.button("Kopiuj metadane").on_hover_text("Do schowka, jako tekst").clicked() {
+        if ui.button(t!("Kopiuj metadane")).on_hover_text(t!("Do schowka, jako tekst")).clicked() {
             ui.ctx().copy_text(report_text(&file_name, &view));
         }
         ui.add_space(6.0);
