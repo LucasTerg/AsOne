@@ -1,0 +1,161 @@
+{
+  "repo": {
+    "name": {
+      "en-US": "AsOne"
+    },
+    "description": {
+      "en-US": "Wersje AsOne na Androida budowane przez GitHub Actions z kodu https://github.com/LucasTerg/AsOne – edytor zdjęć produktowych."
+    },
+    "icon": {
+      "en-US": {
+        "name": "/icons/icon.png",
+        "sha256": "64ce68eee856ae70648df125012472cd6c113f2a72c4be6786eded47c4de36d5",
+        "size": 30372
+      }
+    },
+    "address": "https://asone.lmk.one/fdroid/repo",
+    "timestamp": 1795227222000,
+    "categories": {
+      "Graphics": {
+        "name": {
+          "en-US": "Graphics"
+        }
+      }
+    }
+  },
+  "packages": {
+    "io.github.lucasterg.asone": {
+      "metadata": {
+        "added": 1795224012000,
+        "categories": [
+          "Graphics"
+        ],
+        "changelog": "https://github.com/LucasTerg/AsOne/releases",
+        "issueTracker": "https://github.com/LucasTerg/AsOne/issues",
+        "lastUpdated": 1795227217000,
+        "license": "MIT",
+        "sourceCode": "https://github.com/LucasTerg/AsOne",
+        "webSite": "https://github.com/LucasTerg/AsOne",
+        "authorName": "LucasTerg",
+        "name": {
+          "en-US": "AsOne"
+        },
+        "summary": {
+          "en-US": "Zdjęcia produktowe do internetu – kadr, tło, nazwy, JPEG"
+        },
+        "description": {
+          "en-US": "AsOne przygotowuje paczkę zdjęć produktu do publikacji w sieci: kadrowanie,\nmarginesy, białe tło, kwadrat 1:1, usuwanie tła gumką i prostokątem, nazwy\nplików według wzoru Nazwa-MARKA-Model-1.jpg oraz zapis do Progressive JPEG\nbez metadanych, z limitami wymiarów i rozmiaru pliku.\n\nWersja na Androida jest próbna – pełna wersja działa na Linuksie, Windows,\nmacOS i FreeBSD."
+        },
+        "icon": {
+          "en-US": {
+            "name": "/io.github.lucasterg.asone/en-US/icon_-_IiIKeG7P_1c-rmTAeWwkoLCrvnggQoVlUZq6u0Yic=.png",
+            "sha256": "fbf22220a786ecfff573eae64c0796c24a0b0abbe7820428565519ababb46227",
+            "size": 21522
+          }
+        },
+        "preferredSigner": "74b23e2a2688b820b1cb70b47d702f16bc7cfb1f129af377d7fd11a92bf33e3e"
+      },
+      "versions": {
+        "740495d0a072727faa89963e1f8b24c2451c49e244d11c606079d30ef41bbc42": {
+          "added": 1795227217000,
+          "file": {
+            "name": "/io.github.lucasterg.asone_16777500.apk",
+            "sha256": "740495d0a072727faa89963e1f8b24c2451c49e244d11c606079d30ef41bbc42",
+            "size": 21493358
+          },
+          "manifest": {
+            "nativecode": [
+              "arm64-v8a",
+              "x86_64"
+            ],
+            "versionName": "0.1.28",
+            "versionCode": 16777500,
+            "usesSdk": {
+              "minSdkVersion": 26,
+              "targetSdkVersion": 36
+            },
+            "signer": {
+              "sha256": [
+                "74b23e2a2688b820b1cb70b47d702f16bc7cfb1f129af377d7fd11a92bf33e3e"
+              ]
+            },
+            "usesPermission": [
+              {
+                "name": "android.permission.INTERNET"
+              },
+              {
+                "name": "io.github.lucasterg.asone.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+              }
+            ]
+          }
+        },
+        "6e4dec6b67a3d1822c3f6a5c2df11d90a13d8f101ba196f61a579c3f4e34274a": {
+          "added": 1795225954000,
+          "file": {
+            "name": "/io.github.lucasterg.asone_16777499.apk",
+            "sha256": "6e4dec6b67a3d1822c3f6a5c2df11d90a13d8f101ba196f61a579c3f4e34274a",
+            "size": 21493442
+          },
+          "manifest": {
+            "nativecode": [
+              "arm64-v8a",
+              "x86_64"
+            ],
+            "versionName": "0.1.27",
+            "versionCode": 16777499,
+            "usesSdk": {
+              "minSdkVersion": 26,
+              "targetSdkVersion": 36
+            },
+            "signer": {
+              "sha256": [
+                "74b23e2a2688b820b1cb70b47d702f16bc7cfb1f129af377d7fd11a92bf33e3e"
+              ]
+            },
+            "usesPermission": [
+              {
+                "name": "android.permission.INTERNET"
+              },
+              {
+                "name": "io.github.lucasterg.asone.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+              }
+            ]
+          }
+        },
+        "1e799ed41b431893b310aaba85424d74cd31a540d2191f810849c9fbebca9849": {
+          "added": 1795224012000,
+          "file": {
+            "name": "/io.github.lucasterg.asone_16777498.apk",
+            "sha256": "1e799ed41b431893b310aaba85424d74cd31a540d2191f810849c9fbebca9849",
+            "size": 21487182
+          },
+          "manifest": {
+            "nativecode": [
+              "arm64-v8a",
+              "x86_64"
+            ],
+            "versionName": "0.1.26",
+            "versionCode": 16777498,
+            "usesSdk": {
+              "minSdkVersion": 26,
+              "targetSdkVersion": 36
+            },
+            "signer": {
+              "sha256": [
+                "74b23e2a2688b820b1cb70b47d702f16bc7cfb1f129af377d7fd11a92bf33e3e"
+              ]
+            },
+            "usesPermission": [
+              {
+                "name": "android.permission.INTERNET"
+              },
+              {
+                "name": "io.github.lucasterg.asone.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

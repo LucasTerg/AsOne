@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="AsOne">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#1e1e1e">
+  <title>AsOne — zdjęcia produktowe do internetu</title>
+  <!-- Motyw ustawiany PRZED pierwszym malowaniem: karta startowa ma kolory aplikacji (bez białego/ciemnego błysku). -->
+  <script>
+    (function () {
+      try {
+        var p = new URLSearchParams(location.search);
+        var t = (p.get("theme") || "").toLowerCase();
+        if (!t) {
+          // Ustawienia AsOne z poprzedniej wizyty (eframe zapisuje RON: "(theme:Sepia,…)").
+          var m = (localStorage.getItem("asone-settings") || "").match(/theme\s*:\s*(\w+)/);
+          if (m) {
+            var k = m[1];
+            t = k === "Sepia" ? "sepia"
+              : /^(ProLightGray|ProLight|StudioLight|Classic|Adwaita|BreezeLight|SoftLight)$/.test(k) ? "light" : "dark";
+          }
+        }
+        if (t === "light" || t === "jasny") document.documentElement.className = "theme-light";
+        else if (t === "sepia") document.documentElement.className = "theme-sepia";
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.content = t === "sepia" ? "#e8dcc4" : (t === "light" || t === "jasny") ? "#f4f4f5" : "#1e1e1e";
+      } catch (_) {}
+    })();
+  </script>
+  
+<script type="module">
+async function __trunkInitializer(init, source, sourceSize, initializer, initWithObject, compressAlgorithm) {
+  if (initializer === undefined) {
+    return await init(initWithObject ? { module_or_path: source } : source);
+  }
+
+  const {
+    onStart, onProgress, onComplete, onSuccess, onFailure
+  } = initializer;
+
+  onStart?.();
+
+  const response = fetch(source)
+      .then((response) => {
+        const headers = response.headers;
+        const status = response.status;
+        const statusText = response.statusText;
+
+        const total = sourceSize;
+        let current = 0;
+
+        let reader = undefined;
+        if (compressAlgorithm) {
+          reader = response.body.pipeThrough(new DecompressionStream(compressAlgorithm)).getReader();
+        } else {
+          reader = response.body.getReader();
+        }
+
+        const stream = new ReadableStream({
+          start(controller) {
+            function push() {
+              reader.read().then(({done, value}) => {
+                if (done) {
+                  onProgress?.({current: total, total});
+                  controller.close();
+                  return;
+                }
+
+                current += value.byteLength;
+                onProgress?.({current, total});
+                controller.enqueue(value);
+                push();
+              });
+            }
+
+            push();
+          },
+        });
+
+        return {
+          stream, init: {
+            headers, status, statusText
+          }
+        };
+      })
+      .then(({stream, init}) =>
+          new Response(stream, init),
+      );
+
+  return init(initWithObject ? { module_or_path: response } : response)
+      .then((value) => {
+        onComplete?.();
+        onSuccess?.(value);
+        return value;
+      }, (reason) => {
+        onComplete?.();
+        onFailure?.(reason);
+        return reason;
+      });
+}
+
+
+import init, * as bindings from './asone-81140da60563b2da.js';
+import initializer from './loader-387255d06d0c71fe.mjs';
+
+const wasm = await __trunkInitializer(init, './asone-5241ed5ffbdf3737_bg.wasm', 11922419, initializer(), true);
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+  
+  
+  
+  <link rel="icon" type="image/svg+xml" href="asone.svg">
+  <link rel="apple-touch-icon" href="asone.svg">
+  <style>
+    :root {
+      /* Ciemny = motyw „AsOne” aplikacji */
+      --bg-page: #1e1e1e;
+      --bg-card: #262626;
+      --border-card: #383838;
+      --text-title: #ffffff;
+      --text-sub: #969696;
+      --text-status: #d6d6d6;
+      --bg-progress: #1a1a1a;
+      --border-progress: #3a3a3a;
+      --grad-progress: linear-gradient(90deg, #2680eb, #5aa4f5);
+      --bg-badge: rgba(255, 255, 255, 0.05);
+      --border-badge: rgba(255, 255, 255, 0.12);
+      --btn-active-bg: #2680eb;
+      --btn-active-text: #ffffff;
+      --btn-inactive-bg: rgba(255, 255, 255, 0.07);
+      --btn-inactive-text: #a1a1aa;
+      --shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+    }
+    html.theme-light {
+      --bg-page: #f4f4f5;
+      --bg-card: #ffffff;
+      --border-card: #e4e4e7;
+      --text-title: #18181b;
+      --text-sub: #71717a;
+      --text-status: #3f3f46;
+      --bg-progress: #f1f1f3;
+      --border-progress: #e4e4e7;
+      --grad-progress: linear-gradient(90deg, #1f6fd1, #2680eb);
+      --bg-badge: rgba(0, 0, 0, 0.04);
+      --border-badge: rgba(0, 0, 0, 0.08);
+      --btn-active-bg: #2680eb;
+      --btn-inactive-bg: rgba(0, 0, 0, 0.05);
+      --btn-inactive-text: #52525b;
+      --shadow: 0 14px 34px rgba(0, 0, 0, 0.12);
+    }
+    html.theme-sepia {
+      /* = motyw „Sepia” aplikacji */
+      --bg-page: #e8dcc4;
+      --bg-card: #f0e6d2;
+      --border-card: #c4b292;
+      --text-title: #433422;
+      --text-sub: #69563e;
+      --text-status: #5c4a32;
+      --bg-progress: #e2d4b8;
+      --border-progress: #c4b292;
+      --grad-progress: linear-gradient(90deg, #a0622a, #c98a3c);
+      --bg-badge: rgba(67, 52, 34, 0.06);
+      --border-badge: rgba(67, 52, 34, 0.14);
+      --btn-active-bg: #a0622a;
+      --btn-inactive-bg: rgba(67, 52, 34, 0.06);
+      --btn-inactive-text: #69563e;
+      --shadow: 0 14px 34px rgba(67, 52, 34, 0.18);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg-page);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-status);
+      overscroll-behavior: none; -webkit-user-select: none; user-select: none;
+      -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+    }
+    #asone_canvas {
+      position: absolute;
+      top: env(safe-area-inset-top, 0); right: env(safe-area-inset-right, 0);
+      bottom: env(safe-area-inset-bottom, 0); left: env(safe-area-inset-left, 0);
+      width: calc(100% - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+      height: calc(100% - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+      display: block; touch-action: none; outline: none;
+    }
+    #asone_loading {
+      position: absolute; inset: 0; z-index: 100;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: var(--bg-page); padding: 24px; text-align: center;
+      transition: opacity 0.22s ease-out;
+    }
+    .loading-card {
+      background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 14px;
+      padding: 32px 28px; width: 100%; max-width: 440px; box-shadow: var(--shadow);
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+    .app-icon { width: 64px; height: 64px; margin-bottom: 2px; }
+    .app-title { font-size: 22px; font-weight: 700; color: var(--text-title); margin: 0; letter-spacing: -0.3px; }
+    .app-subtitle { font-size: 13px; color: var(--text-sub); margin: 0; line-height: 1.45; }
+    .engine-selector {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; margin: 4px 0;
+      border-radius: 999px; border: 1px solid var(--border-badge); background: var(--bg-badge); font-size: 11px;
+    }
+    .engine-label { color: var(--text-sub); font-weight: 500; padding-left: 4px; }
+    .engine-btn {
+      padding: 3px 9px; border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 11px;
+      background: var(--btn-inactive-bg); color: var(--btn-inactive-text); transition: all 0.15s ease-out;
+    }
+    .engine-btn.active { background: var(--btn-active-bg); color: var(--btn-active-text); box-shadow: 0 2px 6px rgba(38, 128, 235, 0.3); }
+    .status-text { font-size: 13px; font-weight: 500; color: var(--text-status); min-height: 20px; }
+    .progress-container {
+      width: 100%; height: 8px; margin: 4px 0 2px; overflow: hidden; position: relative;
+      background: var(--bg-progress); border: 1px solid var(--border-progress); border-radius: 8px;
+    }
+    .progress-bar { height: 100%; width: 0%; background: var(--grad-progress); border-radius: 8px; transition: width 0.15s ease-out; }
+    .progress-info {
+      width: 100%; display: flex; justify-content: space-between;
+      font-size: 12px; color: var(--text-sub); font-variant-numeric: tabular-nums;
+    }
+    .error-box {
+      display: none; width: 100%; margin: 6px 0 0; padding: 12px; border-radius: 8px;
+      background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); color: #ef4444;
+      font-size: 12px; text-align: left; line-height: 1.4; user-select: text;
+    }
+    .error-box a { color: var(--btn-active-bg); font-weight: 600; }
+    noscript { color: var(--text-status); }
+  </style>
+<link rel="modulepreload" href="./asone-81140da60563b2da.js" crossorigin="anonymous" integrity="sha384-4RXF0uiaKwkDNz1fNRM0hydhNCs/q/MDyUiFUjeMPGFv3V5exPjyG5na6ZVzh3dL"><link rel="modulepreload" href="./loader-387255d06d0c71fe.mjs" crossorigin="anonymous" integrity="sha384-rTQP/wLqCFVunj1pXF1110TgC4gJh3aSym1fhCfz1OAv/Ojx9eu1XgpWtY2ubdAS"><link rel="preload" href="./asone-5241ed5ffbdf3737_bg.wasm" crossorigin="anonymous" integrity="sha384-z+dilr294O+lpdRLa4GTcl05y78tJw+q8izGJ7OBZ0Goupaf9Y19WPqaIRXMmIZZ" as="fetch" type="application/wasm"></head>
+<body>
+  <canvas id="asone_canvas"></canvas>
+
+  <div id="asone_loading">
+    <div class="loading-card">
+      <!-- Ikona w treści strony (nie z pliku obok) – widoczna nawet wtedy, gdy przeglądarka dostała sam index.html. -->
+      <svg class="app-icon" viewBox="0 0 512 512" role="img" aria-label="AsOne">
+        <rect x="16" y="16" width="480" height="480" rx="108" fill="#2680eb"/>
+        <path d="M124 16 H388 A108 108 0 0 1 496 124 V200 C380 250 200 230 16 180 V124 A108 108 0 0 1 124 16 Z" fill="#ffffff" fill-opacity="0.10"/>
+        <rect x="72" y="72" width="368" height="368" rx="36" fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="14"/>
+        <path fill="#ffffff" fill-rule="evenodd" d="M104 392 L188 120 L254 120 L338 392 L282 392 L265 336 L177 336 L160 392 Z M192 288 L250 288 L221 192 Z"/>
+        <path fill="#ffffff" d="M352 176 L394 128 L428 128 L428 392 L378 392 L378 200 L352 222 Z"/>
+      </svg>
+      <h1 class="app-title">AsOne</h1>
+      <p class="app-subtitle">Zdjęcia produktowe do internetu &bull; kadr, marginesy, białe tło &bull; Progressive JPEG bez metadanych</p>
+
+      <div class="engine-selector">
+        <span class="engine-label">Akceleracja GPU:</span>
+        <a href="?backend=webgpu" class="engine-btn active" id="btn_webgpu" title="WebGPU (zalecane w nowoczesnych przeglądarkach)">⚡ WebGPU</a>
+        <a href="?webgl=1" class="engine-btn" id="btn_webgl" title="Tryb zgodności WebGL2">⚙ WebGL2</a>
+      </div>
+
+      <div class="status-text" id="status_text">Inicjalizacja pobierania silnika…</div>
+      <div class="progress-container"><div class="progress-bar" id="progress_bar"></div></div>
+      <div class="progress-info">
+        <span id="progress_bytes">0.0 MB</span>
+        <span id="progress_pct">0%</span>
+      </div>
+      <div class="error-box" id="error_box"></div>
+      <noscript>AsOne wymaga włączonego JavaScriptu i WebAssembly.</noscript>
+    </div>
+  </div>
+  <script>
+    // Otwarte z dysku (file://): przeglądarka blokuje moduły JS i WebAssembly, ładowanie stanęłoby na 0%.
+    if (location.protocol === "file:") {
+      document.getElementById("status_text").textContent = "AsOne trzeba otworzyć przez serwer WWW";
+      document.querySelector(".progress-container").style.display = "none";
+      document.querySelector(".progress-info").style.display = "none";
+      var box = document.getElementById("error_box");
+      box.style.display = "block";
+      box.innerHTML = "Przeglądarka nie uruchamia WebAssembly z pliku otwartego prosto z dysku (<code>file://</code>).<br><br>" +
+        "W katalogu z tymi plikami uruchom serwer, np. <code>python3 -m http.server 8080</code>, i otwórz " +
+        "<a href=\"http://localhost:8080/\">http://localhost:8080/</a> – albo wgraj pliki na serwer WWW.";
+    }
+  </script>
+</body>
+</html>

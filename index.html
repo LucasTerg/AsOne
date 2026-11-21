@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pl" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1e1e1e">
+<title>AsOne – zdjęcia produktowe do internetu</title>
+<link rel="icon" type="image/svg+xml" href="app/asone.svg">
+<script>
+  // Motyw przed pierwszym malowaniem (bez białego błysku): wybór z tej strony, potem motyw
+  // aplikacji (app/ zapisuje ustawienia pod tym samym adresem), domyślnie ciemny.
+  (function () {
+    var t = null;
+    try {
+      t = localStorage.getItem("asone-site-theme");
+      if (!t) {
+        var m = (localStorage.getItem("asone-settings") || "").match(/theme\s*:\s*(\w+)/);
+        if (m && /^(ProLightGray|ProLight|StudioLight|Classic|Adwaita|BreezeLight|SoftLight|Sepia)$/.test(m[1])) t = "light";
+      }
+    } catch (e) {}
+    if (t === "light") {
+      document.documentElement.className = "light";
+      document.querySelector('meta[name="theme-color"]').content = "#ffffff";
+    }
+  })();
+</script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1e1e1e; --fg: #e4e4e7; --dim: #a1a1aa; --code: #2c2c30; --border: #3a3a40; --link: #6aa8ff;
+  }
+  :root.light {
+    color-scheme: light;
+    --bg: #ffffff; --fg: #1d1d1f; --dim: #666666; --code: #f2f2f4; --border: #dddddd; --link: #0b57d0;
+  }
+  html { background: var(--bg); }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); }
+  code { background: var(--code); padding: .1rem .3rem; border-radius: 4px; word-break: break-all; }
+  a.button { display: inline-block; background: #2f7cf6; color: #fff; padding: .6rem 1rem; border-radius: 8px; text-decoration: none; }
+  a.button.big { font-size: 1.1rem; padding: .8rem 1.4rem; }
+  .downloads { display: flex; flex-wrap: wrap; gap: .5rem; margin: .6rem 0; }
+  .downloads a.button { background: var(--code); color: var(--fg); border: 1px solid var(--border); }
+  small { color: var(--dim); }
+  header { display: flex; align-items: center; gap: .8rem; }
+  header img { width: 48px; height: 48px; }
+  header h1 { margin: 0; flex: 1; }
+  #theme {
+    font: inherit; font-size: .9rem; color: var(--fg); background: var(--code); cursor: pointer;
+    border: 1px solid var(--border); border-radius: 8px; padding: .35rem .7rem;
+  }
+  .qr { display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap; margin: 1.2rem 0; }
+  /* Kod QR zawsze ciemny na białym – tak czytają go skanery. */
+  .qr img { width: 220px; height: 220px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <img src="app/asone.svg" alt="">
+  <h1>AsOne</h1>
+  <button id="theme" type="button" title="Przełącz jasny / ciemny motyw strony"></button>
+</header>
+<p>Zdjęcia produktowe do internetu: kadr, marginesy, białe tło, nazwy plików,
+Progressive JPEG bez metadanych.</p>
+<p><a class="button big" href="app/">Otwórz w przeglądarce</a>
+<small>WebGPU albo WebGL2</small></p>
+<h2>Pobierz – wersja 0.1.28</h2>
+<div id="mine" hidden>
+  <p><a class="button big" id="mine-link" href="#"></a></p>
+  <p><small id="mine-note"></small></p>
+</div>
+<p id="all-title"><small>Wszystkie systemy:</small></p>
+<div class="downloads">
+  <a class="button" data-os="windows-x86_64" href="https://github.com/LucasTerg/AsOne/releases/download/v0.1.28/AsOne-0.1.28-windows-x86_64.zip">Windows (x86_64)</a>
+  <a class="button" data-os="windows-arm64" href="https://github.com/LucasTerg/AsOne/releases/download/v0.1.28/AsOne-0.1.28-windows-arm64.zip">Windows (ARM64)</a>
+  <a class="button" data-os="macos-arm64" href="https://github.com/LucasTerg/AsOne/releases/download/v0.1.28/AsOne-0.1.28-macos-arm64.zip">macOS (Apple Silicon)</a>
+  <a class="button" data-os="macos-x86_64" href="https://github.com/LucasTerg/AsOne/releases/download/v0.1.28/AsOne-0.1.28-macos-x86_64.zip">macOS (Intel)</a>
+  <a class="button" data-os="linux-x86_64" href="https://github.com/LucasTerg/AsOne/releases/download/v0.1.28/AsOne-0.1.28-x86_64.AppImage">Linux · AppImage (x86_64)</a>
+  <a class="button" data-os="linux-aarch64" href="https://github.com/LucasTerg/AsOne/releases/download/v0.1.28/AsOne-0.1.28-aarch64.AppImage">Linux · AppImage (ARM64)</a>
+  <a class="button" href="https://github.com/LucasTerg/AsOne/releases/download/v0.1.28/AsOne-0.1.28-x86_64.flatpak">Linux · Flatpak (x86_64)</a>
+  <a class="button" data-os="android" href="https://github.com/LucasTerg/AsOne/releases/download/v0.1.28/AsOne-0.1.28-android.apk">Android (APK)</a>
+  <a class="button" data-os="freebsd" href="https://github.com/LucasTerg/AsOne/releases/download/v0.1.28/AsOne-0.1.28-freebsd-x86_64.tar.gz">FreeBSD (x86_64)</a>
+  <a class="button" data-os="web" href="app/">Przeglądarka (bez instalacji)</a>
+</div>
+<p><small>AppImage aktualizuje się sam (Pomoc › Sprawdź aktualizacje). Flatpak ARM64, tar.gz i wcześniejsze
+wersje: <a href="https://github.com/LucasTerg/AsOne/releases/latest">najnowsze wydanie na GitHubie</a> ·
+<a href="https://github.com/LucasTerg/AsOne">kod źródłowy</a>.</small></p>
+
+<h2>Android – repozytorium F-Droid</h2>
+<p>Własne repozytorium z wersją AsOne na Androida, budowaną przez GitHub Actions.</p>
+<div class="qr">
+  <img src="qr.svg" alt="Kod QR repozytorium AsOne dla F-Droid">
+  <div>
+    <p><strong>Zeskanuj w F-Droid</strong>: <em>Ustawienia › Repozytoria › + › skanuj kod QR</em>
+    (albo aparatem telefonu).</p>
+    <p><a class="button" href="fdroidrepos://asone.lmk.one/fdroid/repo?fingerprint=74B23E2A2688B820B1CB70B47D702F16BC7CFB1F129AF377D7FD11A92BF33E3E">Dodaj do F-Droid</a></p>
+  </div>
+</div>
+<p>Albo ręcznie w aplikacji F-Droid: <em>Ustawienia › Repozytoria › +</em> i adres:</p>
+<p><code>https://asone.lmk.one/fdroid/repo?fingerprint=74B23E2A2688B820B1CB70B47D702F16BC7CFB1F129AF377D7FD11A92BF33E3E</code></p>
+<p><small>Odcisk klucza repozytorium (SHA-256): <code>74B23E2A2688B820B1CB70B47D702F16BC7CFB1F129AF377D7FD11A92BF33E3E</code></small></p>
+<script>
+  // „Pobierz dla …”: system odwiedzającego z nagłówka przeglądarki (Chromium podaje też architekturę).
+  // Pewności nie ma – lista wszystkich systemów zostaje pod spodem.
+  function asonePick(ua, platform, arch, touch) {
+    ua = ua || ""; platform = (platform || "").toLowerCase(); arch = (arch || "").toLowerCase();
+    var arm = arch.indexOf("arm") === 0 || /aarch64|arm64/i.test(ua);
+    if (/android/i.test(ua)) return "android";
+    if (/iphone|ipad|ipod|cros/i.test(ua)) return "web";
+    if (/windows/i.test(ua) || platform.indexOf("win") === 0) return arm ? "windows-arm64" : "windows-x86_64";
+    if (/macintosh|mac os x/i.test(ua) || platform.indexOf("mac") === 0) {
+      if (touch > 1) return "web"; // iPad z iPadOS przedstawia się jak Mac
+      return arch === "x86" ? "macos-x86_64" : "macos-arm64";
+    }
+    if (/freebsd/i.test(ua)) return "freebsd";
+    if (/linux/i.test(ua) || platform.indexOf("linux") === 0) return arm ? "linux-aarch64" : "linux-x86_64";
+    return null;
+  }
+  (function () {
+    var nav = window.navigator || {};
+    var notes = {
+      "macos-arm64": "Mac z procesorem Intel? Wybierz „macOS (Intel)” niżej.",
+      "android": "Aktualizacje także przez F-Droid – instrukcja niżej.",
+      "web": "Na tym urządzeniu AsOne działa w przeglądarce, bez instalacji."
+    };
+    function show(os) {
+      var src = os && document.querySelector('.downloads a[data-os="' + os + '"]');
+      if (!src) return;
+      var link = document.getElementById("mine-link");
+      link.href = src.href;
+      link.textContent = os === "web" ? "Otwórz AsOne w przeglądarce" : "Pobierz dla: " + src.textContent;
+      document.getElementById("mine-note").textContent = notes[os] || "Inny system? Wybierz z listy niżej.";
+      document.getElementById("mine").hidden = false;
+      document.getElementById("all-title").firstChild.textContent = "Inne systemy:";
+    }
+    var ua = nav.userAgent, platform = nav.platform, touch = nav.maxTouchPoints || 0;
+    show(asonePick(ua, platform, "", touch));
+    var data = nav.userAgentData;
+    if (data && data.getHighEntropyValues) {
+      data.getHighEntropyValues(["architecture", "platform"]).then(function (v) {
+        show(asonePick(ua, v.platform || platform, v.architecture, touch));
+      }, function () {});
+    }
+  })();
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById("theme");
+    function label() {
+      btn.textContent = root.className === "light" ? "☾ Ciemny" : "☀ Jasny";
+    }
+    btn.addEventListener("click", function () {
+      var light = root.className !== "light";
+      root.className = light ? "light" : "dark";
+      document.querySelector('meta[name="theme-color"]').content = light ? "#ffffff" : "#1e1e1e";
+      try { localStorage.setItem("asone-site-theme", light ? "light" : "dark"); } catch (e) {}
+      label();
+    });
+    label();
+  })();
+</script>
+</body>
+</html>
