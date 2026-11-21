@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<fdroid>
+	<repo icon="icon.png" name="AsOne" pubkey="3082050a308202f2a003020102021459ac91427df92a52c6317b409144e8a2152d4372300d06092a864886f70d01010b05003024310e300c06035504030c0541734f6e6531123010060355040a0c094c75636173546572673020170d3236313132303033333533315a180f32303534303430373033333533315a3024310e300c06035504030c0541734f6e6531123010060355040a0c094c756361735465726730820222300d06092a864886f70d01010105000382020f003082020a0282020100b5f404dbf81ea2b81f2132e48fefbb0c4bcf37dcf096770b24d23a656187087ed08337c57ecff77608139be194114f9b4d54ee58d4c7ada9217fadc61228922d11b3bd7a460f2fc9c4af1de2ecb1c753c19d3f3f2717aafdf358a45ea5a29ebb78ef949e5aeab5bad54d8ec051a1e9faf3f3b89c09e026fcd1cff52deeedc860ff7f9eeddbfb07b50c474b7e626ea1db934db0b2771ef46bc6ef2d6b5fd14c013ff78a529cbcaf193a5841af7e0ad53d1fe9f9b7d7475570e6bcf70f6d33075035b9d9a3b0dce000bdd22d27bc26483eb5605d1ebc2b47f4f5c0acac435faa0783e070b5a198c43e50b29beeb74370e2e9eb05079bb3e07e9adc236541dec36f9a816596664f50d6f48a33d917de067b7b42df54ff56a66c4384cb97a18e3f04d81cc1f4a7625b8e04223760b77e1f8616e4acad37516e19dae30f235c2eccf4e816ca79ae1575413d8fd18fcc908e5df902be427e36f1949ae3adcc5e15db7b4839595a947bd62779f2ffb0ef2da140789ae3883df97b96f07fe0775b0ed07c552d61336de270daed206e74d663fcbee059a9380525ed17e08840b0ed6c2bf17c2b60a8677b23627118e323f78e614591862c63c57f26f377a4d190792bbf371b4ae761d1c33ab656665c07d0dcb08efd5268f40c74cfa17f965c00a501c577fbd7e3b5574585d3272a935399904a4217ab65fd31fd40bcc52957c1b3508cb30203010001a3323030301d0603551d0e041604148865bfa16f46139fb20c5d3d8c1ed9a7e9bd4b47300f0603551d130101ff040530030101ff300d06092a864886f70d01010b05000382020100056cc454c236b6a8d6e93070215aa97251bf6e7a35144533583d2c9f9084e9cc0990e32a0b84cc754082403890f13c6a5de788dd2e0b440da073c045d9ace48b8dbfcae003cf18955d8a6bc21a2376b1fe6e7d99777aa5339892b96d650ca4473035e74d80510fe9581e92d5ad40b83d062063db9df7294fef3d4edc56d73afea46177bce2163512e456b66c278f770a3e14efec70e460dccd9bcbb42ec26b64ed3c24e7c19b48d60c3da509f921f793302327312123f8a3b343d33b3f0a0dae8a6e326afb827bd7fc1ec3f6fd2e85abba6e6a06963eed781289ed034bddd4fc039bc1fe51a4bd97ce731d58ee07ab283ccb30cd01954f3ae1a26b106b113171d2d67fe006f46ee6b60c6288ac6d96ffbac01cfde380d83d6532bc588f2d0f310fd4849b836bd62c0be7856a39783451dc22bbc9df8e6e17851c4be66274d66109d69d7408d27db2f5fc3b607295b739284a46db165bbae3a2bfdde6df287f74f4b4d8fb90efbcdfc6e500de21dba88035ac1b3f6750ccfdc90990a3998adaaef641ed305294803a01f24eda23b42815df8d5e3c99e910baebc5df3dd670ad9b38bddb25c1936249e6d9ea5b96d4deab96a6f005bcd9cda617ca398eea0449e1061a0d480aebf285a33ae9cfcb78491c7c369953ac45e2646f23fff8240346133bc272ce535ed4b24ee7ece2b3d50afb199520262282bc5ae31e572f81cfda3d" timestamp="1795281596" url="https://asone.lmk.one/fdroid/repo" version="20002">
+		<description>Wersje AsOne na Androida budowane przez GitHub Actions z kodu https://github.com/LucasTerg/AsOne – edytor zdjęć produktowych.</description>
+	</repo>
+	<application id="io.github.lucasterg.asone">
+		<id>io.github.lucasterg.asone</id>
+		<added>2026-11-21</added>
+		<lastupdated>2026-11-21</lastupdated>
+		<name>AsOne</name>
+		<summary>Zdjęcia produktowe do internetu – kadr, tło, nazwy, JPEG</summary>
+		<desc>AsOne przygotowuje paczkę zdjęć produktu do publikacji w sieci: kadrowanie,
+marginesy, białe tło, kwadrat 1:1, usuwanie tła gumką i prostokątem, nazwy
+plików według wzoru Nazwa-MARKA-Model-1.jpg oraz zapis do Progressive JPEG
+bez metadanych, z limitami wymiarów i rozmiaru pliku.
+
+Wersja na Androida jest próbna – pełna wersja działa na Linuksie, Windows,
+macOS i FreeBSD.</desc>
+		<license>MIT</license>
+		<categories>Graphics</categories>
+		<category>Graphics</category>
+		<web>https://github.com/LucasTerg/AsOne</web>
+		<source>https://github.com/LucasTerg/AsOne</source>
+		<tracker>https://github.com/LucasTerg/AsOne/issues</tracker>
+		<changelog>https://github.com/LucasTerg/AsOne/releases</changelog>
+		<author>LucasTerg</author>
+		<marketversion></marketversion>
+		<marketvercode>16777501</marketvercode>
+		<package>
+			<version>0.1.29</version>
+			<versioncode>16777501</versioncode>
+			<apkname>io.github.lucasterg.asone_16777501.apk</apkname>
+			<hash type="sha256">3f3184b13bca6fd590f60fc3c437bc857e2ce0b8583778896fdbacccd9180951</hash>
+			<size>21511418</size>
+			<sdkver>26</sdkver>
+			<targetSdkVersion>36</targetSdkVersion>
+			<added>2026-11-21</added>
+			<sig>ab1d1da42cc4405bbe10c79cbd619a19</sig>
+			<permissions>INTERNET,io.github.lucasterg.asone.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION</permissions>
+			<nativecode>arm64-v8a,x86_64</nativecode>
+		</package>
+		<package>
+			<version>0.1.28</version>
+			<versioncode>16777500</versioncode>
+			<apkname>io.github.lucasterg.asone_16777500.apk</apkname>
+			<hash type="sha256">740495d0a072727faa89963e1f8b24c2451c49e244d11c606079d30ef41bbc42</hash>
+			<size>21493358</size>
+			<sdkver>26</sdkver>
+			<targetSdkVersion>36</targetSdkVersion>
+			<added>2026-11-21</added>
+			<sig>ab1d1da42cc4405bbe10c79cbd619a19</sig>
+			<permissions>INTERNET,io.github.lucasterg.asone.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION</permissions>
+			<nativecode>arm64-v8a,x86_64</nativecode>
+		</package>
+		<package>
+			<version>0.1.27</version>
+			<versioncode>16777499</versioncode>
+			<apkname>io.github.lucasterg.asone_16777499.apk</apkname>
+			<hash type="sha256">6e4dec6b67a3d1822c3f6a5c2df11d90a13d8f101ba196f61a579c3f4e34274a</hash>
+			<size>21493442</size>
+			<sdkver>26</sdkver>
+			<targetSdkVersion>36</targetSdkVersion>
+			<added>2026-11-21</added>
+			<sig>ab1d1da42cc4405bbe10c79cbd619a19</sig>
+			<permissions>INTERNET,io.github.lucasterg.asone.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION</permissions>
+			<nativecode>arm64-v8a,x86_64</nativecode>
+		</package>
+	</application>
+</fdroid>

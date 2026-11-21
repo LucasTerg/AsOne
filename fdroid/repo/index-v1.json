@@ -1,0 +1,127 @@
+{
+  "repo": {
+    "timestamp": 1795281596000,
+    "version": 20002,
+    "name": "AsOne",
+    "icon": "icon.png",
+    "address": "https://asone.lmk.one/fdroid/repo",
+    "description": "Wersje AsOne na Androida budowane przez GitHub Actions z kodu https://github.com/LucasTerg/AsOne \u2013 edytor zdj\u0119\u0107 produktowych."
+  },
+  "requests": {
+    "install": [],
+    "uninstall": []
+  },
+  "apps": [
+    {
+      "authorName": "LucasTerg",
+      "categories": [
+        "Graphics"
+      ],
+      "changelog": "https://github.com/LucasTerg/AsOne/releases",
+      "suggestedVersionCode": "16777501",
+      "description": "AsOne przygotowuje paczk\u0119 zdj\u0119\u0107 produktu do publikacji w sieci: kadrowanie,\nmarginesy, bia\u0142e t\u0142o, kwadrat 1:1, usuwanie t\u0142a gumk\u0105 i prostok\u0105tem, nazwy\nplik\u00f3w wed\u0142ug wzoru Nazwa-MARKA-Model-1.jpg oraz zapis do Progressive JPEG\nbez metadanych, z limitami wymiar\u00f3w i rozmiaru pliku.\n\nWersja na Androida jest pr\u00f3bna \u2013 pe\u0142na wersja dzia\u0142a na Linuksie, Windows,\nmacOS i FreeBSD.",
+      "issueTracker": "https://github.com/LucasTerg/AsOne/issues",
+      "license": "MIT",
+      "name": "AsOne",
+      "sourceCode": "https://github.com/LucasTerg/AsOne",
+      "summary": "Zdj\u0119cia produktowe do internetu \u2013 kadr, t\u0142o, nazwy, JPEG",
+      "webSite": "https://github.com/LucasTerg/AsOne",
+      "added": 1795225954000,
+      "packageName": "io.github.lucasterg.asone",
+      "lastUpdated": 1795281592000,
+      "localized": {
+        "en-US": {
+          "icon": "icon_-_IiIKeG7P_1c-rmTAeWwkoLCrvnggQoVlUZq6u0Yic=.png"
+        }
+      }
+    }
+  ],
+  "packages": {
+    "io.github.lucasterg.asone": [
+      {
+        "added": 1795281592000,
+        "apkName": "io.github.lucasterg.asone_16777501.apk",
+        "hash": "3f3184b13bca6fd590f60fc3c437bc857e2ce0b8583778896fdbacccd9180951",
+        "hashType": "sha256",
+        "minSdkVersion": 26,
+        "nativecode": [
+          "arm64-v8a",
+          "x86_64"
+        ],
+        "packageName": "io.github.lucasterg.asone",
+        "sig": "ab1d1da42cc4405bbe10c79cbd619a19",
+        "signer": "74b23e2a2688b820b1cb70b47d702f16bc7cfb1f129af377d7fd11a92bf33e3e",
+        "size": 21511418,
+        "targetSdkVersion": 36,
+        "uses-permission": [
+          [
+            "android.permission.INTERNET",
+            null
+          ],
+          [
+            "io.github.lucasterg.asone.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+            null
+          ]
+        ],
+        "versionCode": 16777501,
+        "versionName": "0.1.29"
+      },
+      {
+        "added": 1795227217000,
+        "apkName": "io.github.lucasterg.asone_16777500.apk",
+        "hash": "740495d0a072727faa89963e1f8b24c2451c49e244d11c606079d30ef41bbc42",
+        "hashType": "sha256",
+        "minSdkVersion": 26,
+        "nativecode": [
+          "arm64-v8a",
+          "x86_64"
+        ],
+        "packageName": "io.github.lucasterg.asone",
+        "sig": "ab1d1da42cc4405bbe10c79cbd619a19",
+        "signer": "74b23e2a2688b820b1cb70b47d702f16bc7cfb1f129af377d7fd11a92bf33e3e",
+        "size": 21493358,
+        "targetSdkVersion": 36,
+        "uses-permission": [
+          [
+            "android.permission.INTERNET",
+            null
+          ],
+          [
+            "io.github.lucasterg.asone.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+            null
+          ]
+        ],
+        "versionCode": 16777500,
+        "versionName": "0.1.28"
+      },
+      {
+        "added": 1795225954000,
+        "apkName": "io.github.lucasterg.asone_16777499.apk",
+        "hash": "6e4dec6b67a3d1822c3f6a5c2df11d90a13d8f101ba196f61a579c3f4e34274a",
+        "hashType": "sha256",
+        "minSdkVersion": 26,
+        "nativecode": [
+          "arm64-v8a",
+          "x86_64"
+        ],
+        "packageName": "io.github.lucasterg.asone",
+        "sig": "ab1d1da42cc4405bbe10c79cbd619a19",
+        "signer": "74b23e2a2688b820b1cb70b47d702f16bc7cfb1f129af377d7fd11a92bf33e3e",
+        "size": 21493442,
+        "targetSdkVersion": 36,
+        "uses-permission": [
+          [
+            "android.permission.INTERNET",
+            null
+          ],
+          [
+            "io.github.lucasterg.asone.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+            null
+          ]
+        ],
+        "versionCode": 16777499,
+        "versionName": "0.1.27"
+      }
+    ]
+  }
+}

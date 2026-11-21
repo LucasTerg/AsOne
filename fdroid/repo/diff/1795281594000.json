@@ -1,0 +1,15 @@
+{
+  "repo": {
+    "timestamp": 1795281596000
+  },
+  "packages": {
+    "io.github.lucasterg.asone": {
+      "metadata": {
+        "added": 1795225954000
+      },
+      "versions": {
+        "1e799ed41b431893b310aaba85424d74cd31a540d2191f810849c9fbebca9849": null
+      }
+    }
+  }
+}
