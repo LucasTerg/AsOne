@@ -819,7 +819,7 @@ impl Viewer<'_> {
 
         let Some(doc) = self.docs.get(&id) else { return };
         let hover = match &doc.thumb {
-            ThumbState::Failed(e) => format!("{}\n{e}", doc.file_name),
+            ThumbState::Failed(e) => format!("{}\n{}", doc.file_name, crate::i18n::tr_core(e)),
             _ => t!(
                 "{name}\n{mb} MB · klik – otwórz / zamknij zakładkę · Ctrl/Shift+klik – zaznacz · przeciągnij – zmień kolejność",
                 name = doc.file_name,

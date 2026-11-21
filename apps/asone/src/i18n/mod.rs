@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 
+mod core;
 mod en;
 
 /// Wybór języka w ustawieniach.
@@ -71,6 +72,69 @@ pub fn tr(pl: &'static str) -> &'static str {
     }
     static TABLE: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
     TABLE.get_or_init(|| en::EN.iter().copied().collect()).get(pl).copied().unwrap_or(pl)
+}
+
+/// Tekst z `asone-core` (metadane, uwagi i błędy eksportu, wczytywania, zmiany nazw) w bieżącym
+/// języku – tabela wzorców [`core::EN_CORE`]; nieznany tekst (np. dane z pliku) zostaje bez zmian.
+pub fn tr_core(s: &str) -> std::borrow::Cow<'_, str> {
+    if !is_english() {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    match core_translate(s, 0) {
+        Some(t) => std::borrow::Cow::Owned(t),
+        None => std::borrow::Cow::Borrowed(s),
+    }
+}
+
+fn core_translate(s: &str, depth: u8) -> Option<String> {
+    if s.contains('\n') {
+        let out = s.split('\n').map(|l| core_translate(l, depth).unwrap_or_else(|| l.to_string())).collect::<Vec<_>>().join("\n");
+        return (out != s).then_some(out);
+    }
+    for (pl, en) in core::EN_CORE {
+        if let Some(values) = match_pattern(pl, s) {
+            let mut out = (*en).to_string();
+            for (i, v) in values.iter().enumerate() {
+                // Wartość bywa sama tekstem z rdzenia (np. „ – nadal za duży”) – jeden poziom głębiej.
+                let v = if depth == 0 { core_translate(v, 1).unwrap_or_else(|| v.clone()) } else { v.clone() };
+                out = out.replace(&format!("{{{i}}}"), &v);
+            }
+            return Some(out);
+        }
+    }
+    // Panel Metadane: „Etykieta (NazwaTagu)” – tłumaczona sama etykieta.
+    if depth == 0
+        && let Some((label, tag)) = s.rsplit_once(" (")
+        && tag.ends_with(')')
+        && let Some(t) = core_translate(label, 1)
+    {
+        return Some(format!("{t} ({tag}"));
+    }
+    None
+}
+
+/// Dopasowanie do wzorca z `{}` (dowolny tekst); zwraca wartości w kolejności.
+fn match_pattern(pattern: &str, s: &str) -> Option<Vec<String>> {
+    let lits: Vec<&str> = pattern.split("{}").collect();
+    if lits.len() == 1 {
+        return (pattern == s).then(Vec::new);
+    }
+    let mut rest = s.strip_prefix(lits[0])?;
+    let mut values = Vec::with_capacity(lits.len() - 1);
+    let last = lits.len() - 2;
+    for (k, lit) in lits[1..].iter().enumerate() {
+        if k == last {
+            values.push(rest.strip_suffix(lit)?.to_string());
+        } else {
+            if lit.is_empty() {
+                return None; // dwa `{}` obok siebie – niejednoznaczne
+            }
+            let i = rest.find(lit)?;
+            values.push(rest[..i].to_string());
+            rest = &rest[i + lit.len()..];
+        }
+    }
+    Some(values)
 }
 
 /// Tekst w bieżącym języku: `t!("Zapisz")` → `&'static str`;
@@ -156,6 +220,77 @@ mod tests {
         assert!(missing.is_empty(), "bez tłumaczenia ({}): {missing:#?}", missing.len());
         let unused: Vec<_> = en::EN.iter().map(|(pl, _)| *pl).filter(|pl| !used.contains(*pl)).collect();
         assert!(unused.is_empty(), "zbędne wpisy ({}): {unused:#?}", unused.len());
+    }
+
+    #[test]
+    fn teksty_rdzenia() {
+        // Bez przełączania języka (testy biegną równolegle) – samo tłumaczenie wzorców.
+        let t = |s: &str| core_translate(s, 0).unwrap_or_else(|| s.to_string());
+        assert_eq!(t("Błąd zapisu: brak miejsca"), "Write error: brak miejsca");
+        assert_eq!(
+            t("jakość 90 → 65 i zmniejszono 4000×3000 → 2000×1500 (limit 3.0 MB) – nadal za duży"),
+            "quality 90 → 65 and downscaled 4000×3000 → 2000×1500 (limit 3.0 MB) – still too large"
+        );
+        assert_eq!(t("jakość 90 → 80 (limit 3.0 MB)"), "quality 90 → 80 (limit 3.0 MB)");
+        assert_eq!(t("Opis (ImageDescription)"), "Description (ImageDescription)");
+        assert_eq!(t("Szerokość (EXIF) (PixelXDimension)"), "Width (EXIF) (PixelXDimension)");
+        assert_eq!(t("a.jpg: ta sama nazwa dla dwóch plików"), "a.jpg: the same name for two files");
+        assert_eq!(t("Lokalizacja GPS: 52.1, 21.0"), "GPS location: 52.1, 21.0");
+        assert_eq!(t("Dowolny opis ze zdjęcia"), "Dowolny opis ze zdjęcia");
+    }
+
+    /// Każdy wpis tabeli rdzenia występuje w kodzie `asone-core` (po zamianie wstawek na `{}`),
+    /// a tłumaczenie używa wszystkich wartości.
+    #[test]
+    fn teksty_rdzenia_sa_w_rdzeniu() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../crates/asone-core/src");
+        let mut lits = std::collections::HashSet::new();
+        for e in std::fs::read_dir(&dir).unwrap().flatten() {
+            let src = std::fs::read_to_string(e.path()).unwrap();
+            let code = src.split("#[cfg(test)]\nmod tests").next().unwrap_or(&src);
+            // Wiersz po wierszu (bez komentarzy); znak '"' w kodzie rozbiłby parowanie cudzysłowów.
+            for line in code.lines().filter(|l| !l.trim_start().starts_with("//")) {
+                let line = line.replace("'\"'", "' '");
+                let mut chars = line.chars();
+                while chars.by_ref().any(|c| c == '"') {
+                    let mut lit = String::new();
+                    while let Some(c) = chars.next() {
+                        match c {
+                            '"' => break,
+                            '\\' => {
+                                if let Some(n) = chars.next() {
+                                    lit.push(n);
+                                }
+                            }
+                            c => lit.push(c),
+                        }
+                    }
+                    let mut norm = String::new();
+                    let mut depth = 0;
+                    for c in lit.chars() {
+                        match c {
+                            '{' => {
+                                depth += 1;
+                                if depth == 1 {
+                                    norm.push_str("{}");
+                                }
+                            }
+                            '}' if depth > 0 => depth -= 1,
+                            _ if depth > 0 => {}
+                            c => norm.push(c),
+                        }
+                    }
+                    lits.insert(norm);
+                }
+            }
+        }
+        for (pl, en) in core::EN_CORE {
+            assert!(lits.contains(*pl), "brak w asone-core: {pl:?}");
+            let n = pl.matches("{}").count();
+            for i in 0..n {
+                assert!(en.contains(&format!("{{{i}}}")), "{en:?} nie używa {{{i}}}");
+            }
+        }
     }
 
     fn placeholders(s: &str) -> Vec<String> {

@@ -387,7 +387,7 @@ pub fn photo_ui(
 
     let message = match (&doc.load, gpu) {
         (_, None) => Some((t!("Brak akceleracji GPU (wgpu) – podgląd niedostępny").to_string(), true)),
-        (LoadState::Failed(e), _) => Some((t!("Nie udało się wczytać {name}:\n{error}", name = doc.file_name, error = e), true)),
+        (LoadState::Failed(e), _) => Some((t!("Nie udało się wczytać {name}:\n{error}", name = doc.file_name, error = crate::i18n::tr_core(e)), true)),
         (LoadState::NotLoaded | LoadState::Loading, _) => Some((t!("Wczytywanie {name}…", name = doc.file_name), false)),
         (LoadState::Ready, _) => None,
     };

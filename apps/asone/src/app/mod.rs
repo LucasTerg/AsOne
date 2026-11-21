@@ -355,7 +355,10 @@ impl AsOneApp {
     }
 
     fn toast(&mut self, text: impl Into<String>, error: bool) {
-        self.toast = Some((text.into(), error, Instant::now()));
+        // Komunikaty z asone-core (np. błędy zapisu) – w bieżącym języku.
+        let text = text.into();
+        let text = crate::i18n::tr_core(&text).into_owned();
+        self.toast = Some((text, error, Instant::now()));
     }
 
     /// Motyw, skala interfejsu i pasek tytułu wg ustawień.

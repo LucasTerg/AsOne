@@ -141,19 +141,19 @@ impl AsOneApp {
             };
             ui.horizontal_top(|ui| {
                 ui.label(RichText::new(tag).small().strong().color(color));
-                ui.add(egui::Label::new(RichText::new(&n.text).color(color)).wrap());
+                ui.add(egui::Label::new(RichText::new(crate::i18n::tr_core(&n.text)).color(color)).wrap());
             });
         }
 
         for group in &view.report.groups {
             ui.add_space(4.0);
-            egui::CollapsingHeader::new(format!("{} ({})", group.title, group.entries.len()))
+            egui::CollapsingHeader::new(format!("{} ({})", crate::i18n::tr_core(&group.title), group.entries.len()))
                 .id_salt(("meta", &group.title))
                 .default_open(group.entries.len() <= 12)
                 .show(ui, |ui| {
                     for (key, value) in &group.entries {
-                        ui.label(RichText::new(key).small().color(pal.text_dim));
-                        ui.add(egui::Label::new(value).wrap());
+                        ui.label(RichText::new(crate::i18n::tr_core(key)).small().color(pal.text_dim));
+                        ui.add(egui::Label::new(crate::i18n::tr_core(value)).wrap());
                         ui.add_space(2.0);
                     }
                 });
@@ -187,12 +187,12 @@ fn report_text(file_name: &str, v: &MetaView) -> String {
         s.push_str(&format!("{k}: {val}\n"));
     }
     for n in &v.report.notices {
-        s.push_str(&format!("[{:?}] {}\n", n.kind, n.text));
+        s.push_str(&format!("[{:?}] {}\n", n.kind, crate::i18n::tr_core(&n.text)));
     }
     for g in &v.report.groups {
-        s.push_str(&format!("\n== {}\n", g.title));
+        s.push_str(&format!("\n== {}\n", crate::i18n::tr_core(&g.title)));
         for (k, val) in &g.entries {
-            s.push_str(&format!("{k}: {val}\n"));
+            s.push_str(&format!("{}: {}\n", crate::i18n::tr_core(k), crate::i18n::tr_core(val)));
         }
     }
     s

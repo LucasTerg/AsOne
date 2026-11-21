@@ -137,17 +137,17 @@ while read -r slug suffix label; do
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="0; url=$url">
-<title>Pobieranie AsOne $VERSION – ${label//\~/ }</title>
+<title>AsOne $VERSION – ${label//\~/ }</title>
 <style>
   :root { color-scheme: light dark; }
   body { font: 16px/1.5 system-ui, sans-serif; max-width: 36rem; margin: 3rem auto; padding: 0 1rem; }
 </style>
 </head>
 <body>
-<h1>Pobieranie AsOne $VERSION</h1>
-<p>${label//\~/ } – pobieranie powinno zacząć się samo.</p>
-<p>Jeśli nie ruszyło: <a href="$url">pobierz plik</a>.</p>
-<p><small><a href="../../">Inne systemy i wersja w przeglądarce</a></small></p>
+<h1>AsOne $VERSION – ${label//\~/ }</h1>
+<p>Pobieranie powinno zacząć się samo. Jeśli nie ruszyło: <a href="$url">pobierz plik</a>.</p>
+<p lang="en">The download should start automatically. If it didn't: <a href="$url">download the file</a>.</p>
+<p><small><a href="../../">Inne systemy i wersja w przeglądarce · Other systems and the browser version</a></small></p>
 </body>
 </html>
 PAGE

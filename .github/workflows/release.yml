@@ -280,10 +280,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: android
+      # JDK 21 (jak w zadaniu F-Droid) uruchamia Gradle; kod dla Androida dalej w Javie 17
+      # (compileOptions w android/app/build.gradle.kts).
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       # Zależności Gradle z poprzednich wydań – bez pobierania z Maven Central przy każdym tagu.
       - uses: actions/cache@v4
         with:

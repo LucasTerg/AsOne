@@ -312,7 +312,7 @@ impl AsOneApp {
                                     ui.vertical(|ui| {
                                         one_line(ui, RichText::new(name));
                                         for n in notes {
-                                            one_line(ui, RichText::new(format!("↳ {n}")).color(pal.warning));
+                                            one_line(ui, RichText::new(format!("↳ {}", crate::i18n::tr_core(n))).color(pal.warning));
                                         }
                                     });
                                     one_line(
@@ -329,7 +329,7 @@ impl AsOneApp {
                                 ReportEntry::Failed { name, error } => {
                                     ui.colored_label(pal.danger, "✖");
                                     one_line(ui, RichText::new(name));
-                                    one_line(ui, RichText::new(error).color(pal.danger));
+                                    one_line(ui, RichText::new(crate::i18n::tr_core(error)).color(pal.danger));
                                 }
                             }
                             ui.end_row();
